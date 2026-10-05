@@ -1,0 +1,243 @@
+# 展示账号战报历史及显式记录管理操作。
+"""Account battle history list with explicit record-management actions."""
+
+from __future__ import annotations
+from src.i18n_runtime import L as _L, LF as _LF
+
+from datetime import datetime, timezone
+
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPixmap
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QDialog,
+    QDialogButtonBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
+from src.app.theme import themed_style
+from src.app.window_geometry import fit_dialog_to_available_screen
+from src.domain.battle_report import BattleReportHistoryEntry
+from src.services.game_ui_asset_catalog import GameUiAssetCatalog
+
+
+def _format_number(value: float) -> str:
+    return f"{value:,.0f}"
+
+
+def _local_time(value: str) -> str:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone().strftime("%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return value
+
+
+def _scene_label(entry: BattleReportHistoryEntry) -> str:
+    if entry.environment_name:
+        suffix = _L('（推断）') if entry.environment_source == "inferred" else _L('（已确认）')
+        return f"{entry.environment_name}{suffix}"
+    if entry.combat_context_kind != "abyss":
+        return _L('未知场景')
+    if entry.abyss_floor is None:
+        return _L('深渊')
+    return _LF('深渊 · 第 {0} 层').format((entry.abyss_floor))
+
+
+class BattleReportHistoryDialog(QDialog):
+    view_requested = Signal(int)
+    retention_toggle_requested = Signal(int, str)
+    delete_requested = Signal(int)
+
+    def __init__(
+        self,
+        *,
+        game_ui_asset_root,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._asset_catalog = GameUiAssetCatalog(game_ui_asset_root)
+        self.setWindowTitle(_L('历史战报'))
+        self.resize(1120, 650)
+        self.setMinimumSize(920, 480)
+        self._build()
+        fit_dialog_to_available_screen(self)
+
+    def _build(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(12)
+
+        title = QLabel(_L('历史战报'))
+        title.setStyleSheet(themed_style("font-size:18px;font-weight:700;color:#f0f6fc"))
+        layout.addWidget(title)
+        description = QLabel(
+            (_L('当前账号最多保留 100 条，第 101 条淘汰最旧自动记录；') + _L('手动保存最多 50 条，第 51 条淘汰最旧手动记录。'))
+        )
+        description.setWordWrap(True)
+        description.setStyleSheet(themed_style("color:#8b949e;font-size:12px"))
+        layout.addWidget(description)
+
+        self.empty_label = QLabel(_L('当前账号还没有已保存的战报。'))
+        self.empty_label.setAlignment(Qt.AlignCenter)
+        self.empty_label.setStyleSheet(
+            themed_style("color:#8b949e;font-size:13px;padding:28px")
+        )
+        layout.addWidget(self.empty_label)
+
+        self.table = QTableWidget(0, 8, self)
+        self.table.setHorizontalHeaderLabels(
+            ("ID", _L('类型'), _L('角色'), _L('保存时间'), _L('场景'), _L('伤害摘要'), "状态", _L('操作'))
+        )
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table.setSelectionMode(QAbstractItemView.NoSelection)
+        self.table.setAlternatingRowColors(True)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setWordWrap(False)
+        header = self.table.horizontalHeader()
+        header.setSectionsMovable(False)
+        header.setMinimumSectionSize(36)
+        for column in (0, 1, 2, 3, 4, 6, 7):
+            header.setSectionResizeMode(column, QHeaderView.Fixed)
+        header.setSectionResizeMode(5, QHeaderView.Stretch)
+        self.table.setColumnWidth(0, 42)
+        self.table.setColumnWidth(1, 46)
+        self.table.setColumnWidth(2, 236)
+        self.table.setColumnWidth(3, 158)
+        self.table.setColumnWidth(4, 140)
+        self.table.setColumnWidth(6, 54)
+        self.table.setColumnWidth(7, 188)
+        layout.addWidget(self.table, 1)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def set_entries(self, entries: tuple[BattleReportHistoryEntry, ...]) -> None:
+        self.table.setRowCount(len(entries))
+        self.table.setVisible(bool(entries))
+        self.empty_label.setVisible(not entries)
+        for row, entry in enumerate(entries):
+            self.table.setItem(row, 0, self._text_item(str(entry.battle_record_id)))
+            kind = self._text_item(_L('完整') if entry.native_capture else _L('部分'))
+            kind.setToolTip(_L('战报类型不代表每项计算证据均已齐全；具体缺口以分析结果为准。'))
+            self.table.setItem(row, 1, kind)
+            self.table.setCellWidget(row, 2, self._characters_widget(entry))
+            self.table.setItem(row, 3, self._text_item(_local_time(entry.saved_at_utc)))
+            self.table.setItem(row, 4, self._text_item(_scene_label(entry)))
+            summary = (
+                (_LF('伤害 {0}  ·  ').format((_format_number(entry.total_damage))) + f"DPS {_format_number(entry.total_dps)}\n" + _LF('{0:.1f}s  ·  {1:,} 命中').format((entry.duration_seconds), (entry.total_hits)))
+            )
+            self.table.setItem(row, 5, self._text_item(summary))
+            self.table.setCellWidget(row, 6, self._status_widget(entry))
+            self.table.setCellWidget(row, 7, self._actions_widget(entry))
+            self.table.setRowHeight(row, 54)
+
+    @staticmethod
+    def _text_item(text: str) -> QTableWidgetItem:
+        item = QTableWidgetItem(text)
+        item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        item.setToolTip(text)
+        return item
+
+    def _characters_widget(self, entry: BattleReportHistoryEntry) -> QWidget:
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(6, 3, 6, 3)
+        layout.setSpacing(3)
+        if not entry.character_ids:
+            empty = QLabel(_L('无角色数据'))
+            empty.setStyleSheet(themed_style("color:#8b949e;font-size:11px"))
+            layout.addWidget(empty)
+        for character_id in entry.character_ids[:8]:
+            icon_path = self._asset_catalog.character_icon(character_id)
+            icon = QLabel()
+            icon.setFixedSize(25, 25)
+            icon.setAlignment(Qt.AlignCenter)
+            icon.setToolTip(_LF('角色 ID：{0}').format((character_id)))
+            if icon_path is not None:
+                icon.setPixmap(
+                    QPixmap(str(icon_path)).scaled(
+                        25,
+                        25,
+                        Qt.KeepAspectRatio,
+                        Qt.SmoothTransformation,
+                    )
+                )
+            else:
+                icon.setText("?")
+                icon.setStyleSheet(
+                    themed_style(
+                        "background:#21262d;color:#8b949e;border-radius:5px;"
+                        "font-size:11px;font-weight:700"
+                    )
+                )
+            layout.addWidget(icon)
+        layout.addStretch()
+        return widget
+
+    @staticmethod
+    def _status_widget(entry: BattleReportHistoryEntry) -> QWidget:
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(5, 8, 5, 8)
+        badge = QLabel(_L('手动') if entry.retention_kind == "manual" else _L('自动'))
+        badge.setAlignment(Qt.AlignCenter)
+        badge.setStyleSheet(
+            themed_style(
+                (
+                    "background:#23863633;color:#7ee787;border:1px solid #238636;"
+                    if entry.retention_kind == "manual"
+                    else "background:#1f6feb22;color:#58a6ff;border:1px solid #1f6feb;"
+                )
+                + "border-radius:6px;padding:3px 6px;font-size:11px"
+            )
+        )
+        badge.setToolTip(f"{entry.capability_level} · {entry.source_kind}")
+        layout.addWidget(badge)
+        return widget
+
+    def _actions_widget(self, entry: BattleReportHistoryEntry) -> QWidget:
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(4, 5, 4, 5)
+        layout.setSpacing(5)
+
+        view = QPushButton(_L('查看'))
+        view.setObjectName("btnPrimary")
+        view.clicked.connect(
+            lambda _checked=False, record_id=entry.battle_record_id: (
+                self.view_requested.emit(record_id)
+            )
+        )
+        toggle = QPushButton(
+            _L('取消保存') if entry.retention_kind == "manual" else _L('保存')
+        )
+        toggle.clicked.connect(
+            lambda _checked=False, record_id=entry.battle_record_id,
+            retention=entry.retention_kind: self.retention_toggle_requested.emit(
+                record_id,
+                retention,
+            )
+        )
+        delete = QPushButton(_L('删除'))
+        delete.setObjectName("btnDanger")
+        delete.clicked.connect(
+            lambda _checked=False, record_id=entry.battle_record_id: (
+                self.delete_requested.emit(record_id)
+            )
+        )
+        for button, width in ((view, 48), (toggle, 68), (delete, 48)):
+            button.setFixedSize(width, 28)
+            button.setStyleSheet("padding:2px 4px;font-size:11px")
+            layout.addWidget(button)
+        return widget

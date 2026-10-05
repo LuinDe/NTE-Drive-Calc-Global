@@ -1,0 +1,31 @@
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+
+# Build outputs: the installer, the executable and the source zip are published
+# as release assets, not committed.
+*.exe
+*.zip
+/dist/
+/out/
+/build/
+
+# Local runtime data that must never be committed
+/accounts/
+/logs/
+/scanned_images/
+/data/
+/migration/
+*.sqlite3
+*.log
+i18n_language.json
+
+# Editor / OS files
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# Local configuration with user settings
+/config/*.json

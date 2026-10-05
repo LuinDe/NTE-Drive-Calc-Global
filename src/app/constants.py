@@ -1,0 +1,53 @@
+# 集中定义应用版本、链接和说明文案常量。
+"""Application constants shared by UI and feature modules."""
+from src.i18n_runtime import L as _L, LF as _LF
+
+from src.app.version import __version__
+
+
+APP_VERSION = __version__
+ALLOCATION_TOTAL_SCORE_AREA = 35
+GITHUB_HOME_URL = "https://github.com/hxwd94666/NTE-Drive-Calculator"
+GITHUB_RELEASES_URL = GITHUB_HOME_URL + "/releases"
+GITHUB_LATEST_RELEASE_URL = GITHUB_RELEASES_URL + "/latest"
+MIRROR_UPDATE_API = "https://mirrorchyan.com/api/resources/NTE-Drive-Calc/latest"
+MIRROR_PROJECT_URL = "https://mirrorchyan.com/zh/projects?rid=NTE-Drive-Calc&channel=stable"
+BILIBILI_HOME_URL = "https://b23.tv/nXJGdh3"
+SUPPORT_US_URL = "https://afdian.com/a/hxwd94666"
+DISCORD_GROUP_URL = "https://discord.gg/P3ZvMN7Hwj"
+QQ_GROUP_NUMBER = "1029030672"
+GROUP_CHAT_DEVELOPER_HINT = _L('若想加入开发群，请先入本群私聊群主')
+GROUP_CHAT_DISCORD_HINT = _L('获取开发动态，也可在这里交流。')
+WORKSHOP_WEIGHT_CONFIGS_API = "https://yh.zzzmap.com/api/open/game-character/weight-configs"
+QUARK_NETDISK_URL = "https://pan.quark.cn/s/82f16b845aec"
+BAIDU_NETDISK_URL = "https://pan.baidu.com/s/1sPVqCpzmkQwKYCGstcZuIQ?pwd=ygke"
+XUNLEI_NETDISK_URL = "https://pan.xunlei.com/s/VP0W_ptzSZwkVamy2UvF_CliA1?pwd=2hb6#"
+NETDISK_DOWNLOAD_LINKS = (
+    (_L('夸克网盘'), QUARK_NETDISK_URL),
+    (_L('百度网盘'), BAIDU_NETDISK_URL),
+    (_L('迅雷网盘'), XUNLEI_NETDISK_URL),
+)
+
+CORE_CONFIG_FILES = ("stats.json",)
+ACCOUNT_USER_FILES = (
+    "hotkeys.json", "update_config.json", "quick_start_seen.json", "guide_seen.json",
+    "ui_preferences.json",
+)
+
+SCAN_HELP = {
+    "4": _L('· 使用现有库存\n· 不扫描、不解析\n· 适合直接重新计算'),
+    "3": _L('· 解析已有截图\n· 生成库存记录\n· 适合扫描后尚未解析'),
+    "2": _L('· 只录入新装备\n· 追加到现有库存\n· 适合日常更新'),
+    "1": _L('· 重新扫描整个背包\n· 重新生成库存记录\n· 适合首次使用或彻底重扫'),
+}
+
+DRONE_HELP = {
+    "2": _L('· 手动点选装备\n· F9 截图，F10 完成\n· 更快、更稳定\n· 日常推荐'),
+    "1": _L('· 自动翻页并寻找 NEW 装备\n· 自动完成截图\n· 开始前停在背包首页'),
+}
+
+OFFLINE_HELP = {
+    "full": _L('· 读取全量扫描截图\n· 重新生成库存\n· 适合全量扫描解析中断'),
+    "incremental": _L('· 读取增量扫描截图\n· 追加到现有库存\n· 适合增量解析中断'),
+    "all": _L('· 读取文件夹中的全部截图\n· 可能重复录入旧截图\n· 库存异常时请重新全量扫描'),
+}

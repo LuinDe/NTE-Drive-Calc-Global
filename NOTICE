@@ -1,0 +1,81 @@
+NTE Drive Calc
+Copyright 2026 NTE Drive Calc contributors
+
+This product includes components with separate license terms:
+
+- nte-core, supplied by the kongbaiz/nte-dps-toolkit collaboration project,
+  is distributed under AGPL-3.0. Its binary, license, source location and
+  third-party notices are in third_party/nte-core/.
+- config/gameplay_effect_semantics.json is adapted from the same AGPL-3.0
+  collaboration project's localized GameplayEffect semantic table.
+- The native capture runtime and D3D entry are distributed with their license,
+  source attribution and dependency notices in third_party/native-capture/.
+- The optional nte-mod-loader.exe is supplied by the same project under
+  AGPL-3.0 and includes MinHook (BSD-2-Clause) and Simple Manual Map Injector
+  (MIT). Its binary, source record and dependency notices are in
+  third_party/mod-loader/.
+- ViGEmBus is distributed under BSD-3-Clause. Its license and attribution are
+  in third_party/vigembus/.
+- Npcap is not bundled. The application only links users to its official
+  installer; any future bundled redistribution requires a separate Npcap OEM
+  redistribution authorization.
+
+Neverness To Everness / 异环 names, characters, artwork, logos and other game
+materials are property of their respective rights holders. NTE Drive Calc is
+an unofficial, unaffiliated player tool.
+
+================================================================================
+NTE Drive Calc Global - modification notice
+================================================================================
+
+Everything above this line is the NOTICE file of the original project, verbatim
+(NTE Drive Calc, https://github.com/hxwd94666/NTE-Drive-Calculator, commit
+d3eca803ac36a75a3fa4fbbf8adadb93dadadf65 = upstream tag 2.3.0.1, the release
+of official version 2.3.0).
+
+This repository ("NTE Drive Calc Global") is an UNOFFICIAL, MODIFIED version of
+NTE Drive Calc. It is not published, endorsed or supported by the original
+authors. As required by section 5(a) of the GNU Affero General Public License
+version 3, the work carries this notice that it was modified:
+
+  Modified by:    LuinDe (https://github.com/LuinDe)
+  Date:           2026-10-05
+  Based on:       NTE Drive Calc 2.3.0 (upstream tag 2.3.0.1, commit d3eca80)
+  License:        GNU AGPL-3.0, the same license as the original (see LICENSE)
+
+Modifications in this build (details and file pointers: CHANGES.md):
+
+- User interface in four languages (Simplified Chinese / Korean / Japanese /
+  English) with in-app switching: src/i18n_runtime.py, src/i18n_data_ko.py,
+  src/i18n_data_en.py, src/i18n_data_ja.py, src/i18n_display.py,
+  src/i18n_desc.py; user-visible Chinese string literals of the original
+  sources are wrapped in _L() / _LF() calls (549 source files changed in this
+  way only).
+- New page "Team Simulation (Beta)": src/features/team_simulation/ and
+  src/services/team_*.py (reviewed rotations, Esper Cycle reactions,
+  transformation-state actions, visit-order planner, explanation panel,
+  custom-cycle mode with save / load).
+- New "Compare with My Characters" for imported battle reports:
+  src/features/battle_report/my_build_comparison.py,
+  src/services/battle_import_comparison_service.py.
+- Game-folder protection: a d3d12.dll / NTE_Capture.dll in the game folder that
+  cannot be identified as a component of this program (for example ReShade
+  installed as d3d12.dll) is never overwritten or deleted:
+  src/services/native_plugin_deployment.py, src/services/work_mode_runtime.py.
+- Python reference arithmetic of the battle-report replay: the Hex (覆纹)
+  follow-up copy ratio with Linko's passive is 0.33 instead of 0.30, the value
+  the original's documentation gives for its analysis component:
+  src/services/battle_special_replay_numeric.py. Results computed by the
+  bundled, unmodified analysis component are not affected.
+- Small adjustments needed by the localisation (fonts, search, button widths,
+  language-independent text matching). Counting the items above, 30 original
+  source files contain code changes beyond the string wrapping.
+- The seven "how to use" tutorial images are replaced by Korean versions:
+  config/templates/guide/1.png - 7.png.
+- An installer for the modified build and the scripts that produce the
+  executable and the installer: build_tools/.
+
+Files of the original project outside src/ (main.py, assets, data, native
+components, third_party, ...) are not modified and are not part of this
+repository; the bundled third-party components listed in the original NOTICE
+above are redistributed unchanged inside the installer, under their own terms.

@@ -1,0 +1,587 @@
+# 编排极速装配及其与游戏界面自动装配之间的入口路由。
+"""Fast equipment apply controller and assembly-mode routing."""
+
+from __future__ import annotations
+from src.i18n_runtime import L as _L, LF as _LF
+
+from src.features.input_operation_entry import request_input_entry, show_input_unavailable
+
+from collections.abc import Callable
+from typing import Any
+
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import QMessageBox, QProgressBar, QProgressDialog
+
+from src.app.workers import WorkerThread
+from src.observability.context import OperationContext
+from src.integrations.nte_core import is_mods_plugin_unavailable_error
+from src.features.inventory.equipment_assembly_dialogs import (
+    assembly_report_dialog as _assembly_report_dialog,
+)
+from src.features.inventory.fast_apply_completion_summary import (
+    build_fast_apply_completion_summary,
+)
+from src.services.equipment_apply_service import EquipmentApplyService
+from src.services.bulk_equipment_apply_service import BulkEquipmentApplyService
+from src.services.inventory_source_capabilities import is_visual_inventory_source
+from src.services.loadout_slot_selection_service import LoadoutSlotSelectionService
+from src.storage.sqlite.user_data_dao import UserDataDao
+from .equipment_automatic_assembly_controller import (
+    _account_database_path,
+    _preview_automatic_assemble_all_roles,
+    _preview_automatic_assemble_role,
+    _return_to_equipment_after_assembly,
+)
+from .equipment_slot_selection_dialog import select_assembly_slot_ids
+
+
+__all__ = [
+    "_preview_assemble_role",
+    "_preview_fast_assemble_all_roles",
+    "_preview_automatic_assemble_all_roles",
+    "_assembly_report_dialog",
+    "_return_to_equipment_after_assembly",
+]
+
+
+def _is_equipment_plugin_unavailable_error(error: object) -> bool:
+    """识别核心已启动但游戏内装备插件桥接不可用的不可重试错误。"""
+
+    return is_mods_plugin_unavailable_error(error)
+
+
+def _equipment_failure_details(
+    failure_kind: str,
+    error: object,
+) -> str:
+    """Render one concrete failure category without conflating pipe states."""
+
+    message = str(error or _L('未知错误'))
+    if failure_kind == "plugin_unavailable":
+        return _LF('原生装备通道不可用：{0}。请在工作模式检测详情中核对当前原生组件连接与装备能力。').format((message))
+    if failure_kind == "plugin_busy":
+        return _L('装备执行仍繁忙或正在等待同步就绪，本次请求尚未派发；已完成的步骤不会回滚。')
+    if failure_kind == "outcome_unknown":
+        return _L('本次装备操作结果未知，已停止后续装配且未自动重发。请等待背包同步并核对游戏装备后再重试。')
+    if failure_kind == "core_request_timeout":
+        return _L('nte-core 的请求响应等待超时；这不是命名管道缺失的检测结果。')
+    if failure_kind == "request_rejected":
+        return _LF('装备插件已收到请求但拒绝执行：{0}').format((message))
+    if failure_kind == "snapshot_timeout":
+        return _L('装配请求已经下发，但没有在等待时间内取得新的稳定背包快照。')
+    if failure_kind == "snapshot_error":
+        return _LF('装配请求已经下发，但背包同步复核失败：{0}').format((message))
+    if failure_kind == "loadout_mismatch":
+        return message
+    return message
+
+
+def _equipment_assembly_is_running(window: Any) -> bool:
+    """Report whether an account-bound assembly worker is still active."""
+
+    for attribute in (
+        "_equipment_apply_worker",
+        "_automatic_equipment_apply_worker",
+    ):
+        worker = getattr(window, attribute, None)
+        if worker is not None and worker.isRunning():
+            return True
+    return False
+
+
+def _run_nte_core_equipment_apply(
+    self: Any,
+    role_names: list[str],
+    *,
+    slot_ids: list[int] | None = None,
+    identity_overrides: dict[str, dict[str, Any]] | None = None,
+    job_id: int | None = None,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
+    sync_service = getattr(self, "_inventory_sync_service", None)
+    if sync_service is None:
+        raise RuntimeError(_L('背包同步服务尚未启动，请先在首页启动后台同步'))
+    app_context = getattr(self, "app_context", None)
+    database_path = (
+        app_context.account.user_database_path if app_context is not None else getattr(self, "user_database_path", None)
+    )
+    if database_path is None:
+        raise RuntimeError(_L('极速装配缺少当前账号数据库依赖'))
+    return BulkEquipmentApplyService(
+        database_path,
+        sync_service,
+        dao_factory=UserDataDao,
+        apply_service_factory=EquipmentApplyService,
+        operation_guard=getattr(self, "operation_guard", None),
+        operation_context=OperationContext.create(
+            "equipment_apply",
+            account_id=(
+                app_context.account.active_account_id
+                if app_context is not None
+                else None
+            ),
+            context_generation=(app_context.generation if app_context is not None else None),
+            job_id=job_id,
+        ),
+    ).run(
+        role_names,
+        slot_ids=slot_ids,
+        identity_overrides=identity_overrides,
+        job_id=job_id,
+        progress_callback=progress_callback,
+    )
+
+
+def _is_missing_character_instance_request(request: dict) -> bool:
+    reason = str(request.get("reason") or "")
+    head, _sep, tail = str(_LF('当前稳定背包快照未包含{0}主角实例 UID；')).partition("{0}")
+    return (
+        str(_L('当前稳定背包和该账号的角色实例缓存均未包含该角色 UID；')) in reason
+        or (head in reason and tail in reason)
+        or _L('角色实例缓存均未包含') in reason or _L('当前稳定背包快照未包含') in reason
+    )
+
+
+def _show_fast_apply_identity_gaps(
+    self: Any,
+    requests: list[dict[str, Any]],
+    applied: list[dict[str, Any]],
+) -> None:
+    """Report unresolved UIDs only after every independently runnable role ran."""
+    missing_instances = [request for request in requests if _is_missing_character_instance_request(request)]
+    ambiguous_instances = [request for request in requests if request not in missing_instances]
+    lines = []
+    if applied:
+        lines.append(_LF('已先完成 {0} 个可获取角色实例的极速装配。').format((len(applied))))
+    if missing_instances:
+        lines.append(_L('以下角色尚未获取到可用的角色实例 UID，未执行极速装配：'))
+        lines.extend(f"• {request['role_name']}" for request in missing_instances)
+    if ambiguous_instances:
+        lines.append(_L('以下角色存在无法安全确定的角色实例 UID，未执行极速装配：'))
+        lines.extend(f"• {request['role_name']}" for request in ambiguous_instances)
+    lines.extend(
+        (
+            "",
+            _L('请保持游戏在线后重新启动背包同步，等待新的稳定快照，再重试未完成角色。'),
+            _L('若多次同步仍无法获取这些角色的实例 UID，建议改用自动装配；也可以在游戏内手动完成这些角色的配装。'),
+        )
+    )
+    QMessageBox.warning(self, _L('部分角色未极速装配'), "\n".join(lines))
+
+
+def _start_nte_core_equipment_apply(
+    self: Any,
+    role_names: list[str],
+    *,
+    slot_ids: list[int] | None = None,
+    identity_overrides: dict[str, dict[str, Any]] | None = None,
+    job_id: int | None = None,
+) -> None:
+    if not request_input_entry(self, "native_equipment", _L('极速装配')):
+        return
+    sync = getattr(self, "_inventory_sync_service", None)
+    if sync is None or not sync.is_running:
+        show_input_unavailable(self, _L('极速装配'), _L('游戏装备连接尚未就绪，请查看检测详情；需部署组件时先完全退出游戏，部署完成后再启动并进入游戏场景。'))
+        return
+    current_worker = getattr(self, "_equipment_apply_worker", None)
+    if current_worker is not None and current_worker.isRunning():
+        QMessageBox.information(self, _L('正在装配'), _L('已有装配任务正在执行，请等待指令下发完成。'))
+        return
+
+    progress_state: dict[str, Any] = {
+        "current": 0,
+        "total": max(1, len(slot_ids or role_names)),
+        "message": _L('正在准备极速装配…'),
+        "show_progress_bar": True,
+    }
+    progress_dialog = QProgressDialog(
+        progress_state["message"],
+        "",
+        0,
+        progress_state["total"],
+        self,
+    )
+    progress_dialog.setWindowTitle(_L('极速装配进度'))
+    progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+    progress_dialog.setCancelButton(None)
+    progress_dialog.setAutoClose(False)
+    progress_dialog.setAutoReset(False)
+    progress_dialog.setMinimumDuration(0)
+    progress_dialog.setValue(0)
+    progress_dialog.show()
+
+    progress_timer = QTimer(progress_dialog)
+
+    def update_progress_dialog() -> None:
+        total = max(1, int(progress_state.get("total", 1)))
+        progress_dialog.setMaximum(total)
+        progress_dialog.setValue(min(total, max(0, int(progress_state.get("current", 0)))))
+        progress_dialog.setLabelText(str(progress_state.get("message") or _L('正在极速装配…')))
+        progress_bar = progress_dialog.findChild(QProgressBar)
+        if progress_bar is not None:
+            progress_bar.setVisible(bool(progress_state.get("show_progress_bar", True)))
+
+    progress_timer.timeout.connect(update_progress_dialog)
+    progress_timer.start(80)
+
+    def update_progress(payload: dict) -> None:
+        progress_state.update(payload)
+
+    def close_progress_dialog() -> None:
+        progress_timer.stop()
+        progress_dialog.close()
+        progress_dialog.deleteLater()
+
+    worker = WorkerThread(
+        target=lambda: _run_nte_core_equipment_apply(
+            self,
+            role_names,
+            slot_ids=slot_ids,
+            identity_overrides=identity_overrides,
+            job_id=job_id,
+            progress_callback=update_progress,
+        ),
+        parent=self,
+    )
+    self._equipment_apply_worker = worker
+
+    def on_result(report: dict) -> None:
+        close_progress_dialog()
+        preflight_errors = report.get("preflight_errors") or []
+        if preflight_errors:
+            details = "\n".join(
+                _LF('• [{0}]：{1}').format((row.get('role_name', '未知角色')), (row.get('error', '方案不可用'))) for row in preflight_errors
+            )
+            QMessageBox.warning(
+                self,
+                _L('极速装配未开始'),
+                (_L('没有向游戏发送任何装配指令。以下已保存方案不能用于极速装配：\n\n') + _LF('{0}\n\n请重新计算并保存完整方案后再试。').format((details))),
+            )
+            return
+        applied = report.get("applied") or []
+        requests = report.get("identity_requests") or []
+        summary, role_details = build_fast_apply_completion_summary(applied)
+        if report.get("failed_role"):
+            error_message = str(report.get("error") or _L('未知错误'))
+            failure_kind = str(report.get("failure_kind") or "apply_error")
+            if (
+                failure_kind == "plugin_unavailable"
+                or _is_equipment_plugin_unavailable_error(error_message)
+            ):
+                reason = _equipment_failure_details(
+                    "plugin_unavailable",
+                    error_message,
+                )
+                QMessageBox.warning(
+                    self,
+                    _L('装备插件不可用'),
+                    (_LF('任务 #{0} 在 [{1}] 停止。\n').format((report.get('job_id')), (report['failed_role'])) + f"{reason}\n\n" + _L('请先确认：\n') + _L('1. 先完全退出游戏，再在“设置 → 环境配置”重新部署与当前 nte-core 匹配的 ') + _L('原生采集组件；\n') + _L('2. 部署完成后启动游戏并进入游戏场景，从工作台重启同步，等待“持续监听”；\n') + _L('3. 完成上述检查后，再点击右上角“极速装配”重新执行。\n\n') + _LF('此前已确认 {0} 个角色；任务日志已保存。此次不会立即重试。').format((len(applied)))),
+                )
+                return
+            reason = _equipment_failure_details(failure_kind, error_message)
+            retry = QMessageBox.question(
+                self,
+                _L('装配暂停'),
+                (_LF('任务 #{0} 在 [{1}] 停止。\n{2}\n\n').format((report.get('job_id')), (report['failed_role']), (reason)) + _LF('此前已确认 {0} 个角色；任务日志已保存。是否重试失败角色并继续？').format((len(applied)))),
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if retry == QMessageBox.Yes:
+                _start_nte_core_equipment_apply(self, [], job_id=report["job_id"])
+            return
+        if requests:
+            _show_fast_apply_identity_gaps(self, requests, applied)
+            refresh = getattr(self, "_refresh_equip", None)
+            if callable(refresh):
+                refresh()
+            return
+        snapshot_failure = report.get("snapshot_wait_failure")
+        if isinstance(snapshot_failure, dict):
+            attempt = int(snapshot_failure.get("attempt") or 1)
+            reason = _equipment_failure_details(
+                str(snapshot_failure.get("kind") or "snapshot_error"),
+                snapshot_failure.get("error"),
+            )
+            QMessageBox.warning(
+                self,
+                _L('装配复核未完成'),
+                (_LF('{0}。\n\n第 {1} 次装配后的复核未完成：{2}\n\n').format((summary), (attempt), (reason)) + _L('由于没有取得可靠的新快照，本次没有继续发送后续装配请求。')),
+            )
+            return
+        message = (
+            (_LF('{0}。\n任务 #{1} 已保存日志。').format((summary), (report.get('job_id'))) + f"\n\n{role_details}" + _L('\n\n极速装配可能会有装配遗漏，建议自行检查一遍，并对遗漏角色单独进行极速装配补足。'))
+        )
+        completion_box = QMessageBox(QMessageBox.Icon.Information, _L('装配完成'), message, QMessageBox.StandardButton.Ok, self)
+        completion_box.setMinimumWidth(560)
+        completion_box.exec()
+        refresh = getattr(self, "_refresh_equip", None)
+        if callable(refresh):
+            refresh()
+
+    def on_error(message: str) -> None:
+        close_progress_dialog()
+        show_input_unavailable(self, _L('极速装配'), str(message))
+
+    worker.result_ready.connect(on_result)
+    worker.error.connect(on_error)
+    worker.start()
+
+
+def _confirm_automatic_assembly_fallback(
+    self: Any,
+    detail: str,
+) -> bool:
+    """Ask before falling back from native-UID fast assembly to UI automation."""
+
+    result = QMessageBox.question(
+        self,
+        _L('切换自动装配'),
+        _LF('{0}\n\n是否改用逐步自动装配？').format((detail)),
+        QMessageBox.Yes | QMessageBox.Cancel,
+        QMessageBox.Cancel,
+    )
+    return result == QMessageBox.Yes
+
+
+def _preview_nte_core_assemble_role(
+    self: Any,
+    role_name: str,
+    *,
+    slot_id: int | None = None,
+    confirmed: bool = False,
+) -> None:
+    """确认后通过装备插件极速装配一个已保存角色方案。"""
+    if not request_input_entry(self, "native_equipment", _L('极速装配')):
+        return
+
+    try:
+        with UserDataDao(_account_database_path(self)) as user_dao:
+            slot = user_dao.get_loadout_slot(int(slot_id)) if slot_id is not None else None
+            plan = slot.get("current_plan") if slot is not None else user_dao.get_active_loadout_plan_for_role(role_name)
+            if slot is not None and plan is not None:
+                role_name = str((plan.get("payload") or {}).get("source_role_name") or role_name)
+            source_snapshot_id = plan.get("source_snapshot_id") if plan else None
+            source_summary = (
+                user_dao.inventory_snapshot_summary(int(source_snapshot_id)) if source_snapshot_id is not None else None
+            )
+            source = source_summary.get("source") if source_summary else None
+    except Exception as exc:
+        QMessageBox.warning(self, _L('极速装配'), _LF('无法读取已保存方案：{0}').format((exc)))
+        return
+    if is_visual_inventory_source(source):
+        if _confirm_automatic_assembly_fallback(
+            self,
+            (_L('当前已保存方案来自视觉扫描快照，装备 UID 是视觉扫描生成的临时标识；') + _L('极速装配只能写入抓包同步（nte_core）提供的游戏原生 UID。\n\n') + _L('为避免写入错误装备，可以改用逐步自动装配。若要使用极速装配，请完成一次背包同步，') + _L('再重新计算并保存该角色的方案。')),
+        ):
+            _preview_automatic_assemble_role(
+                self,
+                role_name,
+                slot_id=slot_id,
+                confirmed=confirmed,
+            )
+        return
+
+    if confirmed:
+        _start_nte_core_equipment_apply(
+            self,
+            [role_name] if slot_id is None else [],
+            slot_ids=[int(slot_id)] if slot_id is not None else None,
+        )
+        return
+    ret = QMessageBox.question(
+        self,
+        _L('极速装配'),
+        (_LF('将通过游戏内装备插件把 [{0}] 的已保存方案直接装入游戏。\n\n').format((role_name)) + _L('若当前已经是目标配装会立即完成，否则发送指令并等待稳定背包快照确认；') + _L('不需要切换到游戏配装页面。是否继续？')),
+        QMessageBox.Yes | QMessageBox.No,
+        QMessageBox.No,
+    )
+    if ret == QMessageBox.Yes:
+        _start_nte_core_equipment_apply(
+            self,
+            [role_name] if slot_id is None else [],
+            slot_ids=[int(slot_id)] if slot_id is not None else None,
+        )
+
+
+def _preview_nte_core_assemble_all_roles(
+    self: Any,
+    *,
+    confirmed: bool = False,
+    role_names: list[str] | None = None,
+) -> None:
+    if not request_input_entry(self, "native_equipment", _L('极速装配')):
+        return
+    requested_roles = tuple(dict.fromkeys(str(name) for name in (role_names or ())))
+    try:
+        with UserDataDao(_account_database_path(self)) as user_dao:
+            selection_service = LoadoutSlotSelectionService(user_dao)
+            current_slots = selection_service.list_current()
+            if requested_roles:
+                available_roles = {selection.role_name for selection in current_slots}
+                missing = [role_name for role_name in requested_roles if role_name not in available_roles]
+                if missing:
+                    QMessageBox.information(
+                        self,
+                        _L('极速装配'),
+                        _LF('以下角色尚未保存当前方案：{0}').format(('、'.join(missing))),
+                    )
+                    return
+                current_slots = tuple(
+                    selection
+                    for selection in current_slots
+                    if selection.role_name in requested_roles
+                )
+            selected_slot_ids = select_assembly_slot_ids(self, current_slots)
+            if selected_slot_ids is None:
+                return
+            selections = selection_service.resolve(
+                selected_slot_ids,
+            )
+            nte_slot_ids = []
+            visual_roles = []
+            for selection in selections:
+                role_name = selection.role_name
+                plan = selection.plan
+                snapshot_id = plan.get("source_snapshot_id")
+                summary = user_dao.inventory_snapshot_summary(int(snapshot_id)) if snapshot_id is not None else None
+                if summary and summary.get("source") == "nte_core":
+                    nte_slot_ids.append(selection.slot_id)
+                elif summary and is_visual_inventory_source(summary.get("source")):
+                    visual_roles.append(role_name)
+    except Exception as exc:
+        QMessageBox.warning(self, _L('极速装配'), _LF('读取已保存方案失败：{0}').format((exc)))
+        return
+    if nte_slot_ids:
+        selected_slot_ids = list(nte_slot_ids)
+    elif visual_roles:
+        if _confirm_automatic_assembly_fallback(
+            self,
+            (_L('当前方案来自视觉扫描，无法取得极速装配所需的游戏装备标识。\n\n') + _L('请使用逐步自动装配。若要使用极速装配，请先完成一次原生背包同步，') + _L('再重新计算并保存方案。')),
+        ):
+            _preview_automatic_assemble_all_roles(
+                self,
+                role_names=list(requested_roles) if requested_roles else None,
+            )
+        return
+    else:
+        QMessageBox.information(self, _L('极速装配'), _L('当前没有基于原生同步背包的已保存方案。请先重新计算并保存。'))
+        return
+    if confirmed:
+        _start_nte_core_equipment_apply(self, [], slot_ids=selected_slot_ids)
+        return
+    ret = QMessageBox.question(
+        self,
+        _L('极速装配'),
+        (_LF('将依次向本地组件发送 {0} 个角色的装配指令，').format((len(selected_slot_ids))) + _L('已经正确装配的角色会直接跳过，其余角色在稳定背包快照确认后再处理下一个。') + _L('\n\n是否继续？')),
+        QMessageBox.Yes | QMessageBox.No,
+        QMessageBox.No,
+    )
+    if ret == QMessageBox.Yes:
+        _start_nte_core_equipment_apply(self, [], slot_ids=selected_slot_ids)
+
+
+def _preview_fast_assemble_all_roles(
+    self: Any,
+    role_names: list[str] | None = None,
+) -> None:
+    """从配装页右上角启动全部角色的极速装配。"""
+
+    _preview_nte_core_assemble_all_roles(self, role_names=role_names)
+
+
+def _select_single_role_assembly_mode(
+    self: Any,
+    role_name: str,
+) -> str | None:
+    """让用户为一个角色显式选择极速或自动装配。"""
+
+    dialog = QMessageBox(self)
+    dialog.setWindowTitle(_L('选择装配方式'))
+    dialog.setIcon(QMessageBox.Question)
+    # QMessageBox 会根据标签内容重新收缩；同时设置标签最小宽度和初始尺寸，
+    # 确保两种装配方式的说明不会挤在窄弹窗里。
+    dialog.setMinimumSize(720, 400)
+    dialog.setStyleSheet("QLabel#qt_msgbox_label,QLabel#qt_msgbox_informativelabel{min-width:620px;}")
+    dialog.setText(_LF('为 [{0}] 选择装配方式').format((role_name)))
+    dialog.setInformativeText(
+        (_L('极速装配：通过游戏内装备插件直接写入方案，速度快，无需打开配装页。\n\n') + _L('自动装配：模拟游戏内操作逐步完成，无需装备插件，但需停在角色详情页且耗时更长。'))
+    )
+    fast_button = dialog.addButton(_L('极速装配'), QMessageBox.ActionRole)
+    automatic_button = dialog.addButton(_L('自动装配'), QMessageBox.ActionRole)
+    dialog.addButton(QMessageBox.Cancel)
+    dialog.resize(720, 400)
+    dialog.exec()
+    if dialog.clickedButton() is fast_button:
+        return "fast"
+    if dialog.clickedButton() is automatic_button:
+        return "automatic"
+    return None
+
+
+def _preview_assemble_role(
+    self: Any,
+    role_name: str,
+    *,
+    slot_id: int | None = None,
+) -> None:
+    """为单个角色或指定配装槽位显示装配方式选择。"""
+
+    mode = _select_single_role_assembly_mode(self, role_name)
+    if mode == "fast":
+        if slot_id is None:
+            _preview_nte_core_assemble_role(self, role_name, confirmed=True)
+        else:
+            _preview_nte_core_assemble_role(
+                self,
+                role_name,
+                slot_id=slot_id,
+                confirmed=True,
+            )
+    elif mode == "automatic":
+        if slot_id is None:
+            _preview_automatic_assemble_role(self, role_name, confirmed=True)
+        else:
+            _preview_automatic_assemble_role(
+                self,
+                role_name,
+                slot_id=slot_id,
+                confirmed=True,
+            )
+
+
+def request_equipment_assembly(
+    self: Any,
+    *,
+    role_names: list[str],
+    method: str,
+) -> None:
+    """Public feature boundary used by calculated-result actions."""
+
+    names = list(dict.fromkeys(str(role_name) for role_name in role_names if str(role_name).strip()))
+    if not names:
+        return
+    if method not in {"nte_core", "gamepad"}:
+        raise ValueError(f"unsupported equipment assembly method: {method}")
+    if len(names) == 1:
+        if method == "nte_core":
+            _preview_nte_core_assemble_role(self, names[0])
+        else:
+            _preview_automatic_assemble_role(self, names[0])
+        return
+    if method == "nte_core":
+        _preview_fast_assemble_all_roles(self, role_names=names)
+    else:
+        _preview_automatic_assemble_all_roles(
+            self,
+            role_names=names,
+        )
+
+
+class EquipmentAssemblyControllerMixin:
+    """Explicit MainWindow surface for fast and UI-driven equipment assembly."""
+
+    _equipment_assembly_is_running = _equipment_assembly_is_running
+    _preview_assemble_role = _preview_assemble_role
+    _preview_fast_assemble_all_roles = _preview_fast_assemble_all_roles
+    _preview_automatic_assemble_all_roles = _preview_automatic_assemble_all_roles
+    request_equipment_assembly = request_equipment_assembly

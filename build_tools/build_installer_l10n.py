@@ -1,0 +1,965 @@
+# NTE Drive Calc 다국어판(zh/ko/ja/en) 공식 방식 전체 설치 프로그램(Inno Setup) 생성기
+r"""Build the official-style FULL installer for the multilingual NTE Drive Calc build.
+
+This is a port of upstream ``build_installer.py`` (commit d3eca80 = official 2.3.0).  The upstream
+script packages ``dist/NTE_Drive_Calc`` straight out of PyInstaller; we cannot rebuild that bundle
+(private native components), so the payload is a *stage* directory holding exactly what the
+official installer lays down, and the executable is our rebuilt one:
+
+    <stage>/_internal/**            official PyInstaller runtime directory (verbatim)
+    <stage>/drivers/ViGEmBus_Setup.exe
+    <stage>/config/stats.json       optional; must equal _internal/config/stats.json (the upstream
+                                    source of {app}\config\stats.json)
+    <stage>/stage_manifest.json     optional but recommended: path/size/sha256 of every staged file;
+                                    when present the stage is verified against it before building
+
+Usage (Python 3.11):
+    build_installer_l10n.py --exe <NTE_Drive_Calc.exe> --stage <dir> --out <dir> --variant release
+    build_installer_l10n.py --exe <NTE_Drive_Calc.exe> --stage <dir> --out <dir> --variant sandbox
+    build_installer_l10n.py --stage <dir> --write-stage-manifest          (re)write stage_manifest.json
+
+Variants
+    release  same AppId / default directory / privileges as the official installer, so it upgrades an
+             official or multilingual install in place and a later official installer upgrades over it.
+    sandbox  PrivilegesRequired=lowest, a different AppId, no ViGEmBus task/run step/shortcut, default
+             directory under C:\Temp - for testing without admin rights and without touching the real
+             install or its uninstall registry entry.
+
+Outputs in --out:
+    NTE_Drive_Calc_Setup_<version>_multilingual[_sandbox].exe   (another base name with --output-base)
+Outputs in --aux-dir (default: --out):
+    payload_manifest_<variant>.json   every file the installer lays down under {app} (size, sha256)
+    build_report_<variant>.json       installer size/sha256, compile time, inputs
+    build_<variant>/                  generated setup.iss, Chinese message overrides, notices, docs, ISCC log
+
+Nothing is uploaded, nothing outside --out (and stage_manifest.json with --write-stage-manifest) is written.
+"""
+from __future__ import annotations
+
+import argparse
+import datetime as _dt
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+TOOLS_DIR = Path(__file__).resolve().parent
+DEFAULT_LICENSE = TOOLS_DIR.parent / "repo_main" / "LICENSE"
+
+APP_NAME = "NTE Drive Calc"
+APP_EXE_NAME = "NTE_Drive_Calc.exe"
+OFFICIAL_APP_ID = "D7DA28BE-8A19-4E05-9216-3F16C4C2C820"      # upstream build_installer.py APP_ID
+SANDBOX_APP_ID = "5B0C6E1A-7F2D-4C39-8E54-1D9A3F6B2C70"       # test-only identity, never the official one
+SANDBOX_DEFAULT_DIR = r"C:\Temp\nte_l10n_setup_sandbox"
+DEFAULT_VERSION = "2.3.0"
+UPSTREAM_COMMIT = "d3eca803ac36a75a3fa4fbbf8adadb93dadadf65"
+UPSTREAM_URL = "https://github.com/hxwd94666/NTE-Drive-Calc"
+PUBLISHER = "NTE Drive Calc community (unofficial multilingual build)"
+DOCS_DIR_NAME = "l10n_build"                                   # {app}\l10n_build\LICENSE.txt ...
+STAGE_MANIFEST_NAME = "stage_manifest.json"
+LANGUAGE_FILE_REL = "_internal/config/i18n_language.json"      # written by [Code], never packaged
+
+CLOSE_APPLICATIONS_FILTER = "NTE_Drive_Calc.exe,nte-mod-loader.exe,nte-core.exe,nte-analysis-core.exe"
+CORE_CONFIG_FILES = ("stats.json",)                            # upstream CORE_CONFIG_FILES
+STALE_AMBIENT_ICU_DLLS = ("icuuc.dll", "icudt78.dll")          # upstream STALE_AMBIENT_ICU_DLLS
+VIGEM_DEST_NAME = "ViGEmBus_Setup.exe"
+VIGEM_PARAMS = "/qn /norestart"
+
+# Upstream _validate_app_bundle(): files that must exist in the PyInstaller runtime directory.
+REQUIRED_INTERNAL = (
+    "nte-core.exe",
+    "nte-analysis-core.exe",
+    "analysis-core-meta/component.json",
+    "component-bundle.json",
+    "src/storage/sqlite/schema/001_user_data.sql",
+    "data/game_static.sqlite3",
+    "data/manifest.json",
+    "data/app_shared.sqlite3",
+    "data/migrations/shape_bonus_defaults_2.0.2.json",
+    "config/stats.json",
+)
+# Never part of a clean payload: user/runtime data and leftovers of the earlier exe-only patch kits.
+FORBIDDEN_INTERNAL = (
+    "config/i18n_language.json",
+    "config/templates/guide_zh",
+)
+
+# Wizard languages.  Names double as the app's language codes (src/i18n_runtime.LANGUAGES) and are
+# deliberately different from the official installer's single language name "chinesesimp": with
+# UsePreviousLanguage=yes an upgrade of an official install then falls back to OS language detection
+# instead of preselecting Chinese, while our own earlier choice is still remembered.
+# First entry = fallback when the OS UI language matches none of them.
+LANGS = ("en", "ko", "ja", "zh")
+MESSAGES_FILES = {
+    "en": "compiler:Default.isl",
+    "ko": r"compiler:Languages\Korean.isl",
+    "ja": r"compiler:Languages\Japanese.isl",
+    "zh": "compiler:Default.isl,{zh_isl}",      # no Chinese .isl ships with Inno Setup 6
+}
+
+CUSTOM_MESSAGES = {
+    "L10nAppVerName": {
+        "en": "NTE Drive Calc {version} Multilingual Edition",
+        "ko": "NTE Drive Calc {version} 다국어판",
+        "ja": "NTE Drive Calc {version} 多言語版",
+        "zh": "NTE Drive Calc {version} 多语言版",
+    },
+    "RuntimeDepsGroup": {
+        "en": "Runtime dependencies:",
+        "ko": "실행에 필요한 구성 요소:",
+        "ja": "実行に必要なコンポーネント:",
+        "zh": "运行依赖：",
+    },
+    "ViGEmTask": {
+        "en": "Install the ViGEmBus virtual gamepad driver",
+        "ko": "ViGEmBus 가상 게임패드 드라이버 설치",
+        "ja": "ViGEmBus 仮想ゲームパッドドライバーをインストールする",
+        "zh": "安装 ViGEmBus 虚拟手柄驱动",
+    },
+    "ViGEmIconName": {
+        "en": "Install ViGEmBus driver",
+        "ko": "ViGEmBus 드라이버 설치",
+        "ja": "ViGEmBus ドライバーのインストール",
+        "zh": "安装 ViGEmBus 驱动",
+    },
+    "UninstallIconName": {
+        "en": "Uninstall NTE Drive Calc",
+        "ko": "NTE Drive Calc 제거",
+        "ja": "NTE Drive Calc のアンインストール",
+        "zh": "卸载 NTE Drive Calc",
+    },
+    "StatusInstallViGEm": {
+        "en": "Installing or repairing the ViGEmBus virtual gamepad driver...",
+        "ko": "ViGEmBus 가상 게임패드 드라이버를 설치(복구)하는 중...",
+        "ja": "ViGEmBus 仮想ゲームパッドドライバーをインストール／修復しています...",
+        "zh": "正在安装或修复 ViGEmBus 虚拟手柄驱动...",
+    },
+    "StatusStartViGEm": {
+        "en": "Starting the ViGEmBus driver service...",
+        "ko": "ViGEmBus 드라이버 서비스를 시작하는 중...",
+        "ja": "ViGEmBus ドライバーサービスを開始しています...",
+        "zh": "正在启动 ViGEmBus 驱动服务...",
+    },
+    "MigrationBackupFailed": {
+        "en": "Could not back up the previous static database. Installation was stopped.",
+        "ko": "이전 버전의 정적 데이터베이스를 백업하지 못해 설치를 중단했습니다.",
+        "ja": "旧バージョンの静的データベースをバックアップできなかったため、インストールを中止しました。",
+        "zh": "无法备份旧版静态数据库，安装已停止。",
+    },
+}
+# Shortcut names are file names: they must stay free of \ / : * ? " < > |
+ICON_MESSAGE_KEYS = ("ViGEmIconName", "UninstallIconName")
+
+# Upstream build_installer.py `chinese_messages` (verbatim) ...
+ZH_MESSAGES_UPSTREAM = """\
+SetupAppTitle=安装程序
+SetupWindowTitle=安装 - %1
+UninstallAppTitle=卸载
+UninstallAppFullTitle=%1 卸载
+InformationTitle=提示
+ConfirmTitle=确认
+ErrorTitle=错误
+SetupLdrStartupMessage=即将安装 %1。是否继续？
+AdminPrivilegesRequired=安装本程序需要管理员权限。
+SetupAppRunningError=安装程序检测到 %1 正在运行。%n%n请先关闭程序后点击“确定”继续，或点击“取消”退出安装。
+ExitSetupTitle=退出安装
+ExitSetupMessage=安装尚未完成。如果现在退出，程序将不会被完整安装。%n%n是否退出安装？
+ButtonBack=< 上一步
+ButtonNext=下一步 >
+ButtonInstall=安装
+ButtonOK=确定
+ButtonCancel=取消
+ButtonYes=是
+ButtonNo=否
+ButtonFinish=完成
+ButtonBrowse=浏览...
+ClickNext=点击“下一步”继续，或点击“取消”退出安装。
+BrowseDialogTitle=选择文件夹
+BrowseDialogLabel=请选择一个文件夹，然后点击“确定”。
+WelcomeLabel1=欢迎使用 [name] 安装向导
+WelcomeLabel2=本向导将在你的电脑上安装 [name/ver]。%n%n建议在继续之前关闭其他正在运行的应用程序。
+WizardSelectDir=选择安装位置
+SelectDirDesc=请选择 [name] 的安装目录
+SelectDirLabel3=安装程序会将 [name] 安装到以下文件夹。
+SelectDirBrowseLabel=点击“下一步”继续。如需选择其他文件夹，请点击“浏览”。
+DiskSpaceGBLabel=至少需要 [gb] GB 可用磁盘空间。
+DiskSpaceMBLabel=至少需要 [mb] MB 可用磁盘空间。
+DirExistsTitle=文件夹已存在
+DirExists=文件夹：%n%n%1%n%n已经存在。是否仍然安装到该文件夹？
+DirDoesntExistTitle=文件夹不存在
+DirDoesntExist=文件夹：%n%n%1%n%n不存在。是否创建该文件夹？
+WizardSelectTasks=选择附加任务
+SelectTasksDesc=请选择安装时需要执行的附加任务
+SelectTasksLabel2=请选择安装 [name] 时要执行的附加任务，然后点击“下一步”。
+WizardReady=准备安装
+ReadyLabel1=安装程序已准备好开始安装 [name]。
+ReadyLabel2a=点击“安装”开始安装；如需检查或修改设置，请点击“上一步”。
+ReadyLabel2b=点击“安装”开始安装。
+ReadyMemoDir=安装位置：
+ReadyMemoGroup=开始菜单文件夹：
+ReadyMemoTasks=附加任务：
+WizardPreparing=准备安装
+PreparingDesc=安装程序正在准备安装 [name]。
+ApplicationsFound=以下程序正在使用需要更新的文件。建议允许安装程序自动关闭这些程序。
+ApplicationsFound2=以下程序正在使用需要更新的文件。建议允许安装程序自动关闭这些程序。安装完成后，安装程序会尝试重新启动它们。
+CloseApplications=自动关闭这些程序
+DontCloseApplications=不要关闭这些程序
+WizardInstalling=正在安装
+InstallingLabel=请稍候，安装程序正在将 [name] 安装到你的电脑。
+FinishedHeadingLabel=[name] 安装向导完成
+FinishedLabelNoIcons=[name] 已成功安装到你的电脑。
+FinishedLabel=[name] 已成功安装到你的电脑。你可以通过已创建的快捷方式启动程序。
+ClickFinish=点击“完成”退出安装程序。
+RunEntryExec=运行 %1
+SetupAborted=安装未完成。%n%n请修正问题后重新运行安装程序。
+StatusClosingApplications=正在关闭应用程序...
+StatusCreateDirs=正在创建文件夹...
+StatusExtractFiles=正在释放文件...
+StatusCreateIcons=正在创建快捷方式...
+StatusSavingUninstall=正在保存卸载信息...
+StatusRunProgram=正在完成安装...
+StatusRollback=正在回滚更改...
+ErrorExecutingProgram=无法执行文件：%n%1
+FileExists2=文件已存在。
+FileExistsOverwriteExisting=覆盖现有文件
+FileExistsKeepExisting=保留现有文件
+ExistingFileNewer2=现有文件比安装程序要安装的文件更新。
+ExistingFileNewerOverwriteExisting=覆盖现有文件
+ExistingFileNewerKeepExisting=保留现有文件（推荐）
+ConfirmUninstall=确定要完全移除 %1 及其所有组件吗？
+UninstallStatusLabel=请稍候，正在从你的电脑中移除 %1。
+UninstalledAll=%1 已成功从你的电脑中移除。
+UninstalledMost=%1 卸载完成。%n%n部分内容无法移除，可以手动删除。
+WizardUninstalling=卸载状态
+StatusUninstalling=正在卸载 %1...
+"""
+# ... plus the pages the official single-language wizard never shows (language dialog, notice page).
+ZH_MESSAGES_EXTRA = """\
+SelectLanguageTitle=选择安装语言
+SelectLanguageLabel=请选择安装过程中使用的语言。
+WizardInfoBefore=信息
+InfoBeforeLabel=继续安装前请阅读以下重要信息。
+InfoBeforeClickLabel=准备好继续安装后，请点击“下一步”。
+"""
+# Upstream `chinese_custom_messages` (verbatim).
+ZH_CUSTOM_MESSAGES_UPSTREAM = """\
+NameAndVersion=%1 版本 %2
+AdditionalIcons=附加快捷方式：
+CreateDesktopIcon=创建桌面快捷方式
+ProgramOnTheWeb=%1 官方页面
+UninstallProgram=卸载 %1
+LaunchProgram=启动 %1
+"""
+
+NOTICE = {
+    "ko": """\
+NTE Drive Calc {version} 다국어판 (비공식 빌드)
+
+이 설치 프로그램은 NTE Drive Calc {version} 의 비공식 다국어(한국어 / English / 日本語 / 简体中文) 빌드를 설치합니다.
+원 프로그램 제작자(NTE Drive Calc contributors)가 배포하는 공식 빌드가 아니며, 공식 지원 대상이 아닙니다.
+
+- 공식 버전과 같은 위치에 설치됩니다. 이미 설치된 공식 {version} 또는 이전 다국어판이 있으면 그 자리에서 업그레이드합니다.
+- 계정, 설정, 로그 등 사용자 데이터는 그대로 유지됩니다.
+- 나중에 공식 설치 프로그램을 실행하면 공식 버전으로 되돌릴 수 있습니다.
+- 프로그램은 지금 고른 설치 언어로 시작하며(이미 언어를 설정해 둔 경우 그 설정을 유지), 프로그램 안에서 언제든 바꿀 수 있습니다.
+
+라이선스: GNU AGPL-3.0
+라이선스 전문과 소스 코드 안내는 설치 폴더의 {docs} 폴더(LICENSE.txt, SOURCE_OFFER.txt, README.txt)에 들어 있습니다.
+이 빌드에 대응하는 전체 소스 코드는 이 설치 파일과 함께 배포되는 {source_zip} 에 있습니다.
+""",
+    "en": """\
+NTE Drive Calc {version} Multilingual Edition (unofficial build)
+
+This installer sets up an unofficial multilingual (Korean / English / Japanese / Simplified Chinese) build of NTE Drive Calc {version}.
+It is NOT an official build published by the original authors (NTE Drive Calc contributors) and is not supported by them.
+
+- It installs to the same location as the official version. An existing official {version} or earlier multilingual installation is upgraded in place.
+- User data such as accounts, settings and logs is kept.
+- Running the official installer later restores the official version.
+- The program starts in the language chosen for this setup (an existing language setting is kept); it can be changed inside the program at any time.
+
+License: GNU AGPL-3.0
+The full license text and the source code notice are installed into the {docs} folder of the installation directory (LICENSE.txt, SOURCE_OFFER.txt, README.txt).
+The complete corresponding source code of this build is distributed together with this installer as {source_zip}.
+""",
+    "ja": """\
+NTE Drive Calc {version} 多言語版 (非公式ビルド)
+
+このインストーラーは NTE Drive Calc {version} の非公式多言語（韓国語 / English / 日本語 / 簡体字中国語）ビルドをインストールします。
+原作者（NTE Drive Calc contributors）が配布する公式ビルドではなく、公式サポートの対象外です。
+
+- 公式版と同じ場所にインストールされます。公式 {version} または以前の多言語版がインストール済みの場合は、そのまま上書きアップグレードします。
+- アカウント、設定、ログなどのユーザーデータは保持されます。
+- 後で公式インストーラーを実行すれば公式版に戻せます。
+- プログラムはここで選んだ言語で起動します（すでに言語を設定済みの場合はその設定を維持）。言語はプログラム内でいつでも変更できます。
+
+ライセンス: GNU AGPL-3.0
+ライセンス全文とソースコードの案内は、インストール先の {docs} フォルダー（LICENSE.txt、SOURCE_OFFER.txt、README.txt）に入っています。
+このビルドに対応する完全なソースコードは、このインストーラーと一緒に配布される {source_zip} に含まれています。
+""",
+    "zh": """\
+NTE Drive Calc {version} 多语言版（非官方构建）
+
+本安装程序将安装 NTE Drive Calc {version} 的非官方多语言（韩语 / English / 日语 / 简体中文）构建。
+它不是原作者（NTE Drive Calc contributors）发布的官方构建，也不在官方支持范围内。
+
+- 安装位置与官方版本相同。如果已安装官方 {version} 或更早的多语言版，将直接原地升级。
+- 账号、设置、日志等用户数据会被保留。
+- 之后运行官方安装程序即可恢复为官方版本。
+- 程序将以此处选择的安装语言启动（如已设置过语言则保留原设置），之后可随时在程序内切换。
+
+许可证：GNU AGPL-3.0
+许可证全文与源代码说明位于安装目录的 {docs} 文件夹（LICENSE.txt、SOURCE_OFFER.txt、README.txt）。
+与本构建对应的完整源代码随本安装程序一同分发，文件名为 {source_zip}。
+""",
+}
+
+SOURCE_OFFER = """\
+NTE Drive Calc {version} 다국어판 (비공식) - 대응 소스 코드 안내
+NTE Drive Calc {version} Multilingual Edition (unofficial) - Corresponding Source
+
+[한국어]
+- 이 프로그램은 GNU AGPL-3.0 으로 배포되는 NTE Drive Calc {version} 의 비공식 다국어 빌드(파생물)입니다.
+  원저작자: NTE Drive Calc contributors (hxwd94666). 원 프로젝트: {upstream_url}
+- 기반: 원 프로젝트 커밋 {upstream_commit} (공식 {version}).
+- 변경점 요약: 사용자 표시 문자열의 다국어화(중국어 원문 + 한국어/영어/일본어 번역 테이블, 프로그램 안에서
+  언어 전환), 게임 데이터 이름·설명의 표시 계층 번역, 팀 시뮬레이션(Beta) 기능 추가, "사용 방법" 튜토리얼
+  이미지 한국어판. 자세한 내용은 소스 zip 을 보십시오.
+- 이 빌드에 대응하는 전체 소스 코드는 이 설치 파일과 함께 배포되는 zip 파일에 들어 있습니다:
+      {source_zip}
+  zip 파일을 받지 못했다면 이 설치 파일을 받은 곳(배포자)에게 요청하십시오.
+- 실행 파일({exe_name})은 공식 PyInstaller 패키지의 PYZ 아카이브에서 src.* 모듈만 위 소스로 교체한 것입니다.
+  그 밖의 구성 요소(_internal, drivers)는 공식 {version} 배포판과 동일합니다(튜토리얼 이미지 7장 제외).
+  실행 파일 SHA-256: {exe_sha256}
+- 라이선스 전문: 같은 폴더의 LICENSE.txt. 함께 들어 있는 제3자 구성 요소의 라이선스는 _internal\\licenses 폴더.
+
+[English]
+- This program is an unofficial multilingual build (a derivative work) of NTE Drive Calc {version}, which is
+  distributed under the GNU AGPL-3.0. Original authors: NTE Drive Calc contributors (hxwd94666).
+  Original project: {upstream_url}
+- Based on: original project commit {upstream_commit} (official {version}).
+- Summary of changes: localisation of user-visible strings (Chinese source text plus Korean/English/Japanese
+  translation tables, in-app language switching), display-layer translation of game data names and
+  descriptions, an added Team Simulation (Beta) feature, Korean "how to use" tutorial images.
+  See the source zip for details.
+- The complete corresponding source code of this build is distributed together with this installer as a zip file:
+      {source_zip}
+  If you did not receive the zip file, ask whoever gave you this installer for it.
+- The executable ({exe_name}) is the official PyInstaller package with only the src.* modules of its PYZ archive
+  replaced by the sources above. All other components (_internal, drivers) are identical to the official
+  {version} distribution (except the 7 tutorial images).
+  Executable SHA-256: {exe_sha256}
+- Full license text: LICENSE.txt in this folder. Licenses of bundled third-party components: _internal\\licenses.
+"""
+
+README = """\
+NTE Drive Calc {version} 다국어판 (비공식 빌드) / Multilingual Edition (unofficial build)
+==========================================================================================
+
+[한국어]
+이 폴더는 NTE Drive Calc {version} 비공식 다국어판 설치 프로그램이 만든 것입니다.
+원 프로그램 제작자(NTE Drive Calc contributors)가 배포하는 공식 빌드가 아니며, 공식 지원 대상이 아닙니다.
+
+- 지원 언어: 한국어, English, 日本語, 简体中文. 프로그램 안에서 언제든 바꿀 수 있습니다.
+- 처음 설치할 때는 설치 마법사에서 고른 언어로 시작합니다(_internal\\config\\i18n_language.json).
+  이미 언어 설정이 있으면 설치 프로그램은 그 설정을 바꾸지 않습니다.
+- 공식 버전과 같은 위치·같은 프로그램 항목으로 설치됩니다. 업그레이드해도 계정, 설정, 로그 등 사용자
+  데이터는 그대로 유지됩니다.
+- 공식 버전으로 되돌리려면 공식 설치 프로그램을 다시 실행하면 됩니다.
+- 제거는 Windows 의 "앱 및 기능" 또는 시작 메뉴의 제거 바로 가기를 사용합니다. 공식 버전과 마찬가지로
+  사용자 데이터(accounts, config, logs, migration 등)는 지우지 않습니다.
+- 라이선스: GNU AGPL-3.0 (LICENSE.txt). 소스 코드 안내: SOURCE_OFFER.txt.
+
+[English]
+This folder was created by the installer of the unofficial multilingual edition of NTE Drive Calc {version}.
+It is NOT an official build published by the original authors (NTE Drive Calc contributors) and is not
+supported by them.
+
+- Languages: Korean, English, Japanese, Simplified Chinese. The language can be changed inside the program.
+- On first installation the program starts in the language chosen in the setup wizard
+  (_internal\\config\\i18n_language.json). An existing language setting is never changed by the installer.
+- It installs to the same location and under the same program entry as the official version. Upgrading keeps
+  user data such as accounts, settings and logs.
+- To go back to the official version, run the official installer again.
+- To uninstall, use Windows "Apps & features" or the uninstall shortcut in the Start menu. Like the official
+  version, uninstalling does not delete user data (accounts, config, logs, migration, ...).
+- License: GNU AGPL-3.0 (LICENSE.txt). Source code notice: SOURCE_OFFER.txt.
+"""
+
+
+class BuildError(RuntimeError):
+    pass
+
+
+def info(message: str) -> None:
+    print(f"[installer-l10n] {message}", flush=True)
+
+
+def sha256_of(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def scan_tree(root: Path) -> list[dict]:
+    """Every file below root as {path (posix, relative), size, sha256}, sorted case-insensitively."""
+    rows = []
+    for current, _dirs, files in os.walk(root):
+        for name in files:
+            full = Path(current) / name
+            rows.append({
+                "path": full.relative_to(root).as_posix(),
+                "size": full.stat().st_size,
+                "sha256": sha256_of(full),
+            })
+    rows.sort(key=lambda row: row["path"].lower())
+    return rows
+
+
+def scan_stage(stage: Path) -> list[dict]:
+    rows = [row for row in scan_tree(stage) if row["path"] != STAGE_MANIFEST_NAME]
+    lowered = [row["path"].lower() for row in rows]
+    if len(set(lowered)) != len(lowered):
+        raise BuildError("stage contains paths that differ only by case")
+    return rows
+
+
+def write_stage_manifest(stage: Path) -> Path:
+    rows = scan_stage(stage)
+    check_stage_layout(stage, rows)
+    manifest = {
+        "format": 1,
+        "description": "Clean payload of the multilingual installer: what the official installer lays "
+                       "down, without the main executable (passed with --exe).",
+        "created_utc": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "total_files": len(rows),
+        "total_bytes": sum(row["size"] for row in rows),
+        "files": rows,
+    }
+    target = stage / STAGE_MANIFEST_NAME
+    target.write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
+    return target
+
+
+def check_stage_layout(stage: Path, rows: list[dict]) -> None:
+    """Refuse a polluted stage: only the three official subtrees, no user/runtime data."""
+    internal = stage / "_internal"
+    problems: list[str] = []
+    for row in rows:
+        path = row["path"]
+        low = path.lower()
+        top = low.split("/", 1)[0]
+        if top == "_internal":
+            continue
+        if low == "drivers/" + VIGEM_DEST_NAME.lower():
+            continue
+        if low in {"config/" + name for name in CORE_CONFIG_FILES}:
+            continue
+        problems.append(f"unexpected file outside the official payload: {path}")
+    for relative in FORBIDDEN_INTERNAL:
+        if (internal / relative).exists():
+            problems.append(f"user/runtime data in stage: _internal/{relative}")
+    for relative in REQUIRED_INTERNAL:
+        if not (internal / relative).is_file():
+            problems.append(f"missing required runtime file: _internal/{relative}")
+    if not (stage / "drivers" / VIGEM_DEST_NAME).is_file():
+        problems.append(f"missing drivers/{VIGEM_DEST_NAME}")
+    for name in CORE_CONFIG_FILES:
+        seed = stage / "config" / name
+        source = internal / "config" / name
+        if seed.is_file() and source.is_file() and seed.read_bytes() != source.read_bytes():
+            problems.append(f"config/{name} differs from _internal/config/{name} (the upstream seed source)")
+    for target in stale_install_delete_targets():
+        if (internal / target).exists():
+            problems.append(f"payload contains a path the installer deletes as stale: _internal/{target}")
+    if problems:
+        raise BuildError("stage is not a clean payload:\n  " + "\n  ".join(problems))
+
+
+def stale_install_delete_targets() -> list[str]:
+    # Upstream adds dwmapi.dll when the bundle layout is "native-capture-v1", which is the only
+    # layout the 2.3.0 code base supports (GameComponentBundleInspection.layout default).
+    return ["assets/game_ui", *STALE_AMBIENT_ICU_DLLS, "dwmapi.dll"]
+
+
+def verify_stage(stage: Path, rows: list[dict]) -> dict:
+    """Stage vs stage_manifest.json, bundled component manifest and static database manifests."""
+    result = {"stage_manifest": "absent", "component_bundle_files": 0, "static_databases": 0}
+    by_path = {row["path"]: row for row in rows}
+    manifest_path = stage / STAGE_MANIFEST_NAME
+    if manifest_path.is_file():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        expected = {row["path"]: row for row in manifest["files"]}
+        missing = sorted(set(expected) - set(by_path))
+        extra = sorted(set(by_path) - set(expected))
+        changed = sorted(
+            path for path in set(expected) & set(by_path)
+            if expected[path]["size"] != by_path[path]["size"] or expected[path]["sha256"] != by_path[path]["sha256"]
+        )
+        if missing or extra or changed:
+            raise BuildError(
+                "stage does not match stage_manifest.json: "
+                f"missing={missing[:5]} extra={extra[:5]} changed={changed[:5]} "
+                f"(counts {len(missing)}/{len(extra)}/{len(changed)})"
+            )
+        result["stage_manifest"] = f"verified ({len(expected)} files)"
+    else:
+        info(f"WARNING: {manifest_path} not found - stage contents are not verified against a manifest")
+
+    internal = stage / "_internal"
+    bundle = json.loads((internal / "component-bundle.json").read_text(encoding="utf-8"))
+    for relative, digest in bundle.get("files", {}).items():
+        row = by_path.get("_internal/" + relative)
+        if row is None or row["sha256"].lower() != str(digest).lower():
+            raise BuildError(f"component-bundle.json hash mismatch: {relative}")
+    result["component_bundle_files"] = len(bundle.get("files", {}))
+    result["component_bundle_layout"] = bundle.get("layout")
+
+    analysis = json.loads((internal / "analysis-core-meta" / "component.json").read_text(encoding="utf-8"))
+    if by_path["_internal/nte-analysis-core.exe"]["sha256"].lower() != str(analysis.get("sha256", "")).lower():
+        raise BuildError("analysis-core-meta/component.json hash mismatch: nte-analysis-core.exe")
+
+    for manifest_rel in ("data/manifest.json", "data/role_catalog/manifest.json"):
+        path = internal / manifest_rel
+        if not path.is_file():
+            continue
+        database = json.loads(path.read_text(encoding="utf-8")).get("database", {})
+        db_rel = "_internal/" + str(Path(manifest_rel).parent.as_posix()) + "/" + str(database.get("filename"))
+        row = by_path.get(db_rel)
+        if row is None or row["size"] != database.get("size_bytes") or row["sha256"].lower() != str(database.get("sha256", "")).lower():
+            raise BuildError(f"static database does not match {manifest_rel}: {db_rel}")
+        result["static_databases"] += 1
+    return result
+
+
+def find_iscc(explicit: Path | None) -> Path:
+    if explicit is not None:
+        if not explicit.is_file():
+            raise BuildError(f"Inno Setup compiler not found: {explicit}")
+        return explicit
+    candidates = [
+        os.environ.get("INNO_SETUP_ISCC"),
+        shutil.which("ISCC.exe"),
+        str(Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Inno Setup 6" / "ISCC.exe"),
+        str(Path(os.environ.get("ProgramFiles(x86)", "")) / "Inno Setup 6" / "ISCC.exe"),
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file():
+            return Path(candidate)
+    raise BuildError("Inno Setup 6 compiler (ISCC.exe) not found; pass --iscc or set INNO_SETUP_ISCC")
+
+
+def _write_text(path: Path, text: str, *, bom: bool = True) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = text.replace("\r\n", "\n").replace("\n", "\r\n")
+    path.write_text(data, encoding="utf-8-sig" if bom else "utf-8", newline="")
+
+
+def _check_inno_value(value: str) -> str:
+    if '"' in value or "\n" in value:
+        raise BuildError(f"value cannot be used in the Inno script: {value!r}")
+    return value
+
+
+def custom_message_lines(version: str, sandbox: bool) -> str:
+    lines = []
+    for key, table in CUSTOM_MESSAGES.items():
+        for lang in LANGS:
+            text = table[lang].format(version=version)
+            if key == "L10nAppVerName" and sandbox:
+                text += " [sandbox]"
+            if key in ICON_MESSAGE_KEYS and any(ch in text for ch in '\\/:*?"<>|'):
+                raise BuildError(f"shortcut name contains a character not allowed in file names: {text!r}")
+            lines.append(f"{lang}.{key}={text}")
+    return "\n".join(lines)
+
+
+def stale_shortcut_delete_lines(sandbox: bool) -> str:
+    """Remove this product's shortcuts created under another wizard language (incl. the official
+    Chinese names), so an upgrade never leaves two differently named copies in the Start menu."""
+    keys = ("UninstallIconName",) if sandbox else ICON_MESSAGE_KEYS
+    lines = []
+    for key in keys:
+        for lang in LANGS:
+            others = " ".join(other for other in LANGS if CUSTOM_MESSAGES[key][other] != CUSTOM_MESSAGES[key][lang])
+            if others:
+                lines.append(
+                    f'Type: files; Name: "{{group}}\\{CUSTOM_MESSAGES[key][lang]}.lnk"; Languages: {others}'
+                )
+    return "\n".join(lines)
+
+
+def build_iss(*, variant: str, version: str, exe: Path, stage: Path, out_dir: Path, build_dir: Path,
+              compression: str, icon: Path | None, sandbox_dir: str, output_base: str) -> str:
+    sandbox = variant == "sandbox"
+    app_name = APP_NAME + (" (sandbox)" if sandbox else "")
+    app_id = SANDBOX_APP_ID if sandbox else OFFICIAL_APP_ID
+    default_dir = sandbox_dir if sandbox else "{autopf}\\NTE Drive Calc"
+    privileges = "lowest" if sandbox else "admin"
+    internal = stage / "_internal"
+    vigem_file = f"{{app}}\\drivers\\{VIGEM_DEST_NAME}"
+    numeric_version = version.split("-")[0]
+    version_info = ""
+    if all(part.isdigit() for part in numeric_version.split(".")) and 1 <= numeric_version.count(".") <= 2:
+        padded = numeric_version + ".0" * (3 - numeric_version.count("."))
+        version_info = f"VersionInfoVersion={padded}\n"
+    setup_icon_line = f"SetupIconFile={icon}\n" if icon else ""
+
+    languages = "\n".join(
+        'Name: "{lang}"; MessagesFile: "{messages}"; InfoBeforeFile: "{notice}"'.format(
+            lang=lang,
+            messages=MESSAGES_FILES[lang].format(zh_isl=build_dir / "ChineseSimplified.overrides.isl"),
+            notice=build_dir / f"notice_{lang}.txt",
+        )
+        for lang in LANGS
+    )
+    tasks = ['Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"']
+    if not sandbox:
+        tasks.append(
+            'Name: "installvigem"; Description: "{cm:ViGEmTask}"; GroupDescription: "{cm:RuntimeDepsGroup}"; '
+            "Flags: checkedonce"
+        )
+    config_lines = "\n".join(
+        f'Source: "{internal / "config" / name}"; DestDir: "{{app}}\\config"; Flags: ignoreversion'
+        for name in CORE_CONFIG_FILES
+    )
+    docs_lines = "\n".join(
+        f'Source: "{build_dir / "docs" / name}"; DestDir: "{{app}}\\{DOCS_DIR_NAME}"; Flags: ignoreversion'
+        for name in ("LICENSE.txt", "README.txt", "SOURCE_OFFER.txt")
+    )
+    stale_runtime_delete_lines = "\n".join(
+        (f'Type: filesandordirs; Name: "{{app}}\\_internal\\{target}"' if "/" in target
+         else f'Type: files; Name: "{{app}}\\_internal\\{target}"').replace("/", "\\")
+        for target in stale_install_delete_targets()
+    )
+    icons = [f'Name: "{{group}}\\{{#MyAppName}}"; Filename: "{{app}}\\{{#MyAppExeName}}"; WorkingDir: "{{app}}"']
+    if not sandbox:
+        icons.append(
+            f'Name: "{{group}}\\{{cm:ViGEmIconName}}"; Filename: "{vigem_file}"; Parameters: "{VIGEM_PARAMS}"; '
+            'WorkingDir: "{app}"; Check: IsWin64'
+        )
+    icons.append('Name: "{group}\\{cm:UninstallIconName}"; Filename: "{uninstallexe}"')
+    icons.append(
+        'Name: "{autodesktop}\\{#MyAppName}"; Filename: "{app}\\{#MyAppExeName}"; WorkingDir: "{app}"; '
+        "Tasks: desktopicon"
+    )
+    run = []
+    if not sandbox:
+        run.append(
+            f'Filename: "{vigem_file}"; Parameters: "{VIGEM_PARAMS}"; StatusMsg: "{{cm:StatusInstallViGEm}}"; '
+            "Flags: waituntilterminated; Tasks: installvigem; Check: ShouldInstallViGEmBus"
+        )
+        run.append(
+            'Filename: "{cmd}"; Parameters: "/C sc start ViGEmBus >NUL 2>NUL & exit /B 0"; '
+            'StatusMsg: "{cm:StatusStartViGEm}"; Flags: runhidden waituntilterminated; Tasks: installvigem; '
+            "Check: IsWin64"
+        )
+    run.append(
+        'Filename: "{app}\\{#MyAppExeName}"; '
+        "Description: \"{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}\"; "
+        "Flags: nowait postinstall skipifsilent runascurrentuser"
+    )
+    vigem_code = "" if sandbox else """\
+function ShouldInstallViGEmBus: Boolean;
+begin
+  Result := IsWin64 and WizardIsTaskSelected('installvigem');
+end;
+
+"""
+    for value in (str(exe), str(stage), str(out_dir), str(build_dir), default_dir, output_base, compression):
+        _check_inno_value(value)
+
+    return f"""; Generated by build_installer_l10n.py ({variant}). Do not edit by hand.
+; Port of the official build_installer.py script (upstream commit {UPSTREAM_COMMIT[:7]}).
+#define MyAppName "{app_name}"
+#define MyAppVersion "{version}"
+#define MyAppPublisher "{PUBLISHER}"
+#define MyAppExeName "{APP_EXE_NAME}"
+
+[Setup]
+AppId={{{{{app_id}}}
+AppName={{#MyAppName}}
+AppVersion={{#MyAppVersion}}
+AppVerName={{cm:L10nAppVerName}}
+AppPublisher={{#MyAppPublisher}}
+AppCopyright=GNU AGPL-3.0. Original work: NTE Drive Calc contributors
+VersionInfoDescription={app_name} {version} multilingual edition (unofficial community build) setup
+VersionInfoProductName={app_name} multilingual edition (unofficial)
+VersionInfoCopyright=GNU AGPL-3.0. Original work: NTE Drive Calc contributors
+{version_info}DefaultDirName={default_dir}
+DefaultGroupName={{#MyAppName}}
+DisableProgramGroupPage=yes
+OutputDir={out_dir}
+OutputBaseFilename={output_base}
+Compression={compression}
+SolidCompression=yes
+WizardStyle=modern
+{setup_icon_line}PrivilegesRequired={privileges}
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+UninstallDisplayIcon={{app}}\\{{#MyAppExeName}}
+CloseApplications=yes
+CloseApplicationsFilter={CLOSE_APPLICATIONS_FILTER}
+ShowLanguageDialog=yes
+UsePreviousLanguage=yes
+
+[Languages]
+{languages}
+
+[CustomMessages]
+{custom_message_lines(version, sandbox)}
+
+[Tasks]
+{chr(10).join(tasks)}
+
+[Files]
+Source: "{exe}"; DestDir: "{{app}}"; DestName: "{APP_EXE_NAME}"; Flags: ignoreversion
+Source: "{internal}\\*"; DestDir: "{{app}}\\_internal"; Flags: ignoreversion recursesubdirs createallsubdirs
+{config_lines}
+Source: "{stage / "drivers" / VIGEM_DEST_NAME}"; DestDir: "{{app}}\\drivers"; DestName: "{VIGEM_DEST_NAME}"; Flags: ignoreversion
+{docs_lines}
+
+[InstallDelete]
+{stale_runtime_delete_lines}
+{stale_shortcut_delete_lines(sandbox)}
+
+[UninstallDelete]
+Type: files; Name: "{{app}}\\_internal\\config\\i18n_language.json"
+
+[Dirs]
+Name: "{{app}}\\config"; Permissions: users-modify
+Name: "{{app}}\\_internal\\data"; Permissions: users-modify
+Name: "{{app}}\\migration"; Permissions: users-modify
+Name: "{{app}}\\logs"; Permissions: users-modify
+Name: "{{app}}\\scanned_images"; Permissions: users-modify
+
+[Icons]
+{chr(10).join(icons)}
+
+[Run]
+{chr(10).join(run)}
+
+[Code]
+{vigem_code}procedure WriteInitialLanguage;
+var
+  ConfigDir: String;
+  LanguageFile: String;
+begin
+  // The wizard language names are the application's language codes (en / ko / ja / zh).
+  ConfigDir := ExpandConstant('{{app}}\\_internal\\config');
+  LanguageFile := ConfigDir + '\\i18n_language.json';
+  if FileExists(LanguageFile) or not DirExists(ConfigDir) then
+    Exit;
+  SaveStringToFile(LanguageFile, #123 + '"language": "' + ActiveLanguage + '"' + #125, False);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  OldStaticDatabase: String;
+  MigrationBackup: String;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    WriteInitialLanguage;
+    Exit;
+  end;
+  if CurStep <> ssInstall then
+    Exit;
+  OldStaticDatabase :=
+    ExpandConstant('{{app}}\\_internal\\data\\game_static.sqlite3');
+  MigrationBackup :=
+    ExpandConstant('{{app}}\\migration\\game_static.previous.sqlite3');
+  if FileExists(OldStaticDatabase) then
+  begin
+    ForceDirectories(ExtractFileDir(MigrationBackup));
+    if not CopyFile(OldStaticDatabase, MigrationBackup, False) then
+      RaiseException(CustomMessage('MigrationBackupFailed'));
+  end;
+end;
+"""
+
+
+def write_support_files(*, build_dir: Path, version: str, license_path: Path, exe_sha256: str,
+                        source_zip_name: str) -> list[Path]:
+    zh_isl = (
+        "; Generated by build_installer_l10n.py - Simplified Chinese overrides on top of Default.isl.\n"
+        "; [Messages] / [CustomMessages] are ported from the official build_installer.py.\n"
+        "[LangOptions]\nLanguageName=简体中文\nLanguageID=$0804\nLanguageCodePage=936\n\n"
+        "[Messages]\n" + ZH_MESSAGES_UPSTREAM + ZH_MESSAGES_EXTRA + "\n"
+        "[CustomMessages]\n" + ZH_CUSTOM_MESSAGES_UPSTREAM
+    )
+    _write_text(build_dir / "ChineseSimplified.overrides.isl", zh_isl)
+    fields = dict(version=version, docs=DOCS_DIR_NAME, source_zip=source_zip_name, exe_name=APP_EXE_NAME,
+                  exe_sha256=exe_sha256, upstream_url=UPSTREAM_URL, upstream_commit=UPSTREAM_COMMIT)
+    for lang in LANGS:
+        _write_text(build_dir / f"notice_{lang}.txt", NOTICE[lang].format(**fields))
+    docs = build_dir / "docs"
+    license_text = license_path.read_text(encoding="utf-8")
+    if "GNU AFFERO GENERAL PUBLIC LICENSE" not in license_text[:400]:
+        raise BuildError(f"{license_path} does not look like the AGPL license text")
+    docs.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(license_path, docs / "LICENSE.txt")          # verbatim copy of the upstream LICENSE
+    _write_text(docs / "README.txt", README.format(**fields))
+    _write_text(docs / "SOURCE_OFFER.txt", SOURCE_OFFER.format(**fields))
+    return [docs / "LICENSE.txt", docs / "README.txt", docs / "SOURCE_OFFER.txt"]
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Build the multilingual NTE Drive Calc installer.")
+    parser.add_argument("--exe", type=Path, help="our rebuilt NTE_Drive_Calc.exe (any file name)")
+    parser.add_argument("--stage", type=Path, required=True, help="clean payload directory")
+    parser.add_argument("--out", type=Path, help="output directory")
+    parser.add_argument("--variant", choices=("release", "sandbox"))
+    parser.add_argument("--version", default=DEFAULT_VERSION)
+    parser.add_argument("--iscc", type=Path, default=None, help="path to ISCC.exe (else INNO_SETUP_ISCC / default install)")
+    parser.add_argument("--compression", default="lzma2/ultra64",
+                        help="Inno Compression value (official: lzma2/ultra64; lzma2/fast for quick dry runs)")
+    parser.add_argument("--license", type=Path, default=DEFAULT_LICENSE, help="AGPL LICENSE file to ship")
+    parser.add_argument("--source-zip-name", default=None,
+                        help="file name of the source zip shipped next to the installer (named in the notices)")
+    parser.add_argument("--sandbox-dir", default=SANDBOX_DEFAULT_DIR, help="default directory of the sandbox variant")
+    parser.add_argument("--output-base", default=None,
+                        help="installer file name without .exe (default NTE_Drive_Calc_Setup_<version>_multilingual[_sandbox])")
+    parser.add_argument("--aux-dir", type=Path, default=None,
+                        help="directory for build_<variant>/, the payload manifest and the build report (default: --out)")
+    parser.add_argument("--generate-only", action="store_true", help="write the .iss and support files, skip ISCC")
+    parser.add_argument("--write-stage-manifest", action="store_true",
+                        help=f"write <stage>/{STAGE_MANIFEST_NAME} from the current stage contents and exit")
+    args = parser.parse_args()
+
+    try:
+        stage = args.stage.resolve()
+        if not stage.is_dir():
+            raise BuildError(f"stage directory not found: {stage}")
+        if "program files" in str(stage).lower():
+            raise BuildError("the stage must be a copy, not the installed program folder")
+        if args.write_stage_manifest:
+            target = write_stage_manifest(stage)
+            manifest = json.loads(target.read_text(encoding="utf-8"))
+            info(f"wrote {target}: {manifest['total_files']} files, {manifest['total_bytes']} bytes")
+            return 0
+        if not (args.exe and args.out and args.variant):
+            parser.error("--exe, --out and --variant are required unless --write-stage-manifest is used")
+
+        exe = args.exe.resolve()
+        out_dir = args.out.resolve()
+        if not exe.is_file() or exe.read_bytes()[:2] != b"MZ":
+            raise BuildError(f"not a Windows executable: {exe}")
+        if "program files" in str(out_dir).lower():
+            raise BuildError("refusing to write under Program Files")
+        license_path = args.license.resolve()
+        if not license_path.is_file():
+            raise BuildError(f"LICENSE file not found: {license_path} (pass --license)")
+        version = args.version
+        source_zip_name = args.source_zip_name or f"NTE_Drive_Calc_{version}_multilingual_source.zip"
+        aux_dir = (args.aux_dir or out_dir).resolve()
+        if "program files" in str(aux_dir).lower():
+            raise BuildError("refusing to write under Program Files")
+        build_dir = aux_dir / f"build_{args.variant}"
+        output_base = args.output_base or (
+            f"NTE_Drive_Calc_Setup_{version}_multilingual" + ("_sandbox" if args.variant == "sandbox" else ""))
+        if not output_base.strip() or any(ch in output_base for ch in '\\/:*?"<>|') or output_base.lower().endswith(".exe"):
+            raise BuildError(f"--output-base must be a plain file name without extension: {output_base!r}")
+        setup_path = out_dir / f"{output_base}.exe"
+
+        info(f"variant={args.variant} version={version}")
+        info("hashing stage ...")
+        rows = scan_stage(stage)
+        check_stage_layout(stage, rows)
+        verification = verify_stage(stage, rows)
+        exe_sha256 = sha256_of(exe)
+        info(f"stage ok: {len(rows)} files, {sum(r['size'] for r in rows)} bytes; {verification}")
+        info(f"exe: {exe} sha256={exe_sha256}")
+
+        out_dir.mkdir(parents=True, exist_ok=True)
+        aux_dir.mkdir(parents=True, exist_ok=True)
+        docs = write_support_files(build_dir=build_dir, version=version, license_path=license_path,
+                                   exe_sha256=exe_sha256, source_zip_name=source_zip_name)
+        icon = stage / "_internal" / "assets" / "app_icon.ico"
+        iss_text = build_iss(variant=args.variant, version=version, exe=exe, stage=stage, out_dir=out_dir,
+                             build_dir=build_dir, compression=args.compression,
+                             icon=icon if icon.is_file() else None, sandbox_dir=args.sandbox_dir,
+                             output_base=output_base)
+        iss_path = build_dir / "setup.iss"
+        _write_text(iss_path, iss_text)
+        info(f"wrote {iss_path}")
+
+        # Everything the installer lays down under {app} (the uninstaller and the language file
+        # written by [Code] are created at install time and therefore not listed).
+        installed = [{"path": APP_EXE_NAME, "size": exe.stat().st_size, "sha256": exe_sha256}]
+        installed += [row for row in rows if row["path"].startswith("_internal/")]
+        installed += [row for row in rows if row["path"].lower() == "drivers/" + VIGEM_DEST_NAME.lower()]
+        by_path = {row["path"]: row for row in rows}
+        for name in CORE_CONFIG_FILES:
+            source = by_path[f"_internal/config/{name}"]
+            installed.append({"path": f"config/{name}", "size": source["size"], "sha256": source["sha256"]})
+        for doc in docs:
+            installed.append({"path": f"{DOCS_DIR_NAME}/{doc.name}", "size": doc.stat().st_size, "sha256": sha256_of(doc)})
+        installed.sort(key=lambda row: row["path"].lower())
+        payload_manifest = {
+            "format": 1,
+            "variant": args.variant,
+            "version": version,
+            "app_id": SANDBOX_APP_ID if args.variant == "sandbox" else OFFICIAL_APP_ID,
+            "generated_at_install": [LANGUAGE_FILE_REL, "unins000.exe", "unins000.dat"],
+            "total_files": len(installed),
+            "total_bytes": sum(row["size"] for row in installed),
+            "files": installed,
+        }
+        payload_manifest_path = aux_dir / f"payload_manifest_{args.variant}.json"
+        payload_manifest_path.write_text(json.dumps(payload_manifest, ensure_ascii=False, indent=1) + "\n",
+                                         encoding="utf-8", newline="\n")
+        info(f"wrote {payload_manifest_path} ({len(installed)} files)")
+
+        if args.generate_only:
+            info("generate-only: skipped ISCC")
+            return 0
+
+        iscc = find_iscc(args.iscc)
+        log_path = build_dir / "iscc.log"
+        info(f"running {iscc} (compression {args.compression}) ...")
+        started = time.monotonic()
+        with log_path.open("wb") as log:
+            completed = subprocess.run([str(iscc), "/Q", str(iss_path)], stdout=log, stderr=subprocess.STDOUT, check=False)
+        elapsed = time.monotonic() - started
+        if completed.returncode != 0:
+            tail = log_path.read_bytes()[-3000:].decode("mbcs", "replace")
+            raise BuildError(f"ISCC failed with exit code {completed.returncode}; see {log_path}\n{tail}")
+        if not setup_path.is_file():
+            raise BuildError(f"ISCC finished but the installer was not found: {setup_path}")
+        report = {
+            "variant": args.variant,
+            "version": version,
+            "installer": str(setup_path),
+            "installer_size": setup_path.stat().st_size,
+            "installer_sha256": sha256_of(setup_path),
+            "compile_seconds": round(elapsed, 1),
+            "compression": args.compression,
+            "iscc": str(iscc),
+            "exe": str(exe),
+            "exe_sha256": exe_sha256,
+            "stage": str(stage),
+            "stage_verification": verification,
+            "payload_files": len(installed),
+            "payload_bytes": payload_manifest["total_bytes"],
+            "source_zip_name": source_zip_name,
+            "built_utc": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+        report_path = aux_dir / f"build_report_{args.variant}.json"
+        report_path.write_text(json.dumps(report, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
+        info(f"installer: {setup_path}")
+        info(f"size={report['installer_size']} sha256={report['installer_sha256']} compile={report['compile_seconds']}s")
+        return 0
+    except BuildError as exc:
+        print(f"[installer-l10n] ERROR: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

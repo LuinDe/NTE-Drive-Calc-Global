@@ -1,0 +1,360 @@
+# 统筹库存、评分和求解器生成最终配装。
+"""End-to-end pipeline for blueprints, scoring, dispatch, and output."""
+from src.i18n_runtime import L as _L, LF as _LF
+
+import copy
+import json
+import time
+from pathlib import Path
+from typing import List, Dict
+
+from src.domain.allocation_rating import loadout_total_grade
+from src.integrations.bundled_resources import bundled_config_dir
+from src.optimizer.contracts import PLAN_CUSTOM_WEAPON
+from src.domain.equipment_normalizer import normalize_equipment_item
+from src.models.equipment import DriveShape, Drive, Tape
+from src.solver.combinatorics import PuzzleCombinatorics
+from src.solver.dfs_puzzle import DFSPuzzleSolver
+from src.solver.blueprint_utils import dedupe_blueprints_by_piece_signature
+from src.solver.set_effects import normalize_set_effect_mode, set_piece_options_for_mode
+from src.optimizer.scoring import ScoringEngine
+from src.optimizer.allocation_kernel import AllocationKernelRequest, estimate_candidate_pool_limits
+from src.utils.visualizer import BoardVisualizer
+from src.utils.logger import logger
+from src.utils.name_resolver import resolve_name
+from src.utils.set_name import normalize_set_display_name
+from src.services.legacy_allocation_static_catalog import build_legacy_allocation_static_catalog
+
+
+class NTEPipelineOrchestrator:
+    _blueprint_cache: dict[str, List[Dict]] = {}
+    _blueprint_cache_limit = 256
+
+    def __init__(
+        self, config_dir: str | Path | None = None, *, user_database_path=None,
+        static_database_path: str | Path | None = None,
+    ):
+        self.config_dir = str(Path(config_dir) if config_dir is not None else bundled_config_dir())
+        self.user_database_path = user_database_path
+        self.static_database_path = static_database_path
+        self.roles_db = {}
+        self.sets_db = {}
+        self.shapes_db = {}
+        self._board_matrices = {}
+        self._load_configs()
+
+    @classmethod
+    def from_frozen_inputs(
+        cls,
+        *,
+        roles_db: dict,
+        sets_db: dict,
+        shapes_db: dict[str, DriveShape],
+        config_dir: str | Path | None = None,
+    ) -> "NTEPipelineOrchestrator":
+        """Create a puzzle-only orchestrator without rereading mutable config.
+
+        Context callers already copied every role, suit and shape input.  This
+        named constructor keeps that boundary explicit instead of having an
+        adapter bypass ``__init__`` and patch private attributes afterwards.
+        """
+
+        instance = cls.__new__(cls)
+        instance.config_dir = str(
+            Path(config_dir) if config_dir is not None else bundled_config_dir()
+        )
+        instance.user_database_path = None
+        instance.static_database_path = None
+        instance.roles_db = roles_db
+        instance.sets_db = sets_db
+        instance.shapes_db = shapes_db
+        instance._board_matrices = {
+            role_name: role_data["board_matrix"]
+            for role_name, role_data in roles_db.items()
+        }
+        instance._blueprint_cache = {}
+        return instance
+
+    def _load_configs(self):
+        catalog = build_legacy_allocation_static_catalog(
+            config_dir=self.config_dir,
+            user_database_path=self.user_database_path,
+            static_database_path=self.static_database_path,
+        )
+        self.roles_db = catalog.roles_db
+        self.sets_db = catalog.sets_db
+        self.shapes_db = catalog.shapes_db
+        self._board_matrices = catalog.board_matrices
+
+    def _resolve_set_name(self, set_name: str) -> str:
+        normalized_name = normalize_set_display_name(set_name)
+        resolved = resolve_name(normalized_name, self.sets_db.keys(), cutoff=0.78)
+        if not resolved:
+            available = "、".join(self.sets_db.keys())
+            raise ValueError(_LF('错误：指定的套装 {0} 不存在于官方 SQLite 数据中！可用套装：{1}').format((set_name), (available)))
+        return resolved
+
+    def _canonicalize_role_sets(self):
+        for role_name, role_data in self.roles_db.items():
+            if "default_set" not in role_data:
+                continue
+            raw_set = role_data["default_set"]
+            resolved = self._resolve_set_name(raw_set)
+            if resolved != raw_set:
+                logger.warning(_LF('角色 [{0}] 默认套装名已自动修正: {1} -> {2}').format((role_name), (raw_set), (resolved)))
+                role_data["default_set"] = resolved
+
+    def _canonicalize_custom_sets(self, custom_sets: Dict[str, str] | None) -> Dict[str, str]:
+        resolved_sets = {}
+        for role_name, set_name in (custom_sets or {}).items():
+            if set_name:
+                resolved_sets[role_name] = self._resolve_set_name(set_name)
+        return resolved_sets
+
+    def solve_blueprints(self, target_roles: List[str], custom_sets: Dict[str, str] = None,
+                         set_effect_modes: Dict[str, str] = None,
+                         include_layout_variants: bool = False) -> Dict[str, List[Dict]]:
+        custom_sets = self._canonicalize_custom_sets(custom_sets)
+        set_effect_modes = set_effect_modes or {}
+        logger.info(_LF('\n[阶段 2] 求解 {0} 的合法底盘图纸...').format((target_roles)))
+        combinatorics = PuzzleCombinatorics(self.shapes_db)
+        dfs_solver = DFSPuzzleSolver(self.shapes_db)
+        real_blueprints_db = {}
+
+        for role_name in target_roles:
+            role_data = self.roles_db[role_name]
+            set_name = self._resolve_set_name(custom_sets.get(role_name, role_data["default_set"]))
+
+            set_shapes = self.sets_db[set_name]["shapes"]
+            extra_label = role_data["extra_shape_label"]
+            board_matrix = self._board_matrices[role_name]
+            set_effect_mode = normalize_set_effect_mode(set_effect_modes.get(role_name))
+            set_piece_options = set_piece_options_for_mode(set_shapes, set_effect_mode)
+            cache_key = self._blueprint_cache_key(
+                role_name,
+                set_name,
+                set_shapes,
+                extra_label,
+                board_matrix,
+                set_effect_mode,
+                include_layout_variants,
+            )
+
+            logger.info(_LF('  -> [{0}] 套装: {1} | 套装效果: {2} | 求解中...').format((role_name), (set_name), (set_effect_mode)))
+            _t0 = time.perf_counter()
+            if cache_key in self._blueprint_cache:
+                real_blueprints_db[role_name] = copy.deepcopy(self._blueprint_cache[cache_key])
+                logger.info(_LF('  [{0}] 图纸缓存命中，共 {1} 套合法方案。').format((role_name), (len(real_blueprints_db[role_name]))))
+                continue
+            role_blueprints = []
+
+            for set_pieces in set_piece_options:
+                combos = combinatorics.generate_piece_combinations(set_pieces, extra_label)
+                logger.info(_LF('     套装形状: {0} | 组合数: {1} | 耗时: {2:.2f}s').format((len(set_pieces)), (len(combos)), (time.perf_counter() - _t0)))
+
+                for combo in combos:
+                    pieces_to_place = set_pieces + combo
+                    board_copy = [row[:] for row in board_matrix]
+                    results = []
+                    dfs_solver.solve(
+                        board_copy,
+                        pieces_to_place,
+                        results,
+                        max_solutions=0 if include_layout_variants else 1,
+                    )
+
+                    for result_board in results:
+                        role_blueprints.append({
+                            "set_pieces": list(set_pieces),
+                            "extra_pieces": combo,
+                            "set_effect_mode": set_effect_mode,
+                            "board": result_board,
+                        })
+
+            if not include_layout_variants:
+                role_blueprints = dedupe_blueprints_by_piece_signature(role_blueprints)
+            real_blueprints_db[role_name] = role_blueprints
+            self._remember_blueprint_cache(cache_key, role_blueprints)
+            logger.success(_LF('  [{0}] 图纸求解完成，共 {1} 套合法方案。(总耗时 {2:.2f}s)').format((role_name), (len(role_blueprints)), (time.perf_counter() - _t0)))
+
+        return real_blueprints_db
+
+    def _blueprint_cache_key(
+        self,
+        role_name: str,
+        set_name: str,
+        set_shapes: List[str],
+        extra_label: str,
+        board_matrix: List[List[int]],
+        set_effect_mode: str,
+        include_layout_variants: bool,
+    ) -> str:
+        shape_payload = {
+            shape_id: {"area": shape.area, "label": shape.label}
+            for shape_id, shape in sorted(self.shapes_db.items())
+        }
+        payload = {
+            "role": role_name,
+            "set": set_name,
+            "set_shapes": list(set_shapes or []),
+            "extra_label": extra_label,
+            "board_matrix": board_matrix,
+            "set_effect_mode": set_effect_mode,
+            "include_layout_variants": include_layout_variants,
+            "shapes": shape_payload,
+        }
+        return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+    def _remember_blueprint_cache(self, cache_key: str, blueprints: List[Dict]) -> None:
+        if len(self._blueprint_cache) >= self._blueprint_cache_limit:
+            self._blueprint_cache.pop(next(iter(self._blueprint_cache)))
+        self._blueprint_cache[cache_key] = copy.deepcopy(blueprints)
+
+    def _max_priority_group_size(self, priority_list: List[str], priority_groups: List[List[str]] | None) -> int:
+        selected = set(priority_list or [])
+        max_size = 1
+        for group in priority_groups or []:
+            size = len([role for role in group or [] if role in selected])
+            max_size = max(max_size, size)
+        return max_size
+
+    def run_full_allocation(self, inventory: List[Dict], priority_list: List[str],
+                            custom_sets: Dict[str, str] = None, mode: str = "role_priority",
+                            locked_uids: set = None, tape_main_filters: Dict[str, List[str]] = None,
+                            crit_priority_modes: Dict[str, str] = None, set_effect_modes: Dict[str, str] = None,
+                            priority_groups: List[List[str]] = None, crit_rate_caps: Dict[str, float] = None,
+                            crit_rate_baselines: Dict[str, float] = None,
+                            custom_weapons: Dict[str, str] = None,
+                            blueprint_combo_limit: int = 2000,
+                            cancel_check=None, *, allocation_executor):
+        locked_uids = locked_uids or set()
+        tape_main_filters = tape_main_filters or {}
+        crit_priority_modes = crit_priority_modes or {}
+        crit_rate_caps = crit_rate_caps or {}
+        crit_rate_baselines = crit_rate_baselines or {}
+        set_effect_modes = set_effect_modes or {}
+        custom_weapons = custom_weapons or {}
+        priority_groups = priority_groups or None
+        if mode != "role_priority":
+            tape_main_filters = {}
+            crit_priority_modes = {}
+            crit_rate_caps = {}
+        for role_name, value in crit_rate_baselines.items():
+            if role_name not in self.roles_db:
+                continue
+            try:
+                fork_crit_rate = max(0.0, float(value))
+            except (TypeError, ValueError):
+                continue
+            self.roles_db[role_name] = {
+                **self.roles_db[role_name],
+                "fork_crit_rate": fork_crit_rate,
+            }
+        custom_sets = self._canonicalize_custom_sets(custom_sets)
+        total_t0 = time.perf_counter()
+        logger.info(_LF('\n[阶段 1] 开始完整分配流程 | 库存: {0} | 角色: {1} | 模式: {2}').format((len(inventory)), (priority_list), (mode)))
+        stage_t0 = time.perf_counter()
+        blueprints_db = self.solve_blueprints(priority_list, custom_sets, set_effect_modes)
+        logger.info(_LF('[计时] 图纸求解阶段: {0:.2f}s').format((time.perf_counter() - stage_t0)))
+
+        logger.info(_LF('\n[阶段 3] 接收到 {0} 个资产，正在过滤与类型转换...').format((len(inventory))))
+        stage_t0 = time.perf_counter()
+        parsed_inventory = []
+        filtered_count = 0
+
+        for item in inventory:
+            item = normalize_equipment_item(item)
+            obj = Drive(**item) if item.get("item_type") == "drive" else Tape(**item)
+
+            # Skip equipment already worn by other characters
+            if obj.uid in locked_uids:
+                filtered_count += 1
+                continue
+
+            parsed_inventory.append(obj)
+
+        if locked_uids:
+            logger.info(
+                _LF('[模式四] 已屏蔽 {0} 件锁定装备，使用剩余 {1} 件进行分配。').format((filtered_count), (len(parsed_inventory))))
+        logger.info(_LF('[计时] 库存转换阶段: {0:.2f}s').format((time.perf_counter() - stage_t0)))
+
+        stage_t0 = time.perf_counter()
+        scoring_engine = ScoringEngine(
+            config_dir=self.config_dir,
+            user_database_path=self.user_database_path,
+            roles_db=self.roles_db,
+        )
+        drive_screen_limit, tape_screen_limit = estimate_candidate_pool_limits(
+            blueprints_db, priority_list, priority_groups or (),
+        )
+        if drive_screen_limit > 15:
+            logger.info(_LF('  候选驱动筛选上限已按当前角色需求提升到 Top {0}/形状/角色。').format((drive_screen_limit)))
+        kernel_request = AllocationKernelRequest(
+            inventory=tuple(parsed_inventory), roles_db=self.roles_db, sets_db=self.sets_db,
+            shapes_db=self.shapes_db, blueprints_db=blueprints_db, role_order=tuple(priority_list),
+            strategy=mode, module_set_targets=custom_sets, set_effect_modes=set_effect_modes,
+            core_main_filters={key: tuple(value) for key, value in tape_main_filters.items()},
+            core_set_targets={}, stat_priority_configs=crit_priority_modes, property_limits={},
+            priority_groups=tuple(tuple(group) for group in (priority_groups or ())),
+            crit_rate_caps=crit_rate_caps, drive_screen_limit=drive_screen_limit,
+            tape_screen_limit=tape_screen_limit,
+            # 缺少卡带只表示本次推荐没有核心，不能否定已经完整填满图纸的驱动方案。
+            # 自动/极速装配仍会拒绝缺少核心的保存方案。
+            allow_missing_core=True,
+            blueprint_combo_limit=int(blueprint_combo_limit),
+            cancel_check=cancel_check,
+        )
+        if tape_main_filters:
+            logger.info(_L('  已按角色优先级配置提前过滤卡带主词条。'))
+
+        logger.success(_L('  筛选输入已准备完成。'))
+        logger.info(_LF('     - 卡带分桶: 各角色每套装 Top {0} 已锁定').format((tape_screen_limit)))
+        logger.info(_LF('[计时] 评分筛选阶段: {0:.2f}s').format((time.perf_counter() - stage_t0)))
+
+        logger.info(_LF('\n[阶段 4] 启动调度模式: [{0}]...').format((mode)))
+        stage_t0 = time.perf_counter()
+        final_plan = allocation_executor(kernel_request, scoring_engine)
+        logger.info(_LF('[计时] 调度阶段: {0:.2f}s').format((time.perf_counter() - stage_t0)))
+
+        stage_t0 = time.perf_counter()
+        self._render_results(final_plan, scoring_engine, custom_sets)
+        logger.info(_LF('[计时] 日志渲染阶段: {0:.2f}s').format((time.perf_counter() - stage_t0)))
+        for role_name, plan in final_plan.items():
+            if isinstance(plan, dict) and custom_weapons.get(role_name):
+                plan[PLAN_CUSTOM_WEAPON] = custom_weapons[role_name]
+        logger.info(_LF('[计时] 完整分配流程总耗时: {0:.2f}s').format((time.perf_counter() - total_t0)))
+
+        return final_plan
+
+    def _render_results(self, final_plan: Dict, scoring_engine: ScoringEngine, custom_sets: Dict[str, str]):
+        custom_sets = custom_sets or {}
+        for role, plan in final_plan.items():
+            if not plan or not plan.get("valid", True):
+                logger.error(_LF('角色 [{0}] 分配失败: 无法凑齐合法图纸。\n').format((role)))
+                continue
+
+            grade = loadout_total_grade(plan['score'])
+            used_set = custom_sets.get(role, self.roles_db[role]["default_set"])
+
+            BoardVisualizer.display_final_plan(role_name=role, plan=plan, default_set=used_set, grade=grade)
+
+            logger.opt(raw=True).info(_L('  [卡带分配]\n'))
+            assigned_tape: Tape = plan.get("assigned_tape")
+            if assigned_tape:
+                t_score = assigned_tape.role_scores.get(role, 0.0)
+                t_grade = scoring_engine.get_grade_tag(t_score, area=15)
+                logger.opt(raw=True).info((f"     - {assigned_tape.set_name.ljust(8)} | " + _LF('评级:[{0}] | ').format((t_grade.ljust(3))) + _LF('总得分:{0} | ').format((str(t_score).ljust(6))) + _LF('品质:{0} |\n').format((assigned_tape.quality.ljust(5))) + _LF('       主词条: {0}\n').format((assigned_tape.main_stats)) + _LF('       副词条: {0}\n').format((assigned_tape.sub_stats))))
+            else:
+                logger.warning(_L('     - 未为此角色分配合法卡带。'))
+
+            for category, key in [(_L('\n  [套装效果驱动]\n'), 'assigned_set_drives'),
+                                  (_L('  [额外散件]\n'), 'assigned_extra_drives')]:
+                logger.opt(raw=True).info(f"{category}")
+                for d in plan.get(key, []):
+                    score = d.role_scores.get(role, 0.0)
+                    d_grade = scoring_engine.get_grade_tag(score, d.area)
+
+                    mvp_tag = _LF(' [先选: 第 {0} 顺位]').format((d.pick_order)) if d.is_mvp else ""
+
+                    logger.opt(raw=True).info((f"     - {d.shape_id.ljust(10)} | " + _LF('评级:[{0}] | ').format((d_grade.ljust(3))) + _LF('得分:{0} | ').format((str(score).ljust(5))) + _LF('品质:{0} | ').format((d.quality.ljust(5))) + _LF('数值:{0}{1}\n').format((d.sub_stats), (mvp_tag))))
+            logger.opt(raw=True).info("\n" + "=" * 60 + "\n")
