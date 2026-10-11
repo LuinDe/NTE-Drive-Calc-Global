@@ -4,6 +4,7 @@
 from __future__ import annotations
 from src.i18n_runtime import L as _L, LF as _LF
 
+from concurrent.futures import CancelledError
 from src.features.input_operation_entry import request_input_entry, show_input_unavailable
 
 import threading
@@ -26,6 +27,23 @@ class RewindExecutionUiMixin:
     _rewind_hotkey_owner = "rewind_execution"
 
     def _save_plan(self) -> None:
+        checker = getattr(self, "_check_selection_context", None)
+        if checker is not None:
+            try:
+                checker()
+            except CancelledError:
+                return
+        if getattr(self, "_recommendation_invalidated", False):
+            QMessageBox.warning(self, _L('推荐已失效'), _L('推荐输入已变化，请重新生成后再保存。'))
+            return
+        analysis = getattr(self, "_generated_analysis", None)
+        if analysis is not None:
+            try:
+                self._service.validate_selection(analysis.selected_slots, analysis.static_identity)
+            except Exception as error:
+                QMessageBox.warning(self, _L('推荐已失效'), str(error))
+                self._save_plan_button.setEnabled(False)
+                return
         if not self._slots_complete():
             return
         shape_ids = [slot.shape.shape_id for slot in self._editable_slots if slot is not None]
@@ -34,7 +52,14 @@ class RewindExecutionUiMixin:
             preferences = dict(getattr(self._service, "load_preferences", lambda: {})())
             preferences["saved_rewind_shape_ids"] = shape_ids
             preferences["saved_rewind_slots"] = self._serialize_rewind_slots()
-            saver(preferences)
+            try:
+                if analysis is not None:
+                    saver(preferences, expected_slots=analysis.selected_slots, static_identity=analysis.static_identity)
+                else:
+                    saver(preferences)
+            except Exception as error:
+                QMessageBox.warning(self, _L('方案未保存'), _LF('原保存方案保持不变，请处理后重试。\n{0}').format((error)))
+                return
         self._saved_rewind_shape_ids = tuple(shape_ids)
         self._saved_rewind_slots = tuple(self._serialize_rewind_slots())
         self._save_plan_button.setText(_L('方案已保存'))

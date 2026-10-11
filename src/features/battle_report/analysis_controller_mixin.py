@@ -366,7 +366,9 @@ class BattleReportAnalysisControllerMixin:
             self._page.show_analysis_detail_error(_LF('倾陷归属未完成：{0}').format((message)))
         elif request.load.detail_level in {"hit", "buff"}:
             self._page.show_analysis_detail_error(_LF('当前详情未完成：{0}').format((message)))
-        elif request.load.detail_level != "marginal":
+        elif request.load.detail_level == "marginal":
+            self._page.show_marginal_error(message)
+        else:
             self._page.clear_analysis(_LF('读取战报逐击分析失败：{0}').format((message)))
         log_event(
             "WARNING",

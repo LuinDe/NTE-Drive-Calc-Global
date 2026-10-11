@@ -284,7 +284,8 @@ class CharacterDetailView(QWidget):
             acquisition_label += _L(' · 待上线')
         self.availability_badge.setText(acquisition_label)
         self.quality_badge.setText(
-            _LF('{0} 级').format((release.quality))
+            # Global: '{0} 级' is the arc-level template ("Lv. {0}"); the quality has its own keys
+            ({"S": _L('S 级'), "A": _L('A 级')}.get(release.quality) or _LF('{0}级').format((release.quality)))
             if release is not None and release.quality
             else _L('品质未提供')
         )

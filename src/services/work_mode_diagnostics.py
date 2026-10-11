@@ -1,4 +1,4 @@
-# 将检测异常转换为可复制的固定诊断，避免泄露外部响应、账号数据和本机路径。
+# 将检测异常转换为可复制的业务诊断，并在本地故障日志保留组件实际路径。
 from __future__ import annotations
 from src.i18n_runtime import L as _L, LF as _LF
 
@@ -6,8 +6,10 @@ from concurrent.futures import CancelledError
 import math
 from pathlib import Path
 
+from src.domain.work_mode import CheckState
+
 from src.integrations.nte_core_protocol import (
-    NATIVE_CAPTURE_TRANSIENT_REASONS, NteCoreNotFoundError, NteCoreProcessError,
+    NATIVE_CAPTURE_TRANSIENT_REASONS, NteCoreError, NteCoreNotFoundError, NteCoreProcessError,
     NteCoreProtocolError, NteCoreRpcError, NteCoreTimeoutError,
     native_capture_readiness_message,
 )
@@ -31,7 +33,19 @@ _METHODS = frozenset({
     'core.hello', 'core.status', 'equipment.status', 'native.snapshot.status',
     'native.snapshot.refresh', 'native.snapshot.page', 'native.snapshot.changes',
     'native.inventory.page', 'native.character.page',
+    'native.diagnostics.configure', 'native.snapshot.open',
 })
+_BUSINESS_FAILURES = {
+    'NATIVE_MAPPING_UNSUPPORTED': _L('原生数据包含当前 Core 无法转换的角色或装备映射，本次读取已停止，已有数据保持不变。'),
+    'NATIVE_SNAPSHOT_INCOMPLETE': _L('本次原生快照未通过完整性校验，不能作为完整背包或角色数据。'),
+    'NATIVE_CAPABILITY_MISSING': _L('当前 Core 或 DLL 缺少本次操作所需的原生能力。'),
+    'NATIVE_SNAPSHOT_UNAVAILABLE': _L('当前配套组件未提供所请求的原生快照能力。'),
+    'NATIVE_SNAPSHOT_NOT_FOUND': _L('请求的原生快照已不可用，需要重新读取。'),
+    'NATIVE_SNAPSHOT_ARCHIVE_WRITE_FAILED': _L('原生快照诊断文件写入失败，请检查本地日志目录。'),
+    'PROTOCOL_VERSION_MISMATCH': _L('Calc 与采集 Core 的协议版本不匹配。'),
+    'HANDSHAKE_REQUIRED': _L('采集 Core 尚未接受本会话的握手，不能执行本次请求。'),
+    'REQUEST_IN_PROGRESS': _L('采集 Core 正在处理另一个请求，本次检测未完成。'),
+}
 _TRANSPORT_FAILURES = {
     'connect_timeout': _L('连接游戏内采集管道超时；请核对是否有其他工具占用连接。'),
     'pipe_open_failed': _L('无法打开游戏内采集管道；请核对进程权限和连接占用。'),
@@ -53,6 +67,35 @@ _PROCESS_MESSAGES = frozenset({
 _COPY_HINT = _L('点击“复制检测结果”发送给维护者；无需仅因这条提示反复重装或重启。')
 
 
+def detection_failure_state(error: Exception) -> CheckState:
+    """Classify typed transient evidence, never infer severity from diagnostic text."""
+    if isinstance(error, CancelledError):
+        return CheckState.WAITING
+    if isinstance(error, NteCoreTimeoutError):
+        return CheckState.WARNING
+    if isinstance(error, NteCoreRpcError):
+        if error.domain_code in _BUSINESS_FAILURES:
+            return (CheckState.WARNING if error.domain_code in {
+                'REQUEST_IN_PROGRESS', 'NATIVE_SNAPSHOT_NOT_FOUND',
+            } else CheckState.FAULT)
+        if error.domain_code in {'MODS_PLUGIN_BUSY', 'EQUIPMENT_PLUGIN_BUSY'}:
+            return CheckState.WARNING
+        if error.code == -32001:
+            reason = error.data.get('reason')
+            if isinstance(reason, str) and reason in {'sdk_unavailable', 'hook_unavailable'}:
+                return CheckState.FAULT
+            if isinstance(reason, str) and reason in {
+                'world_unavailable', 'controller_unavailable', 'pawn_unavailable',
+            }:
+                return CheckState.WAITING_LOGIN
+            if isinstance(reason, str) and reason in NATIVE_CAPTURE_TRANSIENT_REASONS:
+                return CheckState.WAITING
+            if error.message in {'not_ready', 'source_changed', 'control_busy', 'control_timeout',
+                                 'snapshot_not_found'}:
+                return CheckState.WARNING
+    return CheckState.FAULT
+
+
 def _failure_location(error: Exception) -> str:
     """Only expose a repository-relative Python location, never an external path."""
     root = Path(__file__).resolve().parents[2]
@@ -72,6 +115,15 @@ def _failure_location(error: Exception) -> str:
 def detection_failure_detail(error: Exception, *, record: bool = False) -> str:
     """Keep typed evidence and known reasons; never forward raw error text or stderr."""
     evidence = [_LF('异常类型：{0}').format((type(error).__name__))]
+    context = error.request_context if isinstance(error, NteCoreError) else None
+    if context is not None:
+        method = context.method if context.method in _METHODS else _L('未识别接口')
+        evidence.append(_LF('失败接口：{0}').format((method)))
+        digest = context.executable_sha256
+        if isinstance(digest, str) and len(digest) == 64 and all(c in '0123456789abcdefABCDEF' for c in digest):
+            evidence.append(f'Core SHA-256：{digest}')
+        if context.handshake_confirmed:
+            evidence.append(_L('本次握手：已确认'))
     location = _failure_location(error)
     if location:
         evidence.append(_LF('代码位置：{0}').format((location)))
@@ -117,10 +169,24 @@ def detection_failure_detail(error: Exception, *, record: bool = False) -> str:
         ):
             reason = native_capture_readiness_message(error)
             evidence.append(_LF('原因码：{0}').format((known_reason)))
+        elif error.domain_code in _BUSINESS_FAILURES:
+            reason = _BUSINESS_FAILURES[error.domain_code]
+            evidence.append(_LF('原因码：{0}').format((error.domain_code)))
+            if error.domain_code in {'NATIVE_MAPPING_UNSUPPORTED', 'NATIVE_CAPABILITY_MISSING',
+                                     'NATIVE_SNAPSHOT_UNAVAILABLE', 'PROTOCOL_VERSION_MISMATCH'}:
+                next_step = _L('核对 Calc、Core、DLL 与内嵌角色/装备资源是否配套；') + _COPY_HINT
         elif error.domain_code in {'MODS_PLUGIN_BUSY', 'EQUIPMENT_PLUGIN_BUSY'}:
             reason = _L('游戏内组件正在处理其他请求。')
             next_step = _L('结束其他工具的采集或操作任务后重新检测；若仍失败，') + _COPY_HINT
             evidence.append(_LF('原因码：{0}').format((error.domain_code)))
+        elif error.code == -32001 and error.message in {'control_timeout', 'not_ready'}:
+            # Only exact protocol codes are public; arbitrary provider text stays private.
+            reason = {
+                'control_timeout': _L('游戏内采集请求等待执行或完成超时，本次检测未完成。'),
+                'not_ready': _L('游戏内采集接口尚未就绪，本次检测未完成。'),
+            }[error.message]
+            evidence.append(_LF('原因码：{0}').format((error.message)))
+            next_step = _L('确认已进入可操作角色的场景后重新检测；若持续出现，') + _COPY_HINT
         elif error.code == -32601:
             reason = _L('采集 Core 不支持本次检测接口，需要核对 Calc、Core 与 DLL 是否配套。')
     elif isinstance(error, NteCoreNotFoundError):
@@ -142,5 +208,9 @@ def detection_failure_detail(error: Exception, *, record: bool = False) -> str:
     detail = _LF('原因：{0}\n下一步：{1}\n诊断：').format((reason), (next_step)) + '；'.join(evidence)
     if record:
         from src.utils.logger import logger
-        logger.warning('environment.detection_failed | {}', detail.replace('\n', ' | '))
+        local_detail = detail.replace('\n', ' | ')
+        if context is not None and context.executable_path:
+            path = context.executable_path.replace('\r', r'\r').replace('\n', r'\n')
+            local_detail += _LF(' | Core 路径：{0}').format((path))
+        logger.warning('environment.detection_failed | {}', local_detail)
     return detail

@@ -98,7 +98,7 @@ def _percent(value: float | None, *, signed: bool = False) -> str:
 def _factor_value(factor: BattleHitReplayFactor) -> str:
     if factor.factor_id.startswith("topple_character:"):
         return f"{factor.value:,.2f}"
-    if factor.factor_id == "skill" and _L('倍率') in factor.label:
+    if factor.factor_id == "skill" and (_L('倍率') in factor.label or "倍率" in factor.label):
         return f"{factor.value * 100:.3f}%"
     if factor.factor_id == "scaling":
         return f"{factor.value:,.3f}"
@@ -653,7 +653,7 @@ class BattleHitReplayExplanationService:
                 ))
         else:
             missing_target = any(
-                _L('单目标防御与抗性') in row
+                (_L('尚未保存用户确认的单目标防御与抗性') in row or "单目标防御与抗性" in row)
                 for row in replay.missing_evidence
             )
             if replay.formula_type.startswith("直伤") and missing_target:
@@ -683,7 +683,7 @@ class BattleHitReplayExplanationService:
         lines.append(
             _L('【本击 Buff：已投影（是否被公式消费见乘区）】')
             if not any(
-                _L('单目标防御与抗性') in row
+                (_L('尚未保存用户确认的单目标防御与抗性') in row or "单目标防御与抗性" in row)
                 for row in replay.missing_evidence
             )
             else _L('【本击 Buff：可投影（公式输入不完整）】')

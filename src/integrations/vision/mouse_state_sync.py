@@ -7,6 +7,7 @@ from src.i18n_runtime import L as _L, LF as _LF
 import json
 import os
 import time
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,21 +30,22 @@ EQUIPMENT_STATES = {"normal", "locked", "discarded"}
 
 
 @dataclass(frozen=True)
-class MouseStateMismatch:
-    """One fixed-plan row whose live status must not be changed automatically."""
+class MouseStateIssue:
+    """One pre-action issue, retained for the final account-local UI notice."""
 
     index: int
-    expected_state: str
-    detected_state: str
     target_state: str
+    reason: str
+    expected_state: str | None = None
+    detected_state: str | None = None
 
 
 @dataclass(frozen=True)
 class MouseStateSyncResult:
-    """Verified state changes plus rows skipped because their live state changed."""
+    """Verified state changes plus pre-action rows skipped without state input."""
 
     applied_count: int
-    state_mismatches: tuple[MouseStateMismatch, ...] = ()
+    issues: tuple[MouseStateIssue, ...] = ()
 
 
 class MouseStateScanner(Protocol):
@@ -93,7 +95,7 @@ class MouseEquipmentStateSync:
                 applied=0,
                 started=started,
                 transitions={},
-                state_mismatches=(),
+                issues=(),
             )
             return MouseStateSyncResult(applied_count=0)
 
@@ -103,7 +105,7 @@ class MouseEquipmentStateSync:
         frame = self.scanner._capture_frame()
         applied = 0
         transitions: dict[str, int] = {}
-        state_mismatches: list[MouseStateMismatch] = []
+        issues: list[MouseStateIssue] = []
         try:
             initial_last_slot = pages[-1][-1]
             if self.scanner._wait_for_selected_panel(initial_last_slot, 0) is None:
@@ -115,23 +117,29 @@ class MouseEquipmentStateSync:
                     frame = self._scroll_previous_page(frame, current_page)
                     current_page -= 1
                 frame = self._select_slot(frame, slot)
-                if self.identity_verifier is not None and not self.identity_verifier(slot.index, frame.image):
-                    raise RuntimeError(
-                        (_LF('第 {0} 件详情与扫描截图不一致，').format((slot.index)) + _L('已停止以避免操作错误驱动'))
-                    )
+                try:
+                    identity_matches = self.identity_verifier(slot.index, frame.image)
+                except OSError:
+                    # Reference-image I/O failures are local, before any state action.
+                    identity_matches = False
+                self._check_stopped()
+                if not identity_matches:
+                    issues.append(MouseStateIssue(
+                        index=slot.index, target_state=str(change["target_state"]),
+                        reason="identity_mismatch",
+                    ))
+                    continue
                 detected = self.state_detector(frame.image)
                 expected_current = str(change["current_state"])
                 if detected != expected_current:
-                    mismatch = MouseStateMismatch(
+                    issue = MouseStateIssue(
                         index=slot.index,
+                        reason="state_mismatch",
                         expected_state=expected_current,
                         detected_state=detected,
                         target_state=str(change["target_state"]),
                     )
-                    state_mismatches.append(mismatch)
-                    logger.warning(
-                        (_LF('[鼠标状态管理] 跳过 raw_drive_{0:04d}: ').format((slot.index)) + _LF('画面为 {0}，计划为 {1}').format((detected), (expected_current)))
-                    )
+                    issues.append(issue)
                     continue
                 target = str(change["target_state"])
                 frame = self._apply_transition(frame, detected, target)
@@ -144,7 +152,7 @@ class MouseEquipmentStateSync:
                 transition = f"{detected}->{target}"
                 transitions[transition] = transitions.get(transition, 0) + 1
                 logger.info(
-                    (_LF('[鼠标状态管理] 已复核 raw_drive_{0:04d} ').format((slot.index)) + f"{detected} -> {target}")
+                    _LF('[鼠标状态管理] 已复核状态变更 {0} -> {1}').format((detected), (target))
                 )
         except BaseException as exc:
             self._write_report(
@@ -153,21 +161,21 @@ class MouseEquipmentStateSync:
                 applied=applied,
                 started=started,
                 transitions=transitions,
-                state_mismatches=tuple(state_mismatches),
+                issues=tuple(issues),
                 failure_type=type(exc).__name__,
             )
             raise
         self._write_report(
-            status="complete_with_skips" if state_mismatches else "complete",
+            status="complete_with_skips" if issues else "complete",
             requested=len(changes),
             applied=applied,
             started=started,
             transitions=transitions,
-            state_mismatches=tuple(state_mismatches),
+            issues=tuple(issues),
         )
         return MouseStateSyncResult(
             applied_count=applied,
-            state_mismatches=tuple(state_mismatches),
+            issues=tuple(issues),
         )
 
     @staticmethod
@@ -275,25 +283,18 @@ class MouseEquipmentStateSync:
         applied: int,
         started: float,
         transitions: dict[str, int],
-        state_mismatches: tuple[MouseStateMismatch, ...],
+        issues: tuple[MouseStateIssue, ...],
         failure_type: str | None = None,
     ) -> None:
         payload: dict[str, Any] = {
-            "schema": "mouse-equipment-state-sync-report-v2",
+            "schema": "mouse-equipment-state-sync-report-v3",
             "status": status,
             "requested": int(requested),
             "applied": int(applied),
             "transitions": dict(sorted(transitions.items())),
             "elapsed_ms": round((time.perf_counter() - started) * 1000.0, 3),
-            "state_mismatches": [
-                {
-                    "index": mismatch.index,
-                    "expected_state": mismatch.expected_state,
-                    "detected_state": mismatch.detected_state,
-                    "target_state": mismatch.target_state,
-                }
-                for mismatch in state_mismatches
-            ],
+            "skipped": len(issues),
+            "issue_counts": dict(sorted(Counter(issue.reason for issue in issues).items())),
         }
         if failure_type:
             payload["failure_type"] = failure_type

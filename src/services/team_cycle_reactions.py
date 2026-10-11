@@ -1423,7 +1423,8 @@ def is_reaction_or_topple(hit: Any) -> bool:
     try:
         from src.services.battle_damage_composition_service import classify_battle_hit_channel
         channel = classify_battle_hit_channel(hit)[0]
-        if channel.startswith("reaction_") or channel in ("other_topple", "special_daffodill_extra_topple"):
+        if channel.startswith("reaction_") or channel in ("other_topple", "special_daffodill_extra_topple",
+                                                          "special_blackbird_nova"):
             return True
     except Exception:  # pragma: no cover
         pass

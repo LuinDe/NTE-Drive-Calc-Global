@@ -81,7 +81,7 @@ def trigger_requirement_applies_to_hit(
         return "perfectevade" in identity or "闪避反击" in hit.attack_type
     if "con_selfisnotusemelee" in normalized:
         return not (
-            hit.attack_type in {"普攻", _L('普通攻击')}
+            hit.attack_type in {"普攻", _L('普通攻击'), "普通攻击"}
             or "_melee" in hit.ability_id.casefold()
         )
     return False

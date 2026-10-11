@@ -75,8 +75,7 @@ _SPECIAL_EFFECT_LABELS = {
 }
 
 _REACTION_IDENTITY_OVERRIDE_EFFECTS = frozenset({
-    "ge_player_zankou_dotdamage",
-    "ge_player_zankou_dotultradamage",
+    "ge_player_zankou_dotdamage", "ge_player_zankou_dotultradamage",
 })
 
 _ATTACHMENT_EFFECTS = frozenset({
@@ -99,9 +98,7 @@ _SYSTEM_COMPOSITION_CHANNELS = {
     "other_environment",
     "other_shared",
 }
-_CHARACTER_ATTRIBUTABLE_SYSTEM_CHANNELS = {
-    "other_reflected_projectile",
-}
+_CHARACTER_ATTRIBUTABLE_SYSTEM_CHANNELS = {"other_reflected_projectile"}
 
 _DOT_CHANNELS = {
     "dot",
@@ -115,9 +112,7 @@ _NAMED_CONTINUOUS_DIRECT_CHANNELS = {
     "special_zankou_venom",
 }
 
-_REACTION_CHANNELS = {
-    key for key, _label in _REACTION_LABELS.values()
-}
+_REACTION_CHANNELS = {key for key, _label in _REACTION_LABELS.values()}
 
 _COARSE_REACTION_LABELS = {
     key: f"环合·{label}" if key != "reaction_unknown" else label
@@ -139,6 +134,7 @@ _CHANNEL_ORDER = {
     "reaction_hexed": 11,
     "reaction_remora": 12,
     "reaction_nova": 13,
+    "special_blackbird_nova": 13,
     "reaction_scorch": 14,
     "reaction_stain": 15,
     "reaction_charge": 16,
@@ -157,6 +153,8 @@ _MISSING_SOURCE_LABELS = {
     "",
     _L('未识别技能'),
     _L('未知技能'),
+    "未识别技能",
+    "未知技能",
     "未识别伤害",
     "未知伤害",
     "未归因伤害",
@@ -280,6 +278,10 @@ def classify_battle_hit_channel(hit: BattleAnalysisHit) -> tuple[str, str]:
     # that this event is the reaction settlement itself.  The explicit identity
     # owns the damage lane; the GE remains trigger/source evidence only.
     effect = hit.gameplay_effect_id.casefold()
+    # Match the analysis core's formal Blackbird GE identity before generic labels.
+    effect_leaf = effect.replace("\\", "/").rsplit("/", 1)[-1].removesuffix("_c")
+    if effect_leaf == "ge_reaction_4_new_1042_damage":
+        return "special_blackbird_nova", _L('鸫歌·追加黯星')
     explicit_reaction = explicit_reaction_channel_for_hit(hit)
     if explicit_reaction is not None:
         return explicit_reaction
@@ -363,7 +365,7 @@ def classify_battle_hit_reaction_trigger(
 
 
 def _coarse_role_channel(key: str, label: str) -> tuple[str, str]:
-    if key in _CHARACTER_ATTRIBUTABLE_SYSTEM_CHANNELS:
+    if key in _CHARACTER_ATTRIBUTABLE_SYSTEM_CHANNELS or key == "special_blackbird_nova":
         return key, label
     if key in _REACTION_CHANNELS:
         return key, _COARSE_REACTION_LABELS.get(key, label)
@@ -389,7 +391,7 @@ def _fine_hit_channel(
     key: str,
     label: str,
 ) -> tuple[str, str]:
-    if key in _CHARACTER_ATTRIBUTABLE_SYSTEM_CHANNELS:
+    if key in _CHARACTER_ATTRIBUTABLE_SYSTEM_CHANNELS or key == "special_blackbird_nova":
         return key, label
     coarse_key, _coarse_label = _coarse_role_channel(key, label)
     if key in _REACTION_CHANNELS or key == "other_topple":
@@ -423,7 +425,7 @@ def _fine_hit_channel(
             "_skill" in identity_text and "ultraskill" not in identity_text
         ):
             family = "E"
-        elif attack in {"普攻", _L('普通攻击'), "normal", "normalattack", "melee", "a"}:
+        elif attack in {"普攻", _L('普通攻击'), "普通攻击", "normal", "normalattack", "melee", "a"}:
             family = "A"
         else:
             family = ""

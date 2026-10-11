@@ -6,6 +6,7 @@ from src.i18n_runtime import L as _L, LF as _LF
 
 import time
 from collections.abc import Callable, Mapping
+from dataclasses import asdict
 from typing import Any
 
 from src.domain.post_actions import summarize_state_changes
@@ -43,10 +44,6 @@ class GamepadStateSyncService:
         logger.info(
             (_LF('[状态管理] 开始游戏内同步: total={0} ').format((self.total_drives)) + f"targets={len(state_changes)} mode={action_mode}")
         )
-        for change in state_changes:
-            logger.info(
-                (_LF('[状态管理] 同步队列 raw_drive_{0:04d} ').format((int(change.get('index', 0)))) + f"{change.get('current_state')} -> {change.get('target_state')} " + f"uid={change.get('uid')} type={change.get('item_type')}")
-            )
         sync_result = self.scanner.sync_equipment_states(
             self.total_drives,
             state_changes,
@@ -55,12 +52,11 @@ class GamepadStateSyncService:
         applied_count = int(getattr(sync_result, "applied_count", sync_result))
         logger.info(_LF('[状态管理] 游戏内同步完成: requested={0} applied={1}').format((len(state_changes)), (applied_count)))
         summary: dict[str, Any] = summarize_state_changes(state_changes, applied_count)
-        mismatches = tuple(getattr(sync_result, "state_mismatches", ()) or ())
-        if mismatches:
-            indexes = tuple(int(mismatch.index) for mismatch in mismatches)
-            summary["post_action_state_mismatch_count"] = len(indexes)
-            summary["post_action_state_mismatch_indexes"] = indexes
-            logger.warning(_LF('[状态管理] 因当前状态不一致跳过: indexes={0}').format((indexes)))
+        issues = tuple(getattr(sync_result, "issues", ()) or ())
+        if issues:
+            summary["post_action_issue_count"] = len(issues)
+            summary["post_action_issues"] = tuple(asdict(issue) for issue in issues)
+            logger.warning(_LF('[状态管理] 操作前校验问题已跳过: count={0}').format((len(issues))))
         return summary
 
     def _notify_ready(self) -> None:

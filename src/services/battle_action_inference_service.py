@@ -237,6 +237,7 @@ def _build_action(
     identity_confidence = (
         "中"
         if first.ability_id.startswith("GA_") and _L('未识别') not in first.skill_name
+        and "未识别" not in first.skill_name   # Global: native skill names are Chinese (未识别技能)
         else "低"
     )
     godslayer = any(

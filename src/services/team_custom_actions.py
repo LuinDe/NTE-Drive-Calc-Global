@@ -2,7 +2,7 @@
 # GENERATED FILE - DO NOT EDIT.  Regenerate with scratchpad/v230/tools/gen_team_custom_actions.py
 # input action_catalog sha256 e049d396ff178dca38abeab9d67eff2e9d97369dde91586dc94fffa71dd8f00b
 # input team_form_actions sha256 ef0d9f7f54fd096ad7aacfcfad8752dbf24719e89a57d92ec0e9f0bea5f041da
-# input team_rotation_data sha256 c702fd2678fb6dbd75d9dd07d661c7559544fc6f3a0c2e5024b31d0934eda4e1
+# input team_rotation_data sha256 d4b319ccd8a62eed00b88883c4affd0e330309b198bd95b4b289871d79c7cec1
 # input skill_damage sha256 4ba1862c7323011efe51c1ea25f6c243dadfbace3f16947e4c0f04957604cdc0
 """Action palette of the team simulator's custom-cycle mode (generated, do not edit).
 
@@ -24,7 +24,7 @@ SCHEMA_VERSION = 1
 SOURCE_SHA256 = {
     'action_catalog': 'e049d396ff178dca38abeab9d67eff2e9d97369dde91586dc94fffa71dd8f00b',
     'team_form_actions': 'ef0d9f7f54fd096ad7aacfcfad8752dbf24719e89a57d92ec0e9f0bea5f041da',
-    'team_rotation_data': 'c702fd2678fb6dbd75d9dd07d661c7559544fc6f3a0c2e5024b31d0934eda4e1',
+    'team_rotation_data': 'd4b319ccd8a62eed00b88883c4affd0e330309b198bd95b4b289871d79c7cec1',
     'skill_damage': '4ba1862c7323011efe51c1ea25f6c243dadfbace3f16947e4c0f04957604cdc0',
 }
 DODGE_S = 0.5
@@ -2033,13 +2033,13 @@ NAMED = {
         'judgment upon me': ('support', 1, ''),
         '断罪は我に': ('support', 1, ''),
         '掠影': ('basic', 1, ''),
-        '스치는 그림자': ('basic', 1, ''),
+        '스쳐가는 그림자': ('basic', 1, ''),
         'fleeting shadow': ('basic', 1, ''),
         '葬羽冥': ('skill', 1, ''),
         '장송의 깃털': ('skill', 1, ''),
         'feather burial abyss': ('skill', 1, ''),
         '恳请众魂安息': ('ult', 1, ''),
-        '뭇 영혼이여, 안식하라': ('ult', 1, ''),
+        '모든 영혼에 안식을': ('ult', 1, ''),
         'may all souls rest in peace': ('ult', 1, ''),
         'どうか魂たちに安息を': ('ult', 1, ''),
     },

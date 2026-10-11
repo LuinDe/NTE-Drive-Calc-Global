@@ -587,7 +587,7 @@ class BattleForkDamageStateService:
                 if row.character_id == role_id
                 and row.direction == "outgoing"
                 and (
-                    row.attack_type in {"普攻", _L('普通攻击')}
+                    row.attack_type in {"普攻", _L('普通攻击'), "普通攻击"}
                     or "_melee" in row.ability_id.casefold()
                 )
             ]

@@ -16,7 +16,10 @@ from src.services.skill_name_rendering_service import battle_hit_skill_label
 
 def factor_name(factor) -> str:
     return {_LF('{0} 乘区').format('Atk'): "攻击力", _LF('{0} 乘区').format('HPMax'): _L('生命上限'), _LF('{0} 乘区').format('Def'): "防御力",
-            _L('倍率区'): "技能倍率", _L('暴击伤害倍率'): _L('暴击倍率')}.get(factor.label, factor.label)
+            _L('倍率区'): "技能倍率", _L('暴击伤害倍率'): _L('暴击倍率'),
+            # Global: native page labels stay Chinese (nte-analysis-core output)
+            "Atk 乘区": "攻击力", "HPMax 乘区": _L('生命上限'), "Def 乘区": "防御力",
+            "倍率区": "技能倍率", "暴击伤害倍率": _L('暴击倍率')}.get(factor.label, factor.label)
 
 
 def formula_layout(replay):

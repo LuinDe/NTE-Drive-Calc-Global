@@ -15,6 +15,7 @@ from src.services.equipment_plugin_deployment import (
     game_process_running,
     mod_workspace_registry_snapshot,
 )
+from src.integrations.legacy_game_proxy import ko_is_foreign_proxy as _ko_is_foreign_proxy
 
 
 @dataclass(frozen=True)
@@ -23,7 +24,7 @@ class ManagedPluginInspection:
     dll_state: Literal["missing", "managed", "conflict", "unmanaged"]
     registry_state: Literal["absent", "owned", "conflict"]
     registered_workspace: str | None
-    game_running: bool
+    game_running: bool | None
 
 
 @dataclass(frozen=True)
@@ -46,7 +47,7 @@ def inspect_managed_plugin(
     *,
     game_executable_path: str | Path,
     mod_workspace_path: str | Path | None = None,
-    game_running: Callable[[], bool] | None = None,
+    game_running: Callable[[], bool | None] | None = None,
     inspect_legacy_proxy: bool = True,
 ) -> ManagedPluginInspection:
     """Inspect the game-local legacy filename and registration without hashing."""
@@ -76,7 +77,7 @@ def cleanup_managed_plugin(
     *,
     game_executable_path: str | Path,
     mod_workspace_path: str | Path | None = None,
-    game_running: Callable[[], bool] | None = None,
+    game_running: Callable[[], bool | None] | None = None,
     allow_unrecorded_workspace_adoption: bool = False,
     cleanup_legacy_proxy: bool = False,
 ) -> ManagedPluginCleanupResult:
@@ -110,13 +111,17 @@ def cleanup_managed_plugin(
         cleanup_workspace = facts.registered_workspace
     if probe():
         return ManagedPluginCleanupResult("waiting_game_exit", facts, _L('游戏在清理前启动。请完全退出游戏后重新检测。'))
+    kept_foreign = False
     if facts.dll_state == "managed":
         try:
             if facts.target_path.is_symlink() or (
                 facts.target_path.exists() and not facts.target_path.is_file()
             ):
                 return ManagedPluginCleanupResult("conflict", facts, _L('组件文件已变化：dwmapi.dll 在清理前被修改。已停止清理，请核对该组件。'))
-            facts.target_path.unlink(missing_ok=True)
+            if _ko_is_foreign_proxy(facts.target_path):
+                kept_foreign = True   # KO patch: not the calculator's old proxy (e.g. UE4SS) - never delete it
+            else:
+                facts.target_path.unlink(missing_ok=True)
         except OSError as exc:
             raise EquipmentPluginDeploymentError(_L('组件清理失败，请保持游戏关闭并重新检测。')) from exc
     if probe():
@@ -129,8 +134,10 @@ def cleanup_managed_plugin(
     )
     if final.game_running:
         return ManagedPluginCleanupResult("waiting_game_exit", final, _L('加载登记已处理，游戏仍需退出以结束已加载会话。'))
-    if (cleanup_legacy_proxy and final.dll_state != "missing") or final.registry_state != "absent":
+    if (cleanup_legacy_proxy and final.dll_state != "missing" and not kept_foreign) or final.registry_state != "absent":
         return ManagedPluginCleanupResult("conflict", final, _L('清理后组件或加载配置发生变化，请重新核对。'))
+    if kept_foreign:
+        return ManagedPluginCleanupResult("cleaned", final, _LF('已清理本程序的旧加载登记；游戏目录中的 {0} 不是本程序的旧加载文件（可能是 UE4SS 等其他程序的文件），已原样保留。').format('dwmapi.dll'))
     return ManagedPluginCleanupResult("cleaned", final,
         _L('旧代理与本程序拥有的加载登记已清理。') if cleanup_legacy_proxy else
         _L('本程序拥有的旧加载登记已清理；非当前组件文件保持原样。'))

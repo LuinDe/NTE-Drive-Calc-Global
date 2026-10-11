@@ -5,8 +5,9 @@ from src.i18n_runtime import L as _L, LF as _LF
 import copy
 import json
 import time
+from concurrent.futures import CancelledError
 from pathlib import Path
-from typing import List, Dict
+from typing import Callable, List, Dict
 
 from src.domain.allocation_rating import loadout_total_grade
 from src.integrations.bundled_resources import bundled_config_dir
@@ -24,6 +25,7 @@ from src.utils.logger import logger
 from src.utils.name_resolver import resolve_name
 from src.utils.set_name import normalize_set_display_name
 from src.services.legacy_allocation_static_catalog import build_legacy_allocation_static_catalog
+from src.services.allocation_failure_text import allocation_failure_text
 
 
 class NTEPipelineOrchestrator:
@@ -41,6 +43,7 @@ class NTEPipelineOrchestrator:
         self.sets_db = {}
         self.shapes_db = {}
         self._board_matrices = {}
+        self._fork_ids_by_name = {}
         self._load_configs()
 
     @classmethod
@@ -51,6 +54,7 @@ class NTEPipelineOrchestrator:
         sets_db: dict,
         shapes_db: dict[str, DriveShape],
         config_dir: str | Path | None = None,
+        fork_ids_by_name: dict[str, str] | None = None,
     ) -> "NTEPipelineOrchestrator":
         """Create a puzzle-only orchestrator without rereading mutable config.
 
@@ -68,6 +72,7 @@ class NTEPipelineOrchestrator:
         instance.roles_db = roles_db
         instance.sets_db = sets_db
         instance.shapes_db = shapes_db
+        instance._fork_ids_by_name = dict(fork_ids_by_name or {})
         instance._board_matrices = {
             role_name: role_data["board_matrix"]
             for role_name, role_data in roles_db.items()
@@ -85,6 +90,7 @@ class NTEPipelineOrchestrator:
         self.sets_db = catalog.sets_db
         self.shapes_db = catalog.shapes_db
         self._board_matrices = catalog.board_matrices
+        self._fork_ids_by_name = catalog.fork_ids_by_name
 
     def _resolve_set_name(self, set_name: str) -> str:
         normalized_name = normalize_set_display_name(set_name)
@@ -113,7 +119,8 @@ class NTEPipelineOrchestrator:
 
     def solve_blueprints(self, target_roles: List[str], custom_sets: Dict[str, str] = None,
                          set_effect_modes: Dict[str, str] = None,
-                         include_layout_variants: bool = False) -> Dict[str, List[Dict]]:
+                         include_layout_variants: bool = False,
+                         cancel_check: Callable[[], bool] | None = None) -> Dict[str, List[Dict]]:
         custom_sets = self._canonicalize_custom_sets(custom_sets)
         set_effect_modes = set_effect_modes or {}
         logger.info(_LF('\n[阶段 2] 求解 {0} 的合法底盘图纸...').format((target_roles)))
@@ -122,6 +129,8 @@ class NTEPipelineOrchestrator:
         real_blueprints_db = {}
 
         for role_name in target_roles:
+            if cancel_check is not None and cancel_check():
+                raise CancelledError(_L('分配图纸生成已取消'))
             role_data = self.roles_db[role_name]
             set_name = self._resolve_set_name(custom_sets.get(role_name, role_data["default_set"]))
 
@@ -147,32 +156,53 @@ class NTEPipelineOrchestrator:
                 logger.info(_LF('  [{0}] 图纸缓存命中，共 {1} 套合法方案。').format((role_name), (len(real_blueprints_db[role_name]))))
                 continue
             role_blueprints = []
+            layout_cache: dict[tuple[str, ...], list] = {}
+            fill_cache: dict[int, list[list[str]]] = {}
 
             for set_pieces in set_piece_options:
-                combos = combinatorics.generate_piece_combinations(set_pieces, extra_label)
+                if cancel_check is not None and cancel_check():
+                    raise CancelledError(_L('分配图纸生成已取消'))
+                set_area = sum(self.shapes_db[shape].area for shape in set_pieces)
+                if set_area not in fill_cache:
+                    fill_cache[set_area] = combinatorics.generate_piece_combinations(
+                        set_pieces, extra_label,
+                        only_max_extra=set_effect_mode != "two_piece",
+                        cancel_check=cancel_check,
+                    )
+                combos = fill_cache[set_area]
                 logger.info(_LF('     套装形状: {0} | 组合数: {1} | 耗时: {2:.2f}s').format((len(set_pieces)), (len(combos)), (time.perf_counter() - _t0)))
 
                 for combo in combos:
+                    if cancel_check is not None and cancel_check():
+                        raise CancelledError(_L('分配图纸生成已取消'))
                     pieces_to_place = set_pieces + combo
-                    board_copy = [row[:] for row in board_matrix]
-                    results = []
-                    dfs_solver.solve(
-                        board_copy,
-                        pieces_to_place,
-                        results,
-                        max_solutions=0 if include_layout_variants else 1,
-                    )
+                    geometry = tuple(sorted(pieces_to_place))
+                    if geometry not in layout_cache:
+                        board_copy = [row[:] for row in board_matrix]
+                        results = []
+                        dfs_solver.solve(
+                            board_copy,
+                            pieces_to_place,
+                            results,
+                            max_solutions=0 if include_layout_variants else 1,
+                            cancel_check=cancel_check,
+                        )
+                        layout_cache[geometry] = results
 
-                    for result_board in results:
+                    for result_board in layout_cache[geometry]:
+                        if cancel_check is not None and cancel_check():
+                            raise CancelledError(_L('分配图纸生成已取消'))
                         role_blueprints.append({
                             "set_pieces": list(set_pieces),
-                            "extra_pieces": combo,
+                            "extra_pieces": list(combo),
                             "set_effect_mode": set_effect_mode,
-                            "board": result_board,
+                            "board": copy.deepcopy(result_board),
                         })
 
             if not include_layout_variants:
                 role_blueprints = dedupe_blueprints_by_piece_signature(role_blueprints)
+            if cancel_check is not None and cancel_check():
+                raise CancelledError(_L('分配图纸生成已取消'))
             real_blueprints_db[role_name] = role_blueprints
             self._remember_blueprint_cache(cache_key, role_blueprints)
             logger.success(_LF('  [{0}] 图纸求解完成，共 {1} 套合法方案。(总耗时 {2:.2f}s)').format((role_name), (len(role_blueprints)), (time.perf_counter() - _t0)))
@@ -222,7 +252,7 @@ class NTEPipelineOrchestrator:
                             custom_sets: Dict[str, str] = None, mode: str = "role_priority",
                             locked_uids: set = None, tape_main_filters: Dict[str, List[str]] = None,
                             crit_priority_modes: Dict[str, str] = None, set_effect_modes: Dict[str, str] = None,
-                            priority_groups: List[List[str]] = None, crit_rate_caps: Dict[str, float] = None,
+                            priority_groups: List[List[str]] = None, crit_rate_caps: Dict[str, float | None] = None,
                             crit_rate_baselines: Dict[str, float] = None,
                             custom_weapons: Dict[str, str] = None,
                             blueprint_combo_limit: int = 2000,
@@ -239,22 +269,42 @@ class NTEPipelineOrchestrator:
             tape_main_filters = {}
             crit_priority_modes = {}
             crit_rate_caps = {}
-        for role_name, value in crit_rate_baselines.items():
+        for role_name in priority_list:
             if role_name not in self.roles_db:
                 continue
-            try:
-                fork_crit_rate = max(0.0, float(value))
-            except (TypeError, ValueError):
-                continue
-            self.roles_db[role_name] = {
-                **self.roles_db[role_name],
-                "fork_crit_rate": fork_crit_rate,
-            }
+            role = dict(self.roles_db[role_name])
+            selected_fork_name = custom_weapons.get(role_name)
+            if selected_fork_name:
+                fork_id = self._fork_ids_by_name.get(selected_fork_name)
+                if not fork_id:
+                    raise ValueError(
+                        _LF('角色 [{0}] 选择的弧盘名称不能唯一对应正式弧盘 ID').format((role_name))
+                    )
+            else:
+                fork_id = str(role.get("default_fork_id") or "")
+            role["effective_fork_id"] = fork_id
+            role.pop("fork_crit_rate", None)
+            role.pop("non_equipment_crit_rate", None)
+            role["crit_source_known"] = False
+            role["automatic_crit_cap_source_unknown"] = (
+                role_name in crit_rate_caps and crit_rate_caps[role_name] is None
+            )
+            if role_name in crit_rate_baselines:
+                try:
+                    role["non_equipment_crit_rate"] = max(
+                        0.0, float(crit_rate_baselines[role_name])
+                    )
+                    role["crit_source_known"] = True
+                except (TypeError, ValueError):
+                    pass
+            self.roles_db[role_name] = role
         custom_sets = self._canonicalize_custom_sets(custom_sets)
         total_t0 = time.perf_counter()
         logger.info(_LF('\n[阶段 1] 开始完整分配流程 | 库存: {0} | 角色: {1} | 模式: {2}').format((len(inventory)), (priority_list), (mode)))
         stage_t0 = time.perf_counter()
-        blueprints_db = self.solve_blueprints(priority_list, custom_sets, set_effect_modes)
+        blueprints_db = self.solve_blueprints(
+            priority_list, custom_sets, set_effect_modes, cancel_check=cancel_check,
+        )
         logger.info(_LF('[计时] 图纸求解阶段: {0:.2f}s').format((time.perf_counter() - stage_t0)))
 
         logger.info(_LF('\n[阶段 3] 接收到 {0} 个资产，正在过滤与类型转换...').format((len(inventory))))
@@ -330,7 +380,7 @@ class NTEPipelineOrchestrator:
         custom_sets = custom_sets or {}
         for role, plan in final_plan.items():
             if not plan or not plan.get("valid", True):
-                logger.error(_LF('角色 [{0}] 分配失败: 无法凑齐合法图纸。\n').format((role)))
+                logger.error(_L('角色 [{}] 分配失败: {}\n'), role, allocation_failure_text(plan))
                 continue
 
             grade = loadout_total_grade(plan['score'])

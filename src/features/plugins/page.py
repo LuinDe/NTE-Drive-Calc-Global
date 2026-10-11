@@ -10,6 +10,22 @@ from PySide6.QtWidgets import (
 from src.app.theme import theme_color
 
 
+def _status_source(raw) -> str:
+    """Global: the Chinese source of a plugin status, for the badge markers below.  Statuses reach this page
+    already rendered (str(error) drops the provenance) and only en/ja keep the translated marker inside the
+    sentence; the active S table maps a rendered status back to its source key (native texts are Chinese)."""
+    zh = getattr(raw, "_zh", None)
+    if isinstance(zh, str) and getattr(raw, "_args", None) is None:
+        return zh
+    from src import i18n_runtime
+    text = str(raw)
+    if i18n_runtime.get_language() != "zh":
+        for key, value in i18n_runtime._S.items():
+            if value == text:
+                return key
+    return text
+
+
 class _ToggleSwitch(QCheckBox):
     """Paint a compact switch while retaining checkbox keyboard semantics."""
 
@@ -33,9 +49,9 @@ class _ToggleSwitch(QCheckBox):
 
 
 class PluginsPage(QWidget):
-    def __init__(self, *, service, request_apply, open_settings, parent=None):
+    def __init__(self, *, service, request_apply, show_detection, parent=None):
         super().__init__(parent)
-        self.service, self.request_apply, self.open_settings = service, request_apply, open_settings
+        self.service, self.request_apply, self.show_detection = service, request_apply, show_detection
         self.cards = {}
         self.option_boxes = {}
         self._refresh_pending = False
@@ -66,8 +82,8 @@ class PluginsPage(QWidget):
         actions = QHBoxLayout()
         self.refresh_button = QPushButton(_L('刷新状态'))
         self.refresh_button.clicked.connect(self._request_refresh)
-        self.environment_button = QPushButton(_L('检测与部署'))
-        self.environment_button.clicked.connect(self._open_environment)
+        self.environment_button = QPushButton(_L('检测详情'))
+        self.environment_button.clicked.connect(self.show_detection)
         actions.addWidget(self.refresh_button)
         actions.addWidget(self.environment_button)
         actions.addStretch()
@@ -137,7 +153,8 @@ class PluginsPage(QWidget):
             return _L('等待连接'), "active"
         if raw in {_L('当前模式不可启用'), _L('连接已暂停')}:
             return raw, "warning"
-        if raw in {_L('当前游戏版本不支持此显示组件'), _L('当前组件不支持插件开关，请更新配套 Core 和 DLL 后重启游戏。')} or _L('不支持') in raw or _L('更新配套') in raw or _L('需要更新') in raw:
+        if raw in {_L('当前游戏版本不支持此显示组件'), _L('当前组件不支持插件开关，请更新配套 Core 和 DLL 后重启游戏。')} or _L('不支持') in raw or _L('更新配套') in raw or _L('需要更新') in raw \
+                or any(marker in _status_source(raw) for marker in ("不支持", "更新配套", "需要更新")):
             return _L('组件需更新'), "error"
         if _L('失败') in raw or raw:
             return _L('连接异常'), "error"
@@ -184,7 +201,6 @@ class PluginsPage(QWidget):
             or (_L('退出 Calc 后停止显示；下次启动时恢复已保存设置。') if allowed else
                 _L('当前模式不支持插件；请切换到中风险或开发模式。'))
         )
-        self.environment_button.setText(_L('检测与部署') if allowed else _L('工作模式设置'))
         if result is not None and self._refresh_pending:
             self._refresh_pending = False
             self.refresh_button.setText(_L('刷新状态'))
@@ -197,10 +213,6 @@ class PluginsPage(QWidget):
         self.refresh_button.setText(_L('正在刷新…'))
         self.refresh_button.setEnabled(False)
         self.request_apply()
-
-    def _open_environment(self) -> None:
-        target = "deployment" if self.service.policy.allowed("native_load") else "mode"
-        self.open_settings(target)
 
     def _update(self, **changes):
         projected_hp = changes.get("hp", self.service.settings.hp)

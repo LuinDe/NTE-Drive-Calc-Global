@@ -12,10 +12,13 @@ from src.services.native_plugin_deployment import PluginDeploymentPendingCleanup
 from src.services.native_plugin_deployment import deploy_native_plugin
 from src.services.mod_plugin_loading_service import ModPluginLoadingError, ModPluginLoadingWaiting
 from src.utils.logger import logger
+from src.integrations.legacy_game_proxy import ko_kept_note as _ko_kept_note
 
 
 def _deployment_error_hint(error: Exception) -> str:
     """Keep implementation errors out of the short user-facing dialog."""
+    if getattr(error, "foreign_game_file", False) or getattr(error.__cause__, "foreign_game_file", False):
+        return str(error)   # KO patch: name the game-folder file that was kept, not a generic hint
     logger.warning(_LF('组件部署未完成 kind={0}').format((type(error).__name__)))
     if isinstance(error, PermissionError):
         return _L('组件处理未完成；请核对工作模式、游戏目录权限，并确认游戏已退出。')
@@ -93,6 +96,18 @@ def _refresh_work_mode_detection(window) -> None:
         controller.component_state_changed()
 
 
+def _set_component_status(label, *, issues=(), ready=False, pending=False):
+    if pending:
+        label.setText(_L('Loader 工作区核对未完成；请查看检测详情。'))
+        label.setToolTip("")
+    elif ready:
+        label.setText(_L('组件已准备好，启动游戏后会自动检查连接和可用功能。'))
+        label.setToolTip("")
+    else:
+        label.setText(_LF('组件未准备好（{0} 项）；请查看检测详情。').format((len(issues))))
+        label.setToolTip("\n".join(str(issue) for issue in issues))
+
+
 def refresh_native_plugin_status(window) -> None:
     bundle = inspect_game_component_bundle(window.app_context.paths.root)
     combo = getattr(window, "_equipment_plugin_loading_method_combo", None)
@@ -117,15 +132,14 @@ def refresh_native_plugin_status(window) -> None:
     label = getattr(window, "_equipment_plugin_status_label", None)
     if label is not None:
         if not bundle.ready:
-            label.setText(_L('组件未准备好：') + "；".join(bundle.issues))
+            _set_component_status(label, issues=bundle.issues)
         elif combo is not None and combo.currentData() == "loader":
             try:
                 service = window._mod_plugin_loading_service
                 workspace = service.inspect_native_workspace()
-                label.setText(_L('组件已准备好，启动游戏后会自动检查连接和可用功能。')
-                              if workspace.files_compatible else _L('组件未准备好：') + "；".join(workspace.issues))
+                _set_component_status(label, ready=workspace.files_compatible, issues=workspace.issues)
             except (EquipmentPluginDeploymentError, ModPluginLoadingError):
-                label.setText(_L('Loader 工作区核对未完成；请查看检测详情。'))
+                _set_component_status(label, pending=True)
         else:
             result = inspect_deployed_native_plugin(
                 application_root=window.app_context.paths.root,
@@ -133,8 +147,7 @@ def refresh_native_plugin_status(window) -> None:
                 recorded_files=window.work_mode_service.deployment_record.get("managed_files", {}),
                 bundle_inspection=bundle,
             )
-            label.setText(_L('组件已准备好，启动游戏后会自动检查连接和可用功能。')
-                          if result.files_compatible else _L('组件未准备好：') + "；".join(result.issues))
+            _set_component_status(label, ready=result.files_compatible, issues=result.issues)
 
 
 def _confirm_d3d_deployment(window) -> bool:
@@ -235,6 +248,7 @@ def deploy_native_plugin_from_settings(window) -> None:
                 game_executable_path=executable,
                 operation_guard=guard,
                 cleanup_legacy_proxy=True,
+                recorded_files=policy.deployment_record.get("managed_files") or {},
             )
 
         try:
@@ -245,7 +259,7 @@ def deploy_native_plugin_from_settings(window) -> None:
         runtime.save_deployment(deployed)
         window._refresh_equipment_plugin_status()
         _refresh_work_mode_detection(window)
-        QMessageBox.information(window, _L('原生组件已部署'), _L('请启动游戏，然后重新检测连接和各项业务能力。'))
+        QMessageBox.information(window, _L('原生组件已部署'), (_L('请启动游戏，然后重新检测连接和各项业务能力。')) + _ko_kept_note())
     except PluginDeploymentPendingCleanup as error:
         runtime.save_pending_deployment(error)
         _refresh_work_mode_detection(window)
@@ -266,7 +280,7 @@ def start_native_loader_from_settings(window) -> None:
         window._refresh_equipment_plugin_status()
         _refresh_work_mode_detection(window)
         QMessageBox.information(window, _L('原生 Loader 已启动'),
-                                _L('请正常启动游戏，随后重新检测连接和各项能力。'))
+                                (_L('请正常启动游戏，随后重新检测连接和各项能力。')) + _ko_kept_note())
     except ModPluginLoadingWaiting as error:
         window._refresh_equipment_plugin_status()
         QMessageBox.warning(

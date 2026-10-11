@@ -471,7 +471,9 @@ def _profile_kind(section: CatalogSection) -> str:
 def _matching_profile_index(
     sections: tuple[CatalogSection, ...], context_level: str,
 ) -> int:
-    match = re.search(r"(?:等级|Lv\.?)[^0-9]*(\d+(?:\.\d+)?)", context_level)
+    level_label = str(_LF('等级 {0}').format('')).strip()   # Global: the label monster_page builds (active language)
+    match = re.search(r"(?:等级|Lv\.?" + ("|" + re.escape(level_label) if level_label else "")
+                      + r")[^0-9]*(\d+(?:\.\d+)?)", context_level)
     if match is None:
         return 0
     wanted = float(match.group(1))

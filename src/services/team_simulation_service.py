@@ -43,16 +43,26 @@ Custom-cycle mode: ``team_custom_cycle_service.simulate_custom`` lays a sequence
 same context (``_open_context``) and collects with ``_collect``; its options reach the engine through
 ``_Ctx.target_condition`` (enemy numbers) and ``_Ctx.buff_edit`` (buffs switched off / added by hand).  With the
 defaults of those two fields the approved mode is unchanged.
+
+Arc corrections (Global, ``team_fork_corrections``): the selected arc / refinement is written into the member's
+profile so the panel follows it (B1, ``_build_characters``); right after ``analyze`` and before ``buff_edit`` the
+engine's arc intervals are corrected (B2 always-on bonuses counted once, B3 「罪与罚」 and B4 「月的对跖点」 priced as
+Global supplement rules on the active clock; ``_Ctx.fork_corrections``, report in ``_Run.corrections``).  The
+explanation names the members they touched.  ``team_fork_corrections.ENABLED`` / ``NTE_TEAM_FORK_CORRECTIONS=off``
+switch them off (the shipped numbers).  ``solo_session`` runs one member with many arc / refinement choices on one
+shared context (the arc efficiency table); ``_open_context`` is built on the same session code.
 """
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import itertools
 import json
 import re
 import shutil
 import sqlite3
 import tempfile
+import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -232,6 +242,37 @@ def list_forks_for(static_path: Path, template_fork_id: str, character_id: int) 
     return forks
 
 
+def equippable_forks(static_path: Path, character_id: int, *, include_foreign: bool = True) -> list[dict]:
+    """Arcs the character can equip under the only rule in the data (rule A, as the official 2.3.1
+    ``_compatible_forks``): ``fork_item.raw_group_type == character.group_type``.  Other characters' exclusive arcs
+    are kept and flagged (``foreign_exclusive``, ``owner_ids`` / ``owner_names_zh``) unless ``include_foreign`` is
+    False.  Exclusive owner ids are stored as JSON strings.  Order as ``list_forks_for`` (quality DESC, fork_id)."""
+    con = sqlite3.connect(_ro_uri(static_path), uri=True)
+    try:
+        row = con.execute("SELECT group_type FROM character WHERE character_id=?", (int(character_id),)).fetchone()
+        if row is None or row[0] in (None, ""):
+            return []
+        names = {str(c): n for c, n in con.execute("SELECT character_id, name_zh FROM character")}
+        rows = con.execute(
+            "SELECT fork_id, name_zh, quality, exclusive_character_ids_json FROM fork_item "
+            "WHERE raw_group_type=? ORDER BY quality DESC, fork_id", (row[0],)
+        ).fetchall()
+    finally:
+        con.close()
+    out = []
+    for fork_id, name, quality, exclusive in rows:
+        owners = tuple(dict.fromkeys(str(o) for o in (json.loads(exclusive or "[]") if exclusive else [])))
+        own = str(character_id) in owners
+        foreign = bool(owners) and not own
+        if foreign and not include_foreign:
+            continue
+        out.append({"fork_id": fork_id, "name_zh": name, "quality": quality,
+                    "owner_ids": tuple(int(o) for o in owners if o.isdigit()),
+                    "owner_names_zh": tuple(dict.fromkeys(names.get(o, o) for o in owners)),
+                    "own_exclusive": own, "foreign_exclusive": foreign})
+    return out
+
+
 def attribute_names(static_path: Path) -> dict[str, tuple[str, bool]]:
     """property id -> (Chinese display name, shown as percent)."""
     con = sqlite3.connect(_ro_uri(static_path), uri=True)
@@ -286,7 +327,11 @@ def _build_characters(con: sqlite3.Connection, specs: list[MemberSpec]) -> list[
         profile["selected_awaken_effect_ids"] = [f"Effect{i}" for i in range(1, awakening + 1)]
         fork_id = spec.fork_id or row[2]
         refine = spec.fork_refinement_level or row[3] or 1
-        skills = [{"skill_id": k, "skill_level": v} for k, v in (profile.get("skill_levels") or {}).items()]
+        # B1: the panel (stat reconstruction) reads the arc from the profile, the buff rules from the columns below
+        from src.services.team_fork_corrections import sync_profile
+
+        sync_profile(profile, fork_id, refine)
+        skills =[{"skill_id": k, "skill_level": v} for k, v in (profile.get("skill_levels") or {}).items()]
         characters.append({
             "character_id": spec.character_id, "observed_name": names[spec.character_id],
             "character_level": profile.get("character_level", 80), "awakening_level": awakening,
@@ -1050,9 +1095,10 @@ def _form_configs(static, team_ids) -> dict:
 
 def _run_engine(static, build, candidates, buff_rules, hits: list[dict], stops: list[tuple[int, int]],
                 ordinary_scorch: dict[str, str], form_configs: dict | None = None, *,
-                target_condition: dict | None = None, buff_edit=None):
+                target_condition: dict | None = None, buff_edit=None, fork_corrections=None):
     """``target_condition`` (None = DEFAULT_TARGET) and ``buff_edit`` (a function applied to the analysis right
-    after buff inference: disabled / manual buffs) are the custom-cycle mode's options."""
+    after buff inference: disabled / manual buffs) are the custom-cycle mode's options.  ``fork_corrections``
+    (team_fork_corrections.ForkCorrections) runs first, so the custom mode can switch corrected buffs off too."""
     from src.services.battle_counterfactual_analysis_service import BattleCounterfactualAnalysisService
     from src.services.battle_hit_replay_service import BattleHitReplayService
     from src.services.battle_skill_damage_evidence_service import BattleSkillDamageEvidenceService
@@ -1066,6 +1112,8 @@ def _run_engine(static, build, candidates, buff_rules, hits: list[dict], stops: 
         build=build, capability_level="full", animation_candidates=candidates, buff_rules=buff_rules,
         target_condition=target_condition or DEFAULT_TARGET, infer_buffs=True, **(form_configs or {}),
     )
+    if fork_corrections is not None:
+        analysis = fork_corrections(analysis)
     if buff_edit is not None:
         analysis = buff_edit(analysis)
     evidence = BattleSkillDamageEvidenceService.load(static, analysis, build)
@@ -1115,6 +1163,7 @@ class _Ctx:
     opening_gauge: str
     target_condition: Any = None    # None = DEFAULT_TARGET (custom-cycle mode: the enemy options)
     buff_edit: Any = None           # analysis -> analysis after buff inference (custom-cycle mode)
+    fork_corrections: Any = None    # team_fork_corrections.ForkCorrections (applied before buff_edit)
 
 
 @dataclass
@@ -1127,6 +1176,7 @@ class _Run:
     replays: Any
     sched: Any
     to_active: Any
+    corrections: Any = None         # team_fork_corrections.CorrectionReport of the engine run kept
 
 
 def _new_axis(ctx: _Ctx):
@@ -1168,7 +1218,8 @@ def _run_axis(ctx: _Ctx, lay, order=()) -> _Run:
     sched.set_dot_ticks(row["relative_time_us"] for row in dot_rows)
     reaction_rows = sched.rows("incoming")
     hits = _number(layout.rows + dot_rows + reaction_rows)
-    options = {"target_condition": ctx.target_condition, "buff_edit": ctx.buff_edit}
+    options = {"target_condition": ctx.target_condition, "buff_edit": ctx.buff_edit,
+               "fork_corrections": ctx.fork_corrections}
     analysis, replays = _run_engine(ctx.static, ctx.build, ctx.candidates, ctx.buff_rules, hits, stops,
                                     sched.ordinary_scorch_attributes(), ctx.form_configs, **options)
     from src.services import team_cycle_reactions as tcr
@@ -1182,7 +1233,8 @@ def _run_axis(ctx: _Ctx, lay, order=()) -> _Run:
             analysis, replays = _run_engine(ctx.static, ctx.build, ctx.candidates, ctx.buff_rules, hits, stops,
                                             sched.ordinary_scorch_attributes(), ctx.form_configs, **options)
         reaction_rows = new_rows
-    return _Run(tuple(order), layout, dot_rows, reaction_rows, analysis, replays, sched, to_active)
+    report = getattr(ctx.fork_corrections, "last_report", None) if ctx.fork_corrections is not None else None
+    return _Run(tuple(order), layout, dot_rows, reaction_rows, analysis, replays, sched, to_active, report)
 
 
 # ── visit-order planner (order_mode "plan") ───────────────────────────────
@@ -1345,50 +1397,110 @@ def _plan_order(ctx: _Ctx, collect) -> tuple[_Run, Any, Any]:
 
 
 @contextlib.contextmanager
-def _open_context(static_path: Path, user_db_path: Path, account_id: str, specs: list[MemberSpec], *,
+def _open_session(static_path: Path, user_db_path: Path | None, account_id: str, team_ids: list[int], *,
                   loops: int, gauge_rule: str, opening_gauge: str):
-    """Everything a run needs (members from the graduation templates, reaction rules, the enriched build, animation
-    candidates, buff rules, form configs) as a _Ctx.  The static DAO and the private copy of the account database
-    live as long as the ``with`` block.  Used by simulate_team and by the custom-cycle service."""
+    """The parts of a context that do not depend on the members' choices (reaction rules, ability names, the private
+    account copy, the static DAO, animation candidates, form configs), built once.  Yields ``make(specs) -> _Ctx``
+    for specs of exactly these members (awakening / arc / refinement / set may differ per call).  Without
+    ``user_db_path`` an empty account is created in the temp folder.  The DAO and the account copy live as long as
+    the ``with`` block."""
     from src.services.battle_buff_inference_service import BattleBuffInferenceService
     from src.services.battle_build_stat_reconstruction_service import BattleBuildStatReconstructionService
     from src.services.battle_report_persistence_service import BattleReportPersistenceDependencies
     from src.services import team_cycle_reactions as tcr
+    from src.services import team_fork_corrections
     from src.storage.sqlite.static_game_data_dao import StaticGameDataDao
 
     static_path = Path(static_path)
-    team_ids = [s.character_id for s in specs]
+    team_ids = [int(c) for c in team_ids]
     con = sqlite3.connect(_ro_uri(static_path), uri=True)
     try:
-        characters = _build_characters(con, specs)
         rules = tcr.load_rules(con)
-        build = {"characters": [{k: v for k, v in c.items() if not k.startswith("_")} for c in characters]}
-        nightmare = _nightmare_setup(con, build)
         ability_names = {a: _TAG.sub("", n).strip() for a, n in
                          con.execute("SELECT ability_id, name_zh FROM gameplay_ability_catalog") if n}
     finally:
         con.close()
     elements = {cid: rules.element(cid) for cid in team_ids}
-    names = {c["character_id"]: c["observed_name"] for c in characters}
 
-    # the stat reconstruction reads the account database; work on a private copy so nothing can be written back
-    with tempfile.TemporaryDirectory(prefix="nte_team_sim_") as tmp:
+    # the stat reconstruction reads the account database; work on a private copy so nothing can be written back.
+    # A copy Windows still holds open while the folder is removed (WinError 145, seen once in ~900 efficiency-table
+    # sessions) must not turn a finished calculation into an error: the folder is then left in %TEMP%.
+    with tempfile.TemporaryDirectory(prefix="nte_team_sim_", ignore_cleanup_errors=True) as tmp:
         user_copy = Path(tmp) / "user_data.sqlite3"
-        if Path(user_db_path).exists():
+        if user_db_path is None:
+            from src.storage.sqlite.user_data_dao import UserDataDao
+
+            UserDataDao(user_copy, account_id=account_id, account_name=account_id).close()
+        elif Path(user_db_path).exists():
             shutil.copy2(user_db_path, user_copy)
         deps = BattleReportPersistenceDependencies(account_id=account_id, user_database_path=user_copy,
                                                    static_database_path=static_path, generation=0)
-        BattleBuildStatReconstructionService.enrich(build, deps)
 
         with StaticGameDataDao(static_path) as static:
-            _add_form_skill_levels(static, build)
             candidates, by_key = _load_candidates(static, team_ids)
-            yield _Ctx(static=static, team_ids=team_ids, characters=characters, build=build, rules=rules,
-                       nightmare=nightmare, ability_names=ability_names, elements=elements, names=names,
-                       candidates=candidates, by_key=by_key,
-                       buff_rules=BattleBuffInferenceService.load_rules(static, build),
-                       form_configs=_form_configs(static, team_ids), loops=loops, gauge_rule=gauge_rule,
-                       opening_gauge=opening_gauge)
+            form_configs = _form_configs(static, team_ids)
+
+            def make(specs: list[MemberSpec]) -> _Ctx:
+                if [int(s.character_id) for s in specs] != team_ids:
+                    raise ValueError("a session runs the members it was opened for")
+                con = sqlite3.connect(_ro_uri(static_path), uri=True)
+                try:
+                    characters = _build_characters(con, specs)
+                    build = {"characters": [{k: v for k, v in c.items() if not k.startswith("_")}
+                                            for c in characters]}
+                    nightmare = _nightmare_setup(con, build)
+                    corrections = team_fork_corrections.prepare(con, characters)
+                finally:
+                    con.close()
+                names = {c["character_id"]: c["observed_name"] for c in characters}
+                BattleBuildStatReconstructionService.enrich(build, deps)
+                _add_form_skill_levels(static, build)
+                return _Ctx(static=static, team_ids=list(team_ids), characters=characters, build=build, rules=rules,
+                            nightmare=nightmare, ability_names=ability_names, elements=elements, names=names,
+                            candidates=candidates, by_key=by_key,
+                            buff_rules=BattleBuffInferenceService.load_rules(static, build),
+                            form_configs=form_configs, loops=loops, gauge_rule=gauge_rule,
+                            opening_gauge=opening_gauge, fork_corrections=corrections)
+
+            yield make
+
+
+@contextlib.contextmanager
+def _open_context(static_path: Path, user_db_path: Path, account_id: str, specs: list[MemberSpec], *,
+                  loops: int, gauge_rule: str, opening_gauge: str):
+    """Everything a run needs (members from the graduation templates, reaction rules, the enriched build, animation
+    candidates, buff rules, form configs, arc corrections) as a _Ctx.  The static DAO and the private copy of the
+    account database live as long as the ``with`` block.  Used by simulate_team and by the custom-cycle service."""
+    with _open_session(static_path, user_db_path, account_id, [s.character_id for s in specs], loops=loops,
+                       gauge_rule=gauge_rule, opening_gauge=opening_gauge) as make:
+        yield make(specs)
+
+
+def _simulated_steps(team_ids, by_key) -> dict[int, int]:
+    """Approved steps per member the simulator can run (every action of the step has an animation candidate)."""
+    return {cid: sum(1 for s in _approved_steps(cid) if s.get("sim")
+                     and all(tuple(a) in by_key for a in (s.get("combo")
+                                                            or ((s.get("ability_id"), s.get("selector")),))))
+            for cid in team_ids}
+
+
+def _with_fork_notes(result: TeamResult, report) -> TeamResult:
+    """Name the members whose arcs the corrections touched (explanation assumptions; Global rules B2-B4)."""
+    if report is None or result is None or result.explanation is None:
+        return result
+    from src.services import team_simulation_explanation as tx
+
+    notes = []
+    supplement = report.characters("b3", "b4")
+    if supplement:
+        notes.append(tx.note(tx.ASSUME_FORK_SUPPLEMENT, *supplement))
+    dedup = report.characters("b2")
+    if dedup:
+        notes.append(tx.note(tx.ASSUME_FORK_DEDUP, *dedup))
+    if notes:
+        result.explanation = dataclasses.replace(
+            result.explanation, assumptions=tuple(result.explanation.assumptions) + tuple(notes))
+    return result
 
 
 def simulate_team(static_path: Path, user_db_path: Path, account_id: str, specs: list[MemberSpec], *,
@@ -1409,15 +1521,14 @@ def simulate_team(static_path: Path, user_db_path: Path, account_id: str, specs:
     with _open_context(static_path, user_db_path, account_id, specs, loops=loops, gauge_rule=gauge_rule,
                        opening_gauge=opening_gauge) as ctx:
         characters, elements, ability_names, by_key = ctx.characters, ctx.elements, ctx.ability_names, ctx.by_key
-        simulated = {cid: sum(1 for s in _approved_steps(cid) if s.get("sim")
-                              and all(tuple(a) in by_key for a in (s.get("combo")
-                                                                     or ((s.get("ability_id"), s.get("selector")),))))
-                     for cid in team_ids}
+        simulated = _simulated_steps(team_ids, by_key)
 
         def collect(run: _Run, plan) -> TeamResult:
-            return _collect(team_ids, characters, run.order, loops, order_mode, gauge_rule, opening_gauge,
-                            run.layout, run.dot_rows, run.reaction_rows, run.analysis, run.replays, run.sched,
-                            run.to_active, elements, ability_names, simulated, plan)
+            return _with_fork_notes(
+                _collect(team_ids, characters, run.order, loops, order_mode, gauge_rule, opening_gauge,
+                         run.layout, run.dot_rows, run.reaction_rows, run.analysis, run.replays, run.sched,
+                         run.to_active, elements, ability_names, simulated, plan),
+                run.corrections)
 
         if order_mode == "plan":
             run, _result, plan = _plan_order(ctx, collect)
@@ -1425,6 +1536,64 @@ def simulate_team(static_path: Path, user_db_path: Path, account_id: str, specs:
             run, plan = _run_order(ctx, _visit_order(team_ids, elements, order_mode)), None
         # collected last for the chosen order (callers that wrap _collect see the run that is returned)
         return collect(run, plan)
+
+
+@dataclass
+class SoloRun:
+    """One ``solo_session`` run: ``result`` is what simulate_team returns for this one member."""
+    spec: MemberSpec
+    result: TeamResult
+    run: _Run
+    seconds: float = 0.0
+
+    @property
+    def total_damage(self) -> float:
+        return self.result.total_damage
+
+    @property
+    def end_us(self) -> int:
+        return int(self.run.layout.end_us)
+
+    @property
+    def corrections(self):
+        return self.run.corrections
+
+
+@contextlib.contextmanager
+def solo_session(static_path: Path, character_id: int, *, loops: int = DEFAULT_LOOPS, user_db_path: Path | None = None,
+                 account_id: str = "solo_session", gauge_rule: str = "game", opening_gauge: str = "full"):
+    """One member, many arc / refinement / awakening / set choices on one shared context (the arc efficiency table).
+
+    Yields ``run(spec) -> SoloRun``.  Every run gives exactly ``simulate_team(static_path, account, account_id, [spec],
+    loops=loops)`` (order "auto", one member: first visit "opener", no swap, no reaction).  Without ``user_db_path``
+    an empty account is created in the session's temp folder (a one-member result does not depend on the account).
+    One session per thread."""
+    if gauge_rule not in GAUGE_RULES:
+        raise ValueError(f"unknown gauge_rule {gauge_rule!r}")
+    if opening_gauge not in OPENING_GAUGES:
+        raise ValueError(f"unknown opening_gauge {opening_gauge!r}")
+    loops = max(1, min(MAX_LOOPS, int(loops)))
+    opening_gauge = _effective_opening(opening_gauge)
+    cid = int(character_id)
+    _approved_steps(cid)
+    with _open_session(static_path, user_db_path, account_id, [cid], loops=loops, gauge_rule=gauge_rule,
+                       opening_gauge=opening_gauge) as make:
+
+        def run(spec: MemberSpec) -> SoloRun:
+            if int(spec.character_id) != cid:
+                raise ValueError(f"this session runs {cid}, not {spec.character_id}")
+            started = time.perf_counter()
+            ctx = make([spec])
+            order = _visit_order([cid], ctx.elements, "auto")
+            done = _run_order(ctx, order)
+            result = _with_fork_notes(
+                _collect([cid], ctx.characters, done.order, loops, "auto", gauge_rule, opening_gauge, done.layout,
+                         done.dot_rows, done.reaction_rows, done.analysis, done.replays, done.sched, done.to_active,
+                         ctx.elements, ctx.ability_names, _simulated_steps([cid], ctx.by_key), None),
+                done.corrections)
+            return SoloRun(spec, result, done, time.perf_counter() - started)
+
+        yield run
 
 
 # ── simulation: results and explanation ───────────────────────────────────

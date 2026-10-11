@@ -189,6 +189,9 @@ ASSUME_ORDER_PLAN = "order_plan"
 ASSUME_FULL_GAUGE_LOOPS = "full_gauge_loops"     # args: 1-based loop numbers starting with every gauge at 100
 ASSUME_FORM_ACTIONS = "form_actions"             # args: (character_id,) whose form-state actions deal damage
 ASSUME_FORM_WINDOW = "form_window"               # args: (character_id, form name_zh, duration_s)
+# Global arc corrections (team_fork_corrections): args = character ids whose arcs they touched
+ASSUME_FORK_SUPPLEMENT = "fork_global_supplement"   # B3 「罪与罚」 / B4 「月的对跖点」 priced by Global rules
+ASSUME_FORK_DEDUP = "fork_permanent_dedup"          # B2 always-on arc bonus counted once (panel), not twice
 
 # ── limit codes (the reaction ones exactly as ReactionScheduler.limits() writes them) ──
 LIMIT_SCORCH_ONE_LAYER = "scorch_zankou_one_layer"
@@ -694,6 +697,12 @@ def _who(args: tuple, names: Mapping | None, fallback: str) -> str:
     return _name(args[0], names) if args else fallback
 
 
+def _members_text(args: tuple, names: Mapping | None) -> str:
+    """Chinese names of the character ids in args as one "、"-separated data string (the display layer translates
+    the names and the separator together, like the fixed name lists below)."""
+    return "、".join(dict.fromkeys(str(_name(value, names)) for value in (args or ("?",))))
+
+
 def loops_text(loops) -> str:
     """1-based loop numbers as "1 · 3" (language-neutral separator)."""
     return " · ".join(str(int(float(n))) for n in _tuple(loops) if str(n).strip() != "")
@@ -787,6 +796,9 @@ _NOTES = {
         _name(a[0] if a else "?", n), f"{_num(a, 1):.1f}", f"{_num(a, 2):g}", f"{_num(a, 3):g}"),
     LIMIT_FORM_TIMING_ASSUMED: lambda a, n: _LF('{0} 的部分形态动作由召唤的伤害体造成，命中间隔为推断').format(
         _name(a[0] if a else "?", n)),
+    ASSUME_FORK_SUPPLEMENT: lambda a, n: _LF('Global 补充规则（依据说明文与数据库数值）：{0}').format(
+        _members_text(a, n)),
+    ASSUME_FORK_DEDUP: lambda a, n: _LF('已修正常驻效果的重复计算：{0}').format(_members_text(a, n)),
     LIMIT_RAVEN_MALICE: lambda a, n: _L('黑羽「恶意」追加伤害（按消耗量计算）未计入'),
     LIMIT_FIGHT_END: lambda a, n: _L('战斗在最后一次出场结束时截止，之后的持续伤害不计入'),
     PLAN_CARRY: lambda a, n: _LF('变身输出：{0}').format(_name(a[0] if a else "?", n)),

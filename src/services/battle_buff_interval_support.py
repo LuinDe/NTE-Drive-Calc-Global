@@ -299,7 +299,7 @@ class BattleBuffIntervalSupportMixin:
                 )
                 for row in role_hits
                 if (
-                    row.attack_type in {"普攻", _L('普通攻击')}
+                    row.attack_type in {"普攻", _L('普通攻击'), "普通攻击"}
                     or "melee" in row.ability_id.casefold()
                 )
             )

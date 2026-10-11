@@ -77,7 +77,7 @@ def allow_operation_entry(parent, policy, capability: str, feature: str, navigat
     if entry_is_allowed(policy, capability):
         return True
     mode = _MODE_LABELS[policy.settings.mode.value]
-    detail = _L('当前') + mode + _L('模式不允许此功能。\n') + _REQUIREMENTS[capability]
+    detail = _LF('当前{0}模式不允许此功能。\n').format(mode) + _REQUIREMENTS[capability]
     prompt_operation_settings(parent, title=_L('功能受限'), feature=feature, detail=detail,
                               navigate=navigate, target="mode")
     return False
@@ -87,7 +87,7 @@ def explain_operation_unavailable(parent, feature: str, detail: str, navigate, t
     target = target if target in {"deployment", "home"} else "detection"
     if target == "home":
         prompt_operation_settings(
-            parent, title=_L('暂时无法同步'), feature=feature, detail=detail,
+            parent, title=_L('功能暂不可用'), feature=feature, detail=detail,
             navigate=navigate, target=target, action_text=_L('前往工作台'),
         )
         return

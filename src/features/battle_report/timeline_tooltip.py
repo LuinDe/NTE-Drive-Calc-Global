@@ -39,7 +39,7 @@ def build_timeline_tooltip(
         )
         source = (
             _LF('\n来源技能：{0}').format((hit.skill_name))
-            if hit.skill_name not in {"", damage_name, _L('未识别技能')}
+            if hit.skill_name not in {"", damage_name, _L('未识别技能'), "未识别技能"}
             else ""
         )
         return (
@@ -51,7 +51,7 @@ def build_timeline_tooltip(
         source = (
             _LF('\n来源技能：{0}').format((group.source_skill_name))
             if group.source_skill_name
-            not in {"", group.damage_name, _L('未识别技能')}
+            not in {"", group.damage_name, _L('未识别技能'), "未识别技能"}
             else ""
         )
         vital_group = group.channel_key in {

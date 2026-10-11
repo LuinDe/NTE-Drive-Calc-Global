@@ -1283,6 +1283,7 @@ def simulate_custom(static_path, user_db_path, account_id, specs, sequence, opti
         result = svc._collect(team_ids, ctx.characters, order, options.repeat, tx.ORDER_CUSTOM, "game", "full",
                               run.layout, run.dot_rows, run.reaction_rows, run.analysis, run.replays, run.sched,
                               run.to_active, ctx.elements, ctx.ability_names, {}, None)
+        result = svc._with_fork_notes(result, run.corrections)       # Global arc corrections (B2-B4)
         auto_eff = _auto_charge_eff(run.analysis, team_ids, svc.START_US, run.layout.end_us)
         _energy_pass(walk.records, team_ids, options, auto_eff)
         result.explanation = _custom_explanation(result.explanation, walk, steps, options, team_ids, edit, tx)

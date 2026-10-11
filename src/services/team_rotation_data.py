@@ -1,5 +1,5 @@
 # 队伍模拟：已审核的角色循环（由 research_result.json 生成，勿手改）
-# GENERATED FILE - DO NOT EDIT.  Regenerate with scratchpad/v230/tools/gen_team_rotation_data.py
+# GENERATED FILE - DO NOT EDIT.  Regenerate with work_g231/tests_g231/tools_shim/gen_team_rotation_data.py (scratchpad/v230/tools/gen_team_rotation_data.py + the Global 2.3.1 label_ko term map)
 # validated against action_catalog.json sha256 e049d396ff178dca38abeab9d67eff2e9d97369dde91586dc94fffa71dd8f00b
 # form steps from team_form_actions.py sha256 ef0d9f7f54fd096ad7aacfcfad8752dbf24719e89a57d92ec0e9f0bea5f041da
 """Approved per-character rotations for the team simulator (generated, do not edit).
@@ -186,7 +186,7 @@ CHARACTERS = {
         'confidence': 'medium',
         'starts_full_gauge': False,
         'variants': {'approved': {'steps': [
-            {'seq': 1, 'slot': 'qte', 'ability_id': 'GA_Hathor_QTE', 'selector': 'QTE', 'repeat': 1, 'entry_only': True, 'sim': True, 'est_s': 1.834, 'gauge_set': None, 'label_ko': "지원 스킬 '조준 낙하'로 입장", 'combo': None, 'form_role': None, 'group': None},
+            {'seq': 1, 'slot': 'qte', 'ability_id': 'GA_Hathor_QTE', 'selector': 'QTE', 'repeat': 1, 'entry_only': True, 'sim': True, 'est_s': 1.834, 'gauge_set': None, 'label_ko': "서포트 스킬 '조준 낙하'로 입장", 'combo': None, 'form_role': None, 'group': None},
             {'seq': 2, 'slot': 'skill', 'ability_id': 'GA_Hathor_Skill', 'selector': 'Power', 'repeat': 1, 'entry_only': False, 'sim': True, 'est_s': 1.233, 'gauge_set': None, 'label_ko': "바이레일 스킬 '공중 지령' 홀드(차지 유지)", 'combo': None, 'form_role': None, 'group': None},
             {'seq': 3, 'slot': 'skill', 'ability_id': 'GA_Hathor_Skill', 'selector': 'PowerEnd', 'repeat': 1, 'entry_only': False, 'sim': True, 'est_s': 2.25, 'gauge_set': None, 'label_ko': "홀드를 떼서 강화 '공중 지령' 발동", 'combo': None, 'form_role': None, 'group': None},
             {'seq': 4, 'slot': 'ultimate', 'ability_id': 'GA_Hathor_UltraSkill', 'selector': 'Default', 'repeat': 1, 'entry_only': False, 'sim': True, 'est_s': 4.543, 'gauge_set': None, 'label_ko': "울티메이트 '라이더 익스프레스' → 긴급 배송 진입", 'combo': None, 'form_role': None, 'group': None},
@@ -204,7 +204,7 @@ CHARACTERS = {
         'confidence': 'medium',
         'starts_full_gauge': False,
         'variants': {'approved': {'steps': [
-            {'seq': 1, 'slot': 'qte', 'ability_id': 'GA_Adler_QTE', 'selector': 'QTE', 'repeat': 1, 'entry_only': True, 'sim': True, 'est_s': 1.034, 'gauge_set': None, 'label_ko': "지원 스킬 '맑은 거울'로 입장", 'combo': None, 'form_role': None, 'group': None},
+            {'seq': 1, 'slot': 'qte', 'ability_id': 'GA_Adler_QTE', 'selector': 'QTE', 'repeat': 1, 'entry_only': True, 'sim': True, 'est_s': 1.034, 'gauge_set': None, 'label_ko': "서포트 스킬 '맑은 거울'로 입장", 'combo': None, 'form_role': None, 'group': None},
             {'seq': 2, 'slot': 'skill', 'ability_id': 'GA_Adler_Skill', 'selector': 'Default', 'repeat': 1, 'entry_only': False, 'sim': True, 'est_s': 0.898, 'gauge_set': None, 'label_ko': "바이레일 스킬 '처단의 가호'(실드 + 지속 피해)", 'combo': None, 'form_role': None, 'group': None},
             {'seq': 3, 'slot': 'ultimate', 'ability_id': 'GA_Adler_UltraSkill', 'selector': 'Default', 'repeat': 1, 'entry_only': False, 'sim': True, 'est_s': 3.082, 'gauge_set': None, 'label_ko': "울티메이트 '만물 정화'(조건부)", 'combo': None, 'form_role': None, 'group': None},
         ]}},
@@ -218,7 +218,7 @@ CHARACTERS = {
         'confidence': 'medium',
         'starts_full_gauge': True,
         'variants': {'approved': {'steps': [
-            {'seq': 1, 'slot': 'qte', 'ability_id': 'GA_Zankou_QTE', 'selector': 'QTE', 'repeat': 1, 'entry_only': True, 'sim': True, 'est_s': 1.246, 'gauge_set': None, 'label_ko': "지원 스킬 '불멸의 화염'으로 입장", 'combo': None, 'form_role': None, 'group': None},
+            {'seq': 1, 'slot': 'qte', 'ability_id': 'GA_Zankou_QTE', 'selector': 'QTE', 'repeat': 1, 'entry_only': True, 'sim': True, 'est_s': 1.246, 'gauge_set': None, 'label_ko': "서포트 스킬 '불멸의 화염'으로 입장", 'combo': None, 'form_role': None, 'group': None},
             {'seq': 2, 'slot': 'basic', 'ability_id': 'GA_Zankou_Melee', 'selector': 'Melee1', 'repeat': 1, 'entry_only': False, 'sim': True, 'est_s': 1.092, 'gauge_set': None, 'label_ko': "현실 형태 일반 공격 '들불' 1타", 'combo': None, 'form_role': None, 'group': None},
             {'seq': 3, 'slot': 'basic', 'ability_id': 'GA_Zankou_Melee', 'selector': 'Branch1', 'repeat': 1, 'entry_only': False, 'sim': True, 'est_s': 1.61, 'gauge_set': None, 'label_ko': "홀드 일반 공격 '아른거리는 그림자'", 'combo': None, 'form_role': None, 'group': None},
             {'seq': 4, 'slot': 'skill', 'ability_id': 'GA_Zankou_Skill', 'selector': 'PowerSkill1', 'repeat': 1, 'entry_only': False, 'sim': True, 'est_s': 1.318, 'gauge_set': None, 'label_ko': "강화 바이레일 '진홍빛 잔영'(난) → 환상 형태", 'combo': None, 'form_role': None, 'group': None},
@@ -237,7 +237,7 @@ CHARACTERS = {
         'confidence': 'medium',
         'starts_full_gauge': False,
         'variants': {'approved': {'steps': [
-            {'seq': 1, 'slot': 'qte', 'ability_id': 'GA_Fadia_QTE', 'selector': 'QTE', 'repeat': 1, 'entry_only': True, 'sim': True, 'est_s': 1.516, 'gauge_set': None, 'label_ko': "지원 스킬 '이단자의 조롱'으로 입장", 'combo': None, 'form_role': None, 'group': None},
+            {'seq': 1, 'slot': 'qte', 'ability_id': 'GA_Fadia_QTE', 'selector': 'QTE', 'repeat': 1, 'entry_only': True, 'sim': True, 'est_s': 1.516, 'gauge_set': None, 'label_ko': "서포트 스킬 '이단자의 조롱'으로 입장", 'combo': None, 'form_role': None, 'group': None},
             {'seq': 2, 'slot': 'skill', 'ability_id': 'GA_Fadia_Skill', 'selector': 'Skill', 'repeat': 1, 'entry_only': False, 'sim': True, 'est_s': 1.785, 'gauge_set': None, 'label_ko': "바이레일 스킬 '존재 증명의 체험'", 'combo': None, 'form_role': None, 'group': None},
             {'seq': 3, 'slot': 'ultimate', 'ability_id': 'GA_Fadia_UltraSkill', 'selector': 'UltraSkill', 'repeat': 1, 'entry_only': False, 'sim': True, 'est_s': 5.005, 'gauge_set': None, 'label_ko': "울티메이트 '고통을 넘어선 환희' → 신의 대적자", 'combo': None, 'form_role': None, 'group': None},
             {'seq': 4, 'slot': 'basic', 'ability_id': 'GA_Fadia_UltraSkill_Melee', 'selector': 'Form:GodfoeChase', 'repeat': 1, 'entry_only': False, 'sim': True, 'est_s': 6.292, 'gauge_set': None, 'label_ko': '신의 대적자 추격 1~5단(일반 공격 입력, 1세트)', 'combo': (('GA_Fadia_UltraSkill_Melee', 'Form:GodfoeChase'),), 'form_role': 'body', 'group': None},

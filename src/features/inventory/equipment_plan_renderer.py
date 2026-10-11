@@ -428,7 +428,8 @@ def _render_equip_role(self, role_name, rd, *, target_layout=None):
     if _sm:
         _ml = {
             "role_priority": _L('角色优先'),
-            "update_mode": _L('增量更新'),
+            "update_mode": _L('锁定更新'),
+            "damage_based": _L('期望伤害'),
             "game_inventory": _L('游戏配装'),
         }.get(_sm, _sm)
         sml = QLabel(_ml)

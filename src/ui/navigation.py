@@ -23,6 +23,7 @@ NAV_ITEMS = (
     NavItem("home", _L('工作台'), "btn_home", "_page_home", "_refresh_home"),
     NavItem("execute", _L('⚡  计算'), "btn_exec", "_page_execute", "_refresh_execute"),
     NavItem("team_sim", _L('👥  队伍模拟 (Beta)'), "btn_team_sim", "_page_team_sim"),
+    NavItem("arc_eff", _L('📈  弧盘效率表 (Beta)'), "btn_arc_eff", "_page_arc_eff"),
     NavItem("equipment", _L('💎  配装'), "btn_equip", "_page_equipment", "_refresh_equip"),
     NavItem("my_role", _L('👤  角色'), "btn_my_role", "_page_my_role", "_refresh_my_role"),
     NavItem("warehouse", _L('📦  仓库'), "btn_warehouse", "_page_warehouse", "_refresh_warehouse"),

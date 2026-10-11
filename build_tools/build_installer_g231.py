@@ -1,38 +1,52 @@
-# NTE Drive Calc 다국어판(zh/ko/ja/en) 공식 방식 전체 설치 프로그램(Inno Setup) 생성기
-r"""Build the official-style FULL installer for the multilingual NTE Drive Calc build.
+# NTE Drive Calc Global 2.3.1 (zh/ko/ja/en) 공식 방식 전체 설치 프로그램(Inno Setup) 생성기
+r"""Build the official-style FULL installer of NTE Drive Calc Global (the unofficial multilingual build).
 
-This is a port of upstream ``build_installer.py`` (commit d3eca80 = official 2.3.0).  The upstream
-script packages ``dist/NTE_Drive_Calc`` straight out of PyInstaller; we cannot rebuild that bundle
-(private native components), so the payload is a *stage* directory holding exactly what the
-official installer lays down, and the executable is our rebuilt one:
+This is a port of upstream ``build_installer.py`` at commit 0e7a6b4 (official 2.3.1).  The upstream script packages
+``dist/NTE_Drive_Calc`` straight out of PyInstaller; we cannot rebuild that bundle (private native components), so
+the payload is a *stage* directory holding exactly what the official installer lays down, and the executable is our
+rebuilt one:
 
-    <stage>/_internal/**            official PyInstaller runtime directory (verbatim)
+    <stage>/_internal/**            official PyInstaller runtime directory (verbatim, except the seven tutorial
+                                    images _internal/config/templates/guide/1..7.png, which are the Korean ones)
     <stage>/drivers/ViGEmBus_Setup.exe
-    <stage>/config/stats.json       optional; must equal _internal/config/stats.json (the upstream
-                                    source of {app}\config\stats.json)
-    <stage>/stage_manifest.json     optional but recommended: path/size/sha256 of every staged file;
-                                    when present the stage is verified against it before building
+    <stage>/config/stats.json       optional; must equal _internal/config/stats.json (the upstream source of
+                                    {app}\config\stats.json)
+    <stage>/stage_manifest.json     optional but recommended: path/size/sha256 of every staged file; when present
+                                    the stage is verified against it before building
+
+What follows upstream 0e7a6b4 (the [Files] / [InstallDelete] / [Dirs] structure is the same):
+  - VersionInfoVersion / VersionInfoProductVersion = windows_numeric_version(version), plus the two text versions;
+  - stale files deleted on install: _internal\assets\game_ui (folder), the ambient ICU DLLs, and dwmapi.dll ONLY when
+    the bundled component layout is "native-capture-v1" (2.3.0 and older).  2.3.1 ships "native-plugins-v3"
+    (d3d12.dll host + plugins\NTE_Plugin*.dll), so dwmapi.dll is not touched;
+  - byte-identical role-catalog images (_internal\data\role_catalog\game_ui) are stored once and installed at both
+    paths (upstream tools/release/installer_asset_dedup.py: the copies are excluded from the recursive line and
+    re-added as DestName lines with the donor as source).
+What differs: our executable, the wizard in four languages (en / ko / ja / zh; the first run of the program uses
+the wizard language unless a language file already exists), the notice page, three documents in {app}\l10n_build,
+the uninstall entry name, and [UninstallDelete] of the language file the installer may have written.
 
 Usage (Python 3.11):
-    build_installer_l10n.py --exe <NTE_Drive_Calc.exe> --stage <dir> --out <dir> --variant release
-    build_installer_l10n.py --exe <NTE_Drive_Calc.exe> --stage <dir> --out <dir> --variant sandbox
-    build_installer_l10n.py --stage <dir> --write-stage-manifest          (re)write stage_manifest.json
+    build_installer_g231.py --exe <NTE_Drive_Calc.exe> --stage <dir> --out <dir> --variant release
+    build_installer_g231.py --exe <NTE_Drive_Calc.exe> --stage <dir> --out <dir> --variant sandbox
+    build_installer_g231.py --stage <dir> --write-stage-manifest          (re)write stage_manifest.json
 
 Variants
-    release  same AppId / default directory / privileges as the official installer, so it upgrades an
-             official or multilingual install in place and a later official installer upgrades over it.
-    sandbox  PrivilegesRequired=lowest, a different AppId, no ViGEmBus task/run step/shortcut, default
-             directory under C:\Temp - for testing without admin rights and without touching the real
-             install or its uninstall registry entry.
+    release  same AppId / default directory / privileges as the official installer, so it upgrades an official,
+             KO-patched or earlier Global installation in place and a later official installer upgrades over it.
+    sandbox  PrivilegesRequired=lowest, a test-only AppId (the same one the Global 2.3.0 sandbox build used), no
+             ViGEmBus task / run step / shortcut, default directory under C:\Temp - for testing without
+             administrator rights and without touching the real installation or its uninstall registry entry.
 
 Outputs in --out:
-    NTE_Drive_Calc_Setup_<version>_multilingual[_sandbox].exe   (another base name with --output-base)
+    <output base>.exe   (default NTE_Drive_Calc_Setup_<version>_multilingual[_sandbox])
 Outputs in --aux-dir (default: --out):
     payload_manifest_<variant>.json   every file the installer lays down under {app} (size, sha256)
     build_report_<variant>.json       installer size/sha256, compile time, inputs
     build_<variant>/                  generated setup.iss, Chinese message overrides, notices, docs, ISCC log
+    (these contain local paths: never publish them)
 
-Nothing is uploaded, nothing outside --out (and stage_manifest.json with --write-stage-manifest) is written.
+Nothing is uploaded, nothing outside --out / --aux-dir (and stage_manifest.json with --write-stage-manifest) is written.
 """
 from __future__ import annotations
 
@@ -41,6 +55,7 @@ import datetime as _dt
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -48,17 +63,18 @@ import time
 from pathlib import Path
 
 TOOLS_DIR = Path(__file__).resolve().parent
-DEFAULT_LICENSE = TOOLS_DIR.parent / "repo_main" / "LICENSE"
+DEFAULT_LICENSE = TOOLS_DIR.parent / "LICENSE"                  # repository root: the upstream LICENSE, verbatim
 
 APP_NAME = "NTE Drive Calc"
 APP_EXE_NAME = "NTE_Drive_Calc.exe"
 OFFICIAL_APP_ID = "D7DA28BE-8A19-4E05-9216-3F16C4C2C820"      # upstream build_installer.py APP_ID
 SANDBOX_APP_ID = "5B0C6E1A-7F2D-4C39-8E54-1D9A3F6B2C70"       # test-only identity, never the official one
-SANDBOX_DEFAULT_DIR = r"C:\Temp\nte_l10n_setup_sandbox"
-DEFAULT_VERSION = "2.3.0"
-UPSTREAM_COMMIT = "d3eca803ac36a75a3fa4fbbf8adadb93dadadf65"
-UPSTREAM_URL = "https://github.com/hxwd94666/NTE-Drive-Calc"
-PUBLISHER = "NTE Drive Calc community (unofficial multilingual build)"
+SANDBOX_DEFAULT_DIR = r"C:\Temp\nte_g231_setup_sandbox"
+DEFAULT_VERSION = "2.3.1"
+UPSTREAM_COMMIT = "0e7a6b4e8e61d7a288e520bbc192a411d68c2fb1"
+UPSTREAM_URL = "https://github.com/hxwd94666/NTE-Drive-Calculator"
+PROJECT_URL = "https://github.com/LuinDe/NTE-Drive-Calc-Global"
+PUBLISHER = "NTE Drive Calc Global (unofficial multilingual build)"
 DOCS_DIR_NAME = "l10n_build"                                   # {app}\l10n_build\LICENSE.txt ...
 STAGE_MANIFEST_NAME = "stage_manifest.json"
 LANGUAGE_FILE_REL = "_internal/config/i18n_language.json"      # written by [Code], never packaged
@@ -66,8 +82,12 @@ LANGUAGE_FILE_REL = "_internal/config/i18n_language.json"      # written by [Cod
 CLOSE_APPLICATIONS_FILTER = "NTE_Drive_Calc.exe,nte-mod-loader.exe,nte-core.exe,nte-analysis-core.exe"
 CORE_CONFIG_FILES = ("stats.json",)                            # upstream CORE_CONFIG_FILES
 STALE_AMBIENT_ICU_DLLS = ("icuuc.dll", "icudt78.dll")          # upstream STALE_AMBIENT_ICU_DLLS
+LEGACY_CAPTURE_LAYOUT = "native-capture-v1"                    # upstream GameComponentBundleInspection default
+KNOWN_LAYOUTS = (LEGACY_CAPTURE_LAYOUT, "native-plugins-v3")
 VIGEM_DEST_NAME = "ViGEmBus_Setup.exe"
 VIGEM_PARAMS = "/qn /norestart"
+CATALOG_IMAGE_ROOT = "data/role_catalog/game_ui"               # upstream installer_asset_dedup catalog_root
+IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")             # upstream installer_asset_dedup IMAGE_SUFFIXES
 
 # Upstream _validate_app_bundle(): files that must exist in the PyInstaller runtime directory.
 REQUIRED_INTERNAL = (
@@ -82,10 +102,14 @@ REQUIRED_INTERNAL = (
     "data/migrations/shape_bonus_defaults_2.0.2.json",
     "config/stats.json",
 )
-# Never part of a clean payload: user/runtime data and leftovers of the earlier exe-only patch kits.
+# Never part of a clean payload: user/runtime data, files a test run writes next to the runtime, and leftovers of
+# the exe-only patch kits.
 FORBIDDEN_INTERNAL = (
     "config/i18n_language.json",
     "config/templates/guide_zh",
+    "NTE.log",
+    "logs",
+    "plugins/.loaded",
 )
 
 # Wizard languages.  Names double as the app's language codes (src/i18n_runtime.LANGUAGES) and are
@@ -103,10 +127,10 @@ MESSAGES_FILES = {
 
 CUSTOM_MESSAGES = {
     "L10nAppVerName": {
-        "en": "NTE Drive Calc {version} Multilingual Edition",
-        "ko": "NTE Drive Calc {version} 다국어판",
-        "ja": "NTE Drive Calc {version} 多言語版",
-        "zh": "NTE Drive Calc {version} 多语言版",
+        "en": "NTE Drive Calc {version} Multilingual Edition (Global)",
+        "ko": "NTE Drive Calc {version} 다국어판 (Global)",
+        "ja": "NTE Drive Calc {version} 多言語版 (Global)",
+        "zh": "NTE Drive Calc {version} 多语言版 (Global)",
     },
     "RuntimeDepsGroup": {
         "en": "Runtime dependencies:",
@@ -154,7 +178,7 @@ CUSTOM_MESSAGES = {
 # Shortcut names are file names: they must stay free of \ / : * ? " < > |
 ICON_MESSAGE_KEYS = ("ViGEmIconName", "UninstallIconName")
 
-# Upstream build_installer.py `chinese_messages` (verbatim) ...
+# Upstream build_installer.py `chinese_messages` (verbatim, unchanged between 2.3.0 and 2.3.1) ...
 ZH_MESSAGES_UPSTREAM = """\
 SetupAppTitle=安装程序
 SetupWindowTitle=安装 - %1
@@ -257,60 +281,72 @@ LaunchProgram=启动 %1
 
 NOTICE = {
     "ko": """\
-NTE Drive Calc {version} 다국어판 (비공식 빌드)
+NTE Drive Calc {version} 다국어판 "NTE Drive Calc Global" (비공식 빌드)
 
 이 설치 프로그램은 NTE Drive Calc {version} 의 비공식 다국어(한국어 / English / 日本語 / 简体中文) 빌드를 설치합니다.
 원 프로그램 제작자(NTE Drive Calc contributors)가 배포하는 공식 빌드가 아니며, 공식 지원 대상이 아닙니다.
+원 프로젝트: {upstream_url}
+이 빌드: {project_url}
 
-- 공식 버전과 같은 위치에 설치됩니다. 이미 설치된 공식 {version} 또는 이전 다국어판이 있으면 그 자리에서 업그레이드합니다.
-- 계정, 설정, 로그 등 사용자 데이터는 그대로 유지됩니다.
+- 공식 버전과 같은 위치·같은 프로그램 항목으로 설치됩니다. 공식 {version}, 이전 다국어판(Global 2.3.0), 한글 패치를 적용한 {version} 이 설치되어 있으면 그 자리에서 업그레이드합니다.
+- 계정, 설정, 로그, 저장한 사이클, 효율표 캐시 등 사용자 데이터는 그대로 유지됩니다. 한글 패치가 만든 백업 파일(NTE_Drive_Calc.original.exe 등)도 지우지 않습니다.
 - 나중에 공식 설치 프로그램을 실행하면 공식 버전으로 되돌릴 수 있습니다.
 - 프로그램은 지금 고른 설치 언어로 시작하며(이미 언어를 설정해 둔 경우 그 설정을 유지), 프로그램 안에서 언제든 바꿀 수 있습니다.
+- 팀 시뮬레이션(Beta)과 아크 효율표는 이 빌드에서 추가한 기능이며, 계산 모델에 한계가 있습니다(자세한 내용은 저장소의 README).
 
 라이선스: GNU AGPL-3.0
 라이선스 전문과 소스 코드 안내는 설치 폴더의 {docs} 폴더(LICENSE.txt, SOURCE_OFFER.txt, README.txt)에 들어 있습니다.
 이 빌드에 대응하는 전체 소스 코드는 이 설치 파일과 함께 배포되는 {source_zip} 에 있습니다.
 """,
     "en": """\
-NTE Drive Calc {version} Multilingual Edition (unofficial build)
+NTE Drive Calc {version} Multilingual Edition "NTE Drive Calc Global" (unofficial build)
 
 This installer sets up an unofficial multilingual (Korean / English / Japanese / Simplified Chinese) build of NTE Drive Calc {version}.
 It is NOT an official build published by the original authors (NTE Drive Calc contributors) and is not supported by them.
+Original project: {upstream_url}
+This build: {project_url}
 
-- It installs to the same location as the official version. An existing official {version} or earlier multilingual installation is upgraded in place.
-- User data such as accounts, settings and logs is kept.
+- It installs to the same location and under the same program entry as the official version. An existing official {version}, an earlier multilingual build (Global 2.3.0) or a Korean-patched {version} is upgraded in place.
+- User data such as accounts, settings, logs, saved cycles and the efficiency-table cache is kept. Backup files made by the Korean patch (NTE_Drive_Calc.original.exe and others) are not removed.
 - Running the official installer later restores the official version.
 - The program starts in the language chosen for this setup (an existing language setting is kept); it can be changed inside the program at any time.
+- Team Simulation (Beta) and the Arc Efficiency table are features added by this build; their calculation model has limits (see the README of the repository).
 
 License: GNU AGPL-3.0
 The full license text and the source code notice are installed into the {docs} folder of the installation directory (LICENSE.txt, SOURCE_OFFER.txt, README.txt).
 The complete corresponding source code of this build is distributed together with this installer as {source_zip}.
 """,
     "ja": """\
-NTE Drive Calc {version} 多言語版 (非公式ビルド)
+NTE Drive Calc {version} 多言語版「NTE Drive Calc Global」(非公式ビルド)
 
 このインストーラーは NTE Drive Calc {version} の非公式多言語（韓国語 / English / 日本語 / 簡体字中国語）ビルドをインストールします。
 原作者（NTE Drive Calc contributors）が配布する公式ビルドではなく、公式サポートの対象外です。
+元のプロジェクト: {upstream_url}
+このビルド: {project_url}
 
-- 公式版と同じ場所にインストールされます。公式 {version} または以前の多言語版がインストール済みの場合は、そのまま上書きアップグレードします。
-- アカウント、設定、ログなどのユーザーデータは保持されます。
+- 公式版と同じ場所・同じプログラム項目にインストールされます。公式 {version}、以前の多言語版（Global 2.3.0）、韓国語パッチを適用した {version} がインストール済みの場合は、そのまま上書きアップグレードします。
+- アカウント、設定、ログ、保存したサイクル、効率表のキャッシュなどのユーザーデータは保持されます。韓国語パッチが作成したバックアップファイル（NTE_Drive_Calc.original.exe など）も削除しません。
 - 後で公式インストーラーを実行すれば公式版に戻せます。
 - プログラムはここで選んだ言語で起動します（すでに言語を設定済みの場合はその設定を維持）。言語はプログラム内でいつでも変更できます。
+- チームシミュレーション（Beta）とアーク効率表はこのビルドで追加した機能で、計算モデルには限界があります（詳しくはリポジトリの README）。
 
 ライセンス: GNU AGPL-3.0
 ライセンス全文とソースコードの案内は、インストール先の {docs} フォルダー（LICENSE.txt、SOURCE_OFFER.txt、README.txt）に入っています。
 このビルドに対応する完全なソースコードは、このインストーラーと一緒に配布される {source_zip} に含まれています。
 """,
     "zh": """\
-NTE Drive Calc {version} 多语言版（非官方构建）
+NTE Drive Calc {version} 多语言版「NTE Drive Calc Global」（非官方构建）
 
 本安装程序将安装 NTE Drive Calc {version} 的非官方多语言（韩语 / English / 日语 / 简体中文）构建。
 它不是原作者（NTE Drive Calc contributors）发布的官方构建，也不在官方支持范围内。
+原项目：{upstream_url}
+本构建：{project_url}
 
-- 安装位置与官方版本相同。如果已安装官方 {version} 或更早的多语言版，将直接原地升级。
-- 账号、设置、日志等用户数据会被保留。
+- 安装位置和程序条目与官方版本相同。如果已安装官方 {version}、更早的多语言版（Global 2.3.0）或打过韩语补丁的 {version}，将直接原地升级。
+- 账号、设置、日志、保存的循环、效率表缓存等用户数据会被保留。韩语补丁创建的备份文件（NTE_Drive_Calc.original.exe 等）也不会被删除。
 - 之后运行官方安装程序即可恢复为官方版本。
 - 程序将以此处选择的安装语言启动（如已设置过语言则保留原设置），之后可随时在程序内切换。
+- 队伍模拟（Beta）和弧盘效率表是本构建新增的功能，其计算模型有局限（详见仓库的 README）。
 
 许可证：GNU AGPL-3.0
 许可证全文与源代码说明位于安装目录的 {docs} 文件夹（LICENSE.txt、SOURCE_OFFER.txt、README.txt）。
@@ -319,19 +355,21 @@ NTE Drive Calc {version} 多语言版（非官方构建）
 }
 
 SOURCE_OFFER = """\
-NTE Drive Calc {version} 다국어판 (비공식) - 대응 소스 코드 안내
-NTE Drive Calc {version} Multilingual Edition (unofficial) - Corresponding Source
+NTE Drive Calc {version} 다국어판 "NTE Drive Calc Global" (비공식) - 대응 소스 코드 안내
+NTE Drive Calc {version} Multilingual Edition "NTE Drive Calc Global" (unofficial) - Corresponding Source
 
 [한국어]
 - 이 프로그램은 GNU AGPL-3.0 으로 배포되는 NTE Drive Calc {version} 의 비공식 다국어 빌드(파생물)입니다.
   원저작자: NTE Drive Calc contributors (hxwd94666). 원 프로젝트: {upstream_url}
 - 기반: 원 프로젝트 커밋 {upstream_commit} (공식 {version}).
+- 이 빌드의 저장소: {project_url}
 - 변경점 요약: 사용자 표시 문자열의 다국어화(중국어 원문 + 한국어/영어/일본어 번역 테이블, 프로그램 안에서
-  언어 전환), 게임 데이터 이름·설명의 표시 계층 번역, 팀 시뮬레이션(Beta) 기능 추가, "사용 방법" 튜토리얼
-  이미지 한국어판. 자세한 내용은 소스 zip 을 보십시오.
+  언어 전환), 게임 데이터 이름·설명의 표시 계층 번역, 팀 시뮬레이션(Beta)과 아크 효율표 기능 추가, 게임 폴더
+  보호(다른 프로그램의 d3d12.dll 등을 덮어쓰거나 지우지 않음), "사용 방법" 튜토리얼 이미지 한국어판.
+  자세한 내용은 소스 zip 과 저장소의 CHANGES.md 를 보십시오.
 - 이 빌드에 대응하는 전체 소스 코드는 이 설치 파일과 함께 배포되는 zip 파일에 들어 있습니다:
       {source_zip}
-  zip 파일을 받지 못했다면 이 설치 파일을 받은 곳(배포자)에게 요청하십시오.
+  zip 파일을 받지 못했다면 위 저장소의 릴리스 페이지에서 받거나, 이 설치 파일을 받은 곳(배포자)에게 요청하십시오.
 - 실행 파일({exe_name})은 공식 PyInstaller 패키지의 PYZ 아카이브에서 src.* 모듈만 위 소스로 교체한 것입니다.
   그 밖의 구성 요소(_internal, drivers)는 공식 {version} 배포판과 동일합니다(튜토리얼 이미지 7장 제외).
   실행 파일 SHA-256: {exe_sha256}
@@ -342,13 +380,16 @@ NTE Drive Calc {version} Multilingual Edition (unofficial) - Corresponding Sourc
   distributed under the GNU AGPL-3.0. Original authors: NTE Drive Calc contributors (hxwd94666).
   Original project: {upstream_url}
 - Based on: original project commit {upstream_commit} (official {version}).
+- Repository of this build: {project_url}
 - Summary of changes: localisation of user-visible strings (Chinese source text plus Korean/English/Japanese
   translation tables, in-app language switching), display-layer translation of game data names and
-  descriptions, an added Team Simulation (Beta) feature, Korean "how to use" tutorial images.
-  See the source zip for details.
+  descriptions, added Team Simulation (Beta) and Arc Efficiency features, game-folder protection (a d3d12.dll or
+  other file of another program in the game folder is never overwritten or deleted), Korean "how to use" tutorial
+  images. See the source zip and CHANGES.md in the repository for details.
 - The complete corresponding source code of this build is distributed together with this installer as a zip file:
       {source_zip}
-  If you did not receive the zip file, ask whoever gave you this installer for it.
+  If you did not receive the zip file, download it from the releases page of the repository above or ask whoever
+  gave you this installer for it.
 - The executable ({exe_name}) is the official PyInstaller package with only the src.* modules of its PYZ archive
   replaced by the sources above. All other components (_internal, drivers) are identical to the official
   {version} distribution (except the 7 tutorial images).
@@ -357,12 +398,14 @@ NTE Drive Calc {version} Multilingual Edition (unofficial) - Corresponding Sourc
 """
 
 README = """\
-NTE Drive Calc {version} 다국어판 (비공식 빌드) / Multilingual Edition (unofficial build)
-==========================================================================================
+NTE Drive Calc {version} 다국어판 "NTE Drive Calc Global" (비공식 빌드) / Multilingual Edition (unofficial build)
+================================================================================================================
 
 [한국어]
-이 폴더는 NTE Drive Calc {version} 비공식 다국어판 설치 프로그램이 만든 것입니다.
+이 폴더는 NTE Drive Calc {version} 비공식 다국어판(NTE Drive Calc Global) 설치 프로그램이 만든 것입니다.
 원 프로그램 제작자(NTE Drive Calc contributors)가 배포하는 공식 빌드가 아니며, 공식 지원 대상이 아닙니다.
+원 프로젝트: {upstream_url}
+이 빌드: {project_url}
 
 - 지원 언어: 한국어, English, 日本語, 简体中文. 프로그램 안에서 언제든 바꿀 수 있습니다.
 - 처음 설치할 때는 설치 마법사에서 고른 언어로 시작합니다(_internal\\config\\i18n_language.json).
@@ -375,9 +418,11 @@ NTE Drive Calc {version} 다국어판 (비공식 빌드) / Multilingual Edition 
 - 라이선스: GNU AGPL-3.0 (LICENSE.txt). 소스 코드 안내: SOURCE_OFFER.txt.
 
 [English]
-This folder was created by the installer of the unofficial multilingual edition of NTE Drive Calc {version}.
-It is NOT an official build published by the original authors (NTE Drive Calc contributors) and is not
-supported by them.
+This folder was created by the installer of the unofficial multilingual edition of NTE Drive Calc {version}
+(NTE Drive Calc Global). It is NOT an official build published by the original authors (NTE Drive Calc
+contributors) and is not supported by them.
+Original project: {upstream_url}
+This build: {project_url}
 
 - Languages: Korean, English, Japanese, Simplified Chinese. The language can be changed inside the program.
 - On first installation the program starts in the language chosen in the setup wizard
@@ -396,7 +441,7 @@ class BuildError(RuntimeError):
 
 
 def info(message: str) -> None:
-    print(f"[installer-l10n] {message}", flush=True)
+    print(f"[installer-g231] {message}", flush=True)
 
 
 def sha256_of(path: Path) -> str:
@@ -405,6 +450,14 @@ def sha256_of(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def windows_numeric_version(value: str) -> str:
+    """Port of upstream src.app.version.windows_numeric_version (0e7a6b4)."""
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:\.T\d{6})?", value)
+    if not match or any(int(part) > 65535 for part in match.groups()):
+        raise BuildError(f"unsupported Windows installer version: {value}")
+    return ".".join(str(int(part)) for part in match.groups()) + ".0"
 
 
 def scan_tree(root: Path) -> list[dict]:
@@ -435,7 +488,7 @@ def write_stage_manifest(stage: Path) -> Path:
     check_stage_layout(stage, rows)
     manifest = {
         "format": 1,
-        "description": "Clean payload of the multilingual installer: what the official installer lays "
+        "description": "Clean payload of the NTE Drive Calc Global installer: what the official installer lays "
                        "down, without the main executable (passed with --exe).",
         "created_utc": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "total_files": len(rows),
@@ -445,6 +498,44 @@ def write_stage_manifest(stage: Path) -> Path:
     target = stage / STAGE_MANIFEST_NAME
     target.write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
     return target
+
+
+def bundle_layout(internal: Path) -> str:
+    """The layout the bundled component manifest declares (upstream's inspection default: native-capture-v1)."""
+    data = json.loads((internal / "component-bundle.json").read_text(encoding="utf-8"))
+    layout = str(data.get("layout") or LEGACY_CAPTURE_LAYOUT)
+    if layout not in KNOWN_LAYOUTS:
+        raise BuildError(f"unknown component bundle layout {layout!r}: review upstream's stale-file list first")
+    return layout
+
+
+def stale_install_delete_targets(internal: Path) -> list[str]:
+    """Upstream 0e7a6b4 [InstallDelete]: assets/game_ui, the ambient ICU DLLs, and dwmapi.dll only for the
+    native-capture-v1 layout (an old installer could leave that game proxy in the application folder)."""
+    targets = ["assets/game_ui", *STALE_AMBIENT_ICU_DLLS]
+    if bundle_layout(internal) == LEGACY_CAPTURE_LAYOUT:
+        targets.append("dwmapi.dll")
+    return targets
+
+
+def catalog_duplicates(internal: Path) -> list[tuple[str, str]]:
+    """Upstream prepare_installer_asset_stage(): byte-identical role-catalog images, (donor, omitted) relative to
+    _internal, in the same order (sorted paths; the first image of each digest is the donor)."""
+    root = internal / CATALOG_IMAGE_ROOT
+    if not root.is_dir():
+        return []
+    first: dict[str, Path] = {}
+    copies = []
+    for image in sorted(root.rglob("*")):
+        if not image.is_file() or image.suffix.lower() not in IMAGE_SUFFIXES:
+            continue
+        digest = sha256_of(image)
+        donor = first.get(digest)
+        if donor is None:
+            first[digest] = image
+            continue
+        copies.append((donor.relative_to(internal).as_posix(), image.relative_to(internal).as_posix()))
+    return copies
 
 
 def check_stage_layout(stage: Path, rows: list[dict]) -> None:
@@ -475,17 +566,12 @@ def check_stage_layout(stage: Path, rows: list[dict]) -> None:
         source = internal / "config" / name
         if seed.is_file() and source.is_file() and seed.read_bytes() != source.read_bytes():
             problems.append(f"config/{name} differs from _internal/config/{name} (the upstream seed source)")
-    for target in stale_install_delete_targets():
-        if (internal / target).exists():
-            problems.append(f"payload contains a path the installer deletes as stale: _internal/{target}")
+    if (internal / "component-bundle.json").is_file():
+        for target in stale_install_delete_targets(internal):
+            if (internal / target).exists():
+                problems.append(f"payload contains a path the installer deletes as stale: _internal/{target}")
     if problems:
         raise BuildError("stage is not a clean payload:\n  " + "\n  ".join(problems))
-
-
-def stale_install_delete_targets() -> list[str]:
-    # Upstream adds dwmapi.dll when the bundle layout is "native-capture-v1", which is the only
-    # layout the 2.3.0 code base supports (GameComponentBundleInspection.layout default).
-    return ["assets/game_ui", *STALE_AMBIENT_ICU_DLLS, "dwmapi.dll"]
 
 
 def verify_stage(stage: Path, rows: list[dict]) -> dict:
@@ -519,7 +605,7 @@ def verify_stage(stage: Path, rows: list[dict]) -> dict:
         if row is None or row["sha256"].lower() != str(digest).lower():
             raise BuildError(f"component-bundle.json hash mismatch: {relative}")
     result["component_bundle_files"] = len(bundle.get("files", {}))
-    result["component_bundle_layout"] = bundle.get("layout")
+    result["component_bundle_layout"] = bundle_layout(internal)
 
     analysis = json.loads((internal / "analysis-core-meta" / "component.json").read_text(encoding="utf-8"))
     if by_path["_internal/nte-analysis-core.exe"]["sha256"].lower() != str(analysis.get("sha256", "")).lower():
@@ -595,8 +681,25 @@ def stale_shortcut_delete_lines(sandbox: bool) -> str:
     return "\n".join(lines)
 
 
+def asset_copy_lines(internal: Path, copies: list[tuple[str, str]]) -> str:
+    """Upstream inno_asset_copy_lines(): one stored image, a second Inno-managed installed path."""
+    lines = []
+    for donor, omitted in copies:
+        source = internal / donor
+        dest = Path(omitted)
+        for value in (str(source), omitted):
+            if '"' in value or ";" in value or "," in value:
+                raise BuildError(f"asset path contains an Inno script separator: {value!r}")
+        parent = str(dest.parent).replace("/", "\\")
+        lines.append(
+            f'Source: "{source}"; DestDir: "{{app}}\\_internal\\{parent}"; DestName: "{dest.name}"; Flags: ignoreversion'
+        )
+    return "\n".join(lines)
+
+
 def build_iss(*, variant: str, version: str, exe: Path, stage: Path, out_dir: Path, build_dir: Path,
-              compression: str, icon: Path | None, sandbox_dir: str, output_base: str) -> str:
+              compression: str, icon: Path | None, sandbox_dir: str, output_base: str,
+              copies: list[tuple[str, str]]) -> str:
     sandbox = variant == "sandbox"
     app_name = APP_NAME + (" (sandbox)" if sandbox else "")
     app_id = SANDBOX_APP_ID if sandbox else OFFICIAL_APP_ID
@@ -604,11 +707,7 @@ def build_iss(*, variant: str, version: str, exe: Path, stage: Path, out_dir: Pa
     privileges = "lowest" if sandbox else "admin"
     internal = stage / "_internal"
     vigem_file = f"{{app}}\\drivers\\{VIGEM_DEST_NAME}"
-    numeric_version = version.split("-")[0]
-    version_info = ""
-    if all(part.isdigit() for part in numeric_version.split(".")) and 1 <= numeric_version.count(".") <= 2:
-        padded = numeric_version + ".0" * (3 - numeric_version.count("."))
-        version_info = f"VersionInfoVersion={padded}\n"
+    numeric_version = windows_numeric_version(version)
     setup_icon_line = f"SetupIconFile={icon}\n" if icon else ""
 
     languages = "\n".join(
@@ -625,6 +724,10 @@ def build_iss(*, variant: str, version: str, exe: Path, stage: Path, out_dir: Pa
             'Name: "installvigem"; Description: "{cm:ViGEmTask}"; GroupDescription: "{cm:RuntimeDepsGroup}"; '
             "Flags: checkedonce"
         )
+    excludes = ",".join("\\" + omitted.replace("/", "\\") for _donor, omitted in copies)
+    if '"' in excludes:
+        raise BuildError("Excludes list contains a quote")
+    excludes_part = f'; Excludes: "{excludes}"' if excludes else ""
     config_lines = "\n".join(
         f'Source: "{internal / "config" / name}"; DestDir: "{{app}}\\config"; Flags: ignoreversion'
         for name in CORE_CONFIG_FILES
@@ -636,7 +739,7 @@ def build_iss(*, variant: str, version: str, exe: Path, stage: Path, out_dir: Pa
     stale_runtime_delete_lines = "\n".join(
         (f'Type: filesandordirs; Name: "{{app}}\\_internal\\{target}"' if "/" in target
          else f'Type: files; Name: "{{app}}\\_internal\\{target}"').replace("/", "\\")
-        for target in stale_install_delete_targets()
+        for target in stale_install_delete_targets(internal)
     )
     icons = [f'Name: "{{group}}\\{{#MyAppName}}"; Filename: "{{app}}\\{{#MyAppExeName}}"; WorkingDir: "{{app}}"']
     if not sandbox:
@@ -675,7 +778,7 @@ end;
     for value in (str(exe), str(stage), str(out_dir), str(build_dir), default_dir, output_base, compression):
         _check_inno_value(value)
 
-    return f"""; Generated by build_installer_l10n.py ({variant}). Do not edit by hand.
+    return f"""; Generated by build_installer_g231.py ({variant}). Do not edit by hand.
 ; Port of the official build_installer.py script (upstream commit {UPSTREAM_COMMIT[:7]}).
 #define MyAppName "{app_name}"
 #define MyAppVersion "{version}"
@@ -687,12 +790,16 @@ AppId={{{{{app_id}}}
 AppName={{#MyAppName}}
 AppVersion={{#MyAppVersion}}
 AppVerName={{cm:L10nAppVerName}}
+VersionInfoVersion={numeric_version}
+VersionInfoProductVersion={numeric_version}
+VersionInfoTextVersion={{#MyAppVersion}}
+VersionInfoProductTextVersion={{#MyAppVersion}}
 AppPublisher={{#MyAppPublisher}}
 AppCopyright=GNU AGPL-3.0. Original work: NTE Drive Calc contributors
-VersionInfoDescription={app_name} {version} multilingual edition (unofficial community build) setup
-VersionInfoProductName={app_name} multilingual edition (unofficial)
+VersionInfoDescription={app_name} {version} multilingual edition (NTE Drive Calc Global, unofficial) setup
+VersionInfoProductName={app_name} Global (unofficial multilingual edition)
 VersionInfoCopyright=GNU AGPL-3.0. Original work: NTE Drive Calc contributors
-{version_info}DefaultDirName={default_dir}
+DefaultDirName={default_dir}
 DefaultGroupName={{#MyAppName}}
 DisableProgramGroupPage=yes
 OutputDir={out_dir}
@@ -720,7 +827,8 @@ UsePreviousLanguage=yes
 
 [Files]
 Source: "{exe}"; DestDir: "{{app}}"; DestName: "{APP_EXE_NAME}"; Flags: ignoreversion
-Source: "{internal}\\*"; DestDir: "{{app}}\\_internal"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{internal}\\*"; DestDir: "{{app}}\\_internal"{excludes_part}; Flags: ignoreversion recursesubdirs createallsubdirs
+{asset_copy_lines(internal, copies)}
 {config_lines}
 Source: "{stage / "drivers" / VIGEM_DEST_NAME}"; DestDir: "{{app}}\\drivers"; DestName: "{VIGEM_DEST_NAME}"; Flags: ignoreversion
 {docs_lines}
@@ -752,6 +860,7 @@ var
   LanguageFile: String;
 begin
   // The wizard language names are the application's language codes (en / ko / ja / zh).
+  // An existing language file (an earlier choice in the program or in an earlier installer) is never changed.
   ConfigDir := ExpandConstant('{{app}}\\_internal\\config');
   LanguageFile := ConfigDir + '\\i18n_language.json';
   if FileExists(LanguageFile) or not DirExists(ConfigDir) then
@@ -785,18 +894,28 @@ end;
 """
 
 
+def doc_fields(*, version: str, exe_sha256: str, source_zip_name: str) -> dict:
+    return dict(version=version, docs=DOCS_DIR_NAME, source_zip=source_zip_name, exe_name=APP_EXE_NAME,
+                exe_sha256=exe_sha256, upstream_url=UPSTREAM_URL, upstream_commit=UPSTREAM_COMMIT,
+                project_url=PROJECT_URL)
+
+
+def render_source_offer(*, version: str, exe_sha256: str, source_zip_name: str) -> str:
+    """The text installed as {app}\\l10n_build\\SOURCE_OFFER.txt (LF line ends; written with CRLF + BOM)."""
+    return SOURCE_OFFER.format(**doc_fields(version=version, exe_sha256=exe_sha256, source_zip_name=source_zip_name))
+
+
 def write_support_files(*, build_dir: Path, version: str, license_path: Path, exe_sha256: str,
                         source_zip_name: str) -> list[Path]:
     zh_isl = (
-        "; Generated by build_installer_l10n.py - Simplified Chinese overrides on top of Default.isl.\n"
+        "; Generated by build_installer_g231.py - Simplified Chinese overrides on top of Default.isl.\n"
         "; [Messages] / [CustomMessages] are ported from the official build_installer.py.\n"
         "[LangOptions]\nLanguageName=简体中文\nLanguageID=$0804\nLanguageCodePage=936\n\n"
         "[Messages]\n" + ZH_MESSAGES_UPSTREAM + ZH_MESSAGES_EXTRA + "\n"
         "[CustomMessages]\n" + ZH_CUSTOM_MESSAGES_UPSTREAM
     )
     _write_text(build_dir / "ChineseSimplified.overrides.isl", zh_isl)
-    fields = dict(version=version, docs=DOCS_DIR_NAME, source_zip=source_zip_name, exe_name=APP_EXE_NAME,
-                  exe_sha256=exe_sha256, upstream_url=UPSTREAM_URL, upstream_commit=UPSTREAM_COMMIT)
+    fields = doc_fields(version=version, exe_sha256=exe_sha256, source_zip_name=source_zip_name)
     for lang in LANGS:
         _write_text(build_dir / f"notice_{lang}.txt", NOTICE[lang].format(**fields))
     docs = build_dir / "docs"
@@ -811,7 +930,7 @@ def write_support_files(*, build_dir: Path, version: str, license_path: Path, ex
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build the multilingual NTE Drive Calc installer.")
+    parser = argparse.ArgumentParser(description="Build the NTE Drive Calc Global installer.")
     parser.add_argument("--exe", type=Path, help="our rebuilt NTE_Drive_Calc.exe (any file name)")
     parser.add_argument("--stage", type=Path, required=True, help="clean payload directory")
     parser.add_argument("--out", type=Path, help="output directory")
@@ -857,6 +976,7 @@ def main() -> int:
         if not license_path.is_file():
             raise BuildError(f"LICENSE file not found: {license_path} (pass --license)")
         version = args.version
+        windows_numeric_version(version)
         source_zip_name = args.source_zip_name or f"NTE_Drive_Calc_{version}_multilingual_source.zip"
         aux_dir = (args.aux_dir or out_dir).resolve()
         if "program files" in str(aux_dir).lower():
@@ -866,6 +986,10 @@ def main() -> int:
             f"NTE_Drive_Calc_Setup_{version}_multilingual" + ("_sandbox" if args.variant == "sandbox" else ""))
         if not output_base.strip() or any(ch in output_base for ch in '\\/:*?"<>|') or output_base.lower().endswith(".exe"):
             raise BuildError(f"--output-base must be a plain file name without extension: {output_base!r}")
+        if args.variant == "release" and output_base.lower().endswith("_sandbox"):
+            raise BuildError("a release build must not carry the sandbox file name")
+        if args.variant == "sandbox" and not output_base.lower().endswith("_sandbox"):
+            raise BuildError("a sandbox build's file name must end with _sandbox")
         setup_path = out_dir / f"{output_base}.exe"
 
         info(f"variant={args.variant} version={version}")
@@ -873,8 +997,11 @@ def main() -> int:
         rows = scan_stage(stage)
         check_stage_layout(stage, rows)
         verification = verify_stage(stage, rows)
+        copies = catalog_duplicates(stage / "_internal")
+        verification["catalog_image_copies"] = [list(pair) for pair in copies]
         exe_sha256 = sha256_of(exe)
-        info(f"stage ok: {len(rows)} files, {sum(r['size'] for r in rows)} bytes; {verification}")
+        info(f"stage ok: {len(rows)} files, {sum(r['size'] for r in rows)} bytes; layout "
+             f"{verification['component_bundle_layout']}; {len(copies)} catalog image copies")
         info(f"exe: {exe} sha256={exe_sha256}")
 
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -885,7 +1012,7 @@ def main() -> int:
         iss_text = build_iss(variant=args.variant, version=version, exe=exe, stage=stage, out_dir=out_dir,
                              build_dir=build_dir, compression=args.compression,
                              icon=icon if icon.is_file() else None, sandbox_dir=args.sandbox_dir,
-                             output_base=output_base)
+                             output_base=output_base, copies=copies)
         iss_path = build_dir / "setup.iss"
         _write_text(iss_path, iss_text)
         info(f"wrote {iss_path}")
@@ -908,6 +1035,7 @@ def main() -> int:
             "version": version,
             "app_id": SANDBOX_APP_ID if args.variant == "sandbox" else OFFICIAL_APP_ID,
             "generated_at_install": [LANGUAGE_FILE_REL, "unins000.exe", "unins000.dat"],
+            "stale_deletes": stale_install_delete_targets(stage / "_internal"),
             "total_files": len(installed),
             "total_bytes": sum(row["size"] for row in installed),
             "files": installed,
@@ -957,7 +1085,7 @@ def main() -> int:
         info(f"size={report['installer_size']} sha256={report['installer_sha256']} compile={report['compile_seconds']}s")
         return 0
     except BuildError as exc:
-        print(f"[installer-l10n] ERROR: {exc}", file=sys.stderr)
+        print(f"[installer-g231] ERROR: {exc}", file=sys.stderr)
         return 1
 
 

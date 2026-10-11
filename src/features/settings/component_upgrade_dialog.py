@@ -13,7 +13,7 @@ _STEP_LABELS = (_L('核对旧组件'), _L('清理旧部署'), _L('确认工作�
 _STAGES = {
     "cleanup": (1, _L('发现旧版组件'), _L('旧部署与当前版本不一致。'), _L('完全退出游戏；Loader 用户还需退出启动器。随后清理旧组件。'), _L('清理旧组件')),
     "path": (0, _L('需要确认游戏位置'), _L('旧部署的游戏路径尚未确认。'), _L('前往环境设置，选择当前游戏的 HTGame.exe，再重新核对。'), _L('前往环境设置')),
-    "mode": (2, _L('旧组件已清理'), _L('清理会暂停同步，原有账号数据仍保留。'), _L('前往工作模式设置，确认需要的模式。'), _L('确认工作模式')),
+    "mode": (2, _L('旧组件已清理'), _L('清理会暂停同步，原有账号数据仍保留。'), _L('前往工作模式设置，重新选择并确认需要的模式；继续使用原模式也需要确认。'), _L('确认工作模式')),
     "deploy": (3, _L('准备部署当前组件'), _L('工作模式已确认，组件尚待部署。'), _L('前往环境设置，按选定的 D3D 或 Loader 方式部署；部署前退出游戏，Loader 还需退出启动器。部署后可在检测详情查看同步状态。'), _L('前往部署')),
     "done": (2, _L('清理已完成'), _L('当前模式无需部署原生组件。'), _L('如需同步，请按工作台提示开启同步。'), _L('完成引导')),
 }
@@ -88,7 +88,8 @@ class ComponentUpgradeDialog(QDialog):
         self.title.setText(title)
         self.reason.setText(_L('原因：') + reason)
         if stage == "deploy":
-            next_step = next_step.replace(_L('D3D 或 Loader'), "Loader" if method == "loader" else "D3D")
+            from src.i18n_runtime import resolve as _resolve   # Global: _STAGES is built at import time
+            next_step = str(_resolve(next_step)).replace(_L('D3D 或 Loader'), "Loader" if method == "loader" else "D3D")
         self.next_step.setText(_L('下一步：') + next_step)
         self.action.setText(action)
 

@@ -169,7 +169,7 @@ class _MemberCard(QFrame):
         self.refine_group.button(max(1, min(5, int(tpl["fork_refinement_level"])))).setChecked(True)
         self.fork_combo.clear()
         for fork in self._page.forks_for(tpl):
-            self.fork_combo.addItem(fork["name_zh"], fork["fork_id"])
+            self.fork_combo.addItem(self._fork_label(fork), fork["fork_id"])
         index = self.fork_combo.findData(tpl["fork_id"])
         self.fork_combo.setCurrentIndex(max(0, index))
         self.suit_combo.clear()
@@ -177,6 +177,18 @@ class _MemberCard(QFrame):
             self.suit_combo.addItem(suit["name_zh"], suit["suit_id"])
         index = self.suit_combo.findData(tpl["suit_id"])
         self.suit_combo.setCurrentIndex(max(0, index))
+
+    @staticmethod
+    def _fork_label(fork: dict):
+        """Arc name; another character's exclusive arc (rule A: same type) gets "(<owner> 专属)".  Game names stay
+        Chinese data pieces, so the display layer translates them and the label re-renders on a language switch."""
+        if not fork.get("foreign_exclusive"):
+            return fork["name_zh"]
+        owners = "、".join(fork.get("owner_names_zh") or ())
+        label = _L('专属')
+        for piece in (" ", owners, " (", fork["name_zh"]):      # prepended one by one: each name stays its own piece
+            label = piece + label
+        return label + ")"
 
     def spec(self):
         from src.services.team_simulation_service import MemberSpec
@@ -608,11 +620,16 @@ class TeamSimulationPage(QWidget):
             return None
 
     def forks_for(self, tpl):
+        """Arcs the member can equip: same type as the character (rule A, as the official calculator), other
+        characters' exclusive arcs included and labelled (the arc efficiency table's † arcs open here too)."""
         key = (tpl["character_id"], tpl["fork_id"])
         if key not in self._fork_cache:
-            from src.services.team_simulation_service import list_forks_for
+            from src.services.team_simulation_service import equippable_forks, list_forks_for
 
-            self._fork_cache[key] = list_forks_for(self._static_path, tpl["fork_id"], tpl["character_id"])
+            forks = equippable_forks(self._static_path, tpl["character_id"], include_foreign=True)
+            if not any(f["fork_id"] == tpl["fork_id"] for f in forks):     # data without group types: old rule
+                forks = list_forks_for(self._static_path, tpl["fork_id"], tpl["character_id"])
+            self._fork_cache[key] = forks
         return self._fork_cache[key]
 
     # ── notice ─────────────────────────────────────────────────────

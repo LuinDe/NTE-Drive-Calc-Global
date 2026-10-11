@@ -12,6 +12,7 @@ from src.features.inventory.equipment_display_controller import (
 from src.features.inventory.warehouse_controller import WarehouseControllerMixin
 from src.features.toolbox.page import build_toolbox_page, refresh_toolbox_page
 from src.features.team_simulation.page import build_team_sim_page
+from src.features.arc_efficiency import build_arc_efficiency_page
 from src.features.weighted_allocation import page as weighted_allocation_page
 from src.ui.controllers.configuration_controller import ConfigurationControllerMixin
 from src.ui.controllers.environment_controller import EnvironmentControllerMixin
@@ -23,6 +24,10 @@ from src.ui.controllers.update_controller import UpdateControllerMixin
 class WeightedAllocationMixin:
     _page_weighted_allocation = weighted_allocation_page.build_weighted_allocation_page
     _refresh_weighted_allocation = weighted_allocation_page.refresh_weighted_allocation_page
+
+
+class ArcEfficiencyMixin:
+    _page_arc_eff = build_arc_efficiency_page
 
 
 class TeamSimulationMixin:
@@ -44,6 +49,7 @@ class FeatureMainWindowMixin(
     EquipmentAssemblyControllerMixin,
     EquipmentDisplayControllerMixin,
     WeightedAllocationMixin,
+    ArcEfficiencyMixin,
     ToolboxMixin,
     TeamSimulationMixin,
 ):

@@ -1,4 +1,5 @@
-"""Prove the multilingual exe differs from the original ONLY in the intended places.
+"""[Global 2.3.1 copy of tools/verify_exe_l10n.py: checks 1-7 unchanged + check 8 (seed vs payload DB)]
+Prove the multilingual exe differs from the original ONLY in the intended places.
 
 Generalised verify_exe.py for builds made by rebuild_exe_l10n.py.  Nothing is executed from the
 application; the only foreign code run is PyInstaller's own archive reader (pyimod01_archive),
@@ -22,7 +23,11 @@ Checks
   7. PyInstaller's own ZlibArchiveReader (from the new exe) reads the new PYZ: same TOC, and
      extract() of every src.* entry yields the same code object.
 
-usage (python 3.11): verify_exe_l10n.py <original exe> <new exe> <root/src dir>
+  8. (Global 2.3.1) the efficiency-table seed's DATASET (sha256, dataset id, schema) equals the payload's
+     data/manifest.json and the shipped game_static.sqlite3 (hash + size).
+
+usage (python 3.11): verify_exe_l10n_g231.py <original exe> <new exe> <root/src dir> [<payload data dir>]
+       (payload data dir default: <original exe dir>/_internal/data)
 """
 from __future__ import annotations
 
@@ -375,6 +380,33 @@ try:
        f"for all {n_read} src modules/packages")
 except Exception as exc:                    # noqa: BLE001
     bad(f"reader emulation failed: {exc!r}")
+
+# ── 8. Global 2.3.1: the efficiency-table seed belongs to the shipped static DB ─────────────────────────────
+print("[8] arc efficiency seed (src/services/arc_efficiency_data.py) vs the payload's static DB")
+try:
+    import ast as _ast
+    import json as _json
+    _seed = src_dir / "services" / "arc_efficiency_data.py"
+    _vals = {n.targets[0].id: _ast.literal_eval(n.value) for n in _ast.parse(_seed.read_text(encoding="utf-8")).body
+             if isinstance(n, _ast.Assign) and isinstance(n.targets[0], _ast.Name)
+             and n.targets[0].id in ("DATASET", "ENGINE_FP")}
+    _payload = pathlib.Path(sys.argv[4]) if len(sys.argv) > 4 else orig_p.parent / "_internal" / "data"
+    _manifest = _json.loads((_payload / "manifest.json").read_text(encoding="utf-8"))["database"]
+    _db = _payload / _manifest["filename"]
+    _h = hashlib.sha256()
+    with open(_db, "rb") as _f:
+        for _chunk in iter(lambda: _f.read(1 << 20), b""):
+            _h.update(_chunk)
+    _real = _h.hexdigest().upper()
+    _ds = _vals["DATASET"]
+    if _ds["sha256"].upper() == _manifest["sha256"].upper() == _real and _ds["dataset_id"] == _manifest["dataset_id"] \
+            and _ds["schema"] == _manifest["schema_version"] and _db.stat().st_size == _manifest["size_bytes"]:
+        ok(f"seed DATASET.sha256 == payload manifest == {_db.name} ({_real[:16]}..., {_manifest['dataset_id']}, "
+           f"schema {_manifest['schema_version']}); ENGINE_FP {_vals['ENGINE_FP']}")
+    else:
+        bad(f"seed DATASET {_ds} != payload manifest {_manifest['sha256'][:16]} / file {_real[:16]}")
+except Exception as exc:                    # noqa: BLE001
+    bad(f"seed check failed: {exc!r}")
 
 print()
 if fail:

@@ -287,7 +287,7 @@ def _build_strategy_card(window, layout):
     window.strategy_group = QButtonGroup()
     strategy_options = [
         _L('角色优先 — 按角色顺序配装，优先照顾前排角色'),
-        _L('增量更新 — 保留已穿戴装备，只用闲置装备补配'),
+        _L('锁定更新 — 锁定所有计算配装，只用其他装备分配'),
     ]
     for index, text in enumerate(strategy_options):
         rb = QRadioButton(text)

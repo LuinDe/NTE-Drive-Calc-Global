@@ -4,7 +4,7 @@
 from __future__ import annotations
 from src.i18n_runtime import L as _L, LF as _LF
 
-from src.features.input_operation_entry import request_input_entry, show_input_unavailable
+from src.features.input_operation_entry import request_input_entry, show_sync_required
 from typing import Any
 
 from PySide6.QtCore import QModelIndex, Qt
@@ -523,7 +523,7 @@ def _save_warehouse_state_changes(self):
         return
     sync_service = getattr(self, "_inventory_sync_service", None)
     if sync_service is None or not sync_service.is_running:
-        show_input_unavailable(self, _L('保存仓库状态'), _L('游戏装备连接尚未就绪，请查看检测详情；需部署组件时先完全退出游戏，部署完成后再启动并进入游戏场景。'))
+        show_sync_required(self, _L('保存仓库状态'))
         return
     service = WarehouseStateManagementService(
         self.app_context.account.user_database_path,
@@ -620,7 +620,7 @@ def _open_warehouse_state_manager(self):
         return
     sync_service = getattr(self, "_inventory_sync_service", None)
     if sync_service is None or not sync_service.is_running:
-        show_input_unavailable(self, _L('仓库状态管理'), _L('游戏装备连接尚未就绪，请查看检测详情；需部署组件时先完全退出游戏，部署完成后再启动并进入游戏场景。'))
+        show_sync_required(self, _L('仓库状态管理'))
         return
     service = WarehouseStateManagementService(
         account.user_database_path,

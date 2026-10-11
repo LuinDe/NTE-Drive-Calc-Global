@@ -4,7 +4,7 @@
 from __future__ import annotations
 from src.i18n_runtime import L as _L, LF as _LF
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QSignalBlocker, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -55,6 +55,7 @@ class CultivationStaminaControls(QFrame):
         row.addWidget(self.identification_level)
         hint = QLabel(_L('按正式副本确定产出计算；刷怪/Boss 掉落不计副本体力'), self)
         hint.setStyleSheet(themed_style("color:#8b949e;font-size:11px"))
+        hint.setWordWrap(True)   # Global: the en/ja hint is ~2x the zh width (page overflowed at 1260x860)
         row.addWidget(hint, 1)
         self.hunter_level.valueChanged.connect(self._refresh_identification)
         self.identification_level.currentIndexChanged.connect(
@@ -64,6 +65,17 @@ class CultivationStaminaControls(QFrame):
 
     def values(self) -> tuple[int, int]:
         return self.hunter_level.value(), int(self.identification_level.currentData())
+
+    def restore_values(self, hunter_level: int, identification_level: int | None) -> None:
+        projection = project_identification_level(hunter_level, effective_level=identification_level)
+        with QSignalBlocker(self), QSignalBlocker(self.hunter_level):
+            self.hunter_level.setValue(hunter_level)
+            self._refresh_identification()
+            with QSignalBlocker(self.identification_level):
+                index = self.identification_level.findData(projection.effective_level)
+                if index < 0:
+                    raise ValueError(_L('历史鉴别等级与当前范围不一致'))
+                self.identification_level.setCurrentIndex(index)
 
     def _refresh_identification(self) -> None:
         previous = self.identification_level.currentData()
