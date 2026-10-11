@@ -181,6 +181,14 @@
 
 </details>
 
+## 与 ReShade、DLSS5 一起使用
+
+如果想在使用 ReShade（`d3d12.dll`）和 DLSS5 插件的同时使用计算器的原生功能，请把加载方式改为 **原生 Loader（备用）**。这种方式不会在游戏目录中放置计算器文件。设置顺序、备份以及各构建的差异（官方版可能删除或覆盖 ReShade 的 `d3d12.dll`）都整理在指南中。
+
+→ [指南：与 ReShade、DLSS5 一起使用（Loader 方式）](docs/COEXIST_RESHADE_DLSS.zh.md)
+
+> 2.3.1 中 Loader 与 ReShade 一起使用的配置尚未在实际游戏中确认。详情请看指南。
+
 ## 注意事项
 
 - **运行环境与原版相同。** Windows 10/11 x64；游戏语言：**简体中文**（扫描与鉴定的文字识别以中文游戏界面为准）；推荐分辨率 1080p、2K、4K 或 2560x1600；扫描功能需要 ViGEmBus 虚拟手柄驱动。详情请以[原版 README](https://github.com/hxwd94666/NTE-Drive-Calculator#readme) 为准。

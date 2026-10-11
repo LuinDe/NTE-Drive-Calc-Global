@@ -181,6 +181,14 @@ Zero support > Zero E > Zero basic basic basic > Oneiroi swap > Oneiroi Q > Onei
 
 </details>
 
+## Using with ReShade and DLSS5
+
+To use the calculator's native features together with ReShade (`d3d12.dll`) and a DLSS5 add-on, switch the loading method to **Native Loader (Fallback)**. This method places no calculator files in the game folder. The guide covers the setup order, backups and the differences between builds (the official build can delete or overwrite ReShade's `d3d12.dll`).
+
+→ [Guide: Using with ReShade and DLSS5 (Loader method)](docs/COEXIST_RESHADE_DLSS.en.md)
+
+> Using the Loader together with ReShade on 2.3.1 has not been tested in the actual game yet. See the guide for details.
+
 ## Notes and risks
 
 - **The requirements are the same as for the original.** Windows 10/11 x64; game language **简体中文 (Simplified Chinese)** (text recognition for scanning and appraisal is based on the Chinese game screen); recommended resolution 1080p, 2K, 4K or 2560x1600; the scan feature needs the ViGEmBus virtual gamepad driver. Follow the [original README](https://github.com/hxwd94666/NTE-Drive-Calculator#readme) for details.

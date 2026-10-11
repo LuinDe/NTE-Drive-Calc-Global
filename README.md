@@ -181,6 +181,14 @@
 
 </details>
 
+## ReShade·DLSS5와 함께 쓰기
+
+ReShade(`d3d12.dll`)와 DLSS5 애드온을 쓰면서 계산기의 네이티브 기능도 쓰려면 로드 방식을 **네이티브 Loader (예비)** 로 바꾸세요. 이 방식은 게임 폴더에 계산기 파일을 두지 않습니다. 설정 순서, 백업, 빌드별 차이(공식판은 ReShade의 `d3d12.dll`을 지우거나 덮어쓸 수 있음)는 가이드에 정리했습니다.
+
+→ [가이드: ReShade·DLSS5와 함께 쓰기 (Loader 방식)](docs/COEXIST_RESHADE_DLSS.ko.md)
+
+> 2.3.1에서 Loader와 ReShade를 함께 쓰는 구성은 아직 실제 게임으로 확인하지 않았습니다. 자세한 내용은 가이드를 보세요.
+
 ## 주의 사항
 
 - **요구 환경은 원본과 같습니다.** Windows 10/11 x64, 게임 언어 **简体中文**(스캔·감정의 문자 인식이 중국어 화면을 기준으로 합니다), 권장 해상도 1080p·2K·4K·2560x1600, 스캔 기능에는 ViGEmBus 가상 게임패드 드라이버가 필요합니다. 자세한 내용은 [원본 README](https://github.com/hxwd94666/NTE-Drive-Calculator#readme)를 따르세요.
