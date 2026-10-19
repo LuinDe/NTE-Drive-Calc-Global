@@ -306,6 +306,66 @@ class BattleBuildEditDaoMixin(UserDataDaoMixinHost):
             raise UserDataError(_L('战报角色修改副本保存后无法读取'))
         return result
 
+    def replace_battle_build_edit_stat_overrides(
+        self,
+        battle_record_id: int,
+        overrides_by_character: Mapping[int, Mapping[str, float]],
+    ) -> int:
+        """Rewrite only ``battle_stat_overrides`` inside saved profiles of the battle's edit copy.
+
+        Used by the Puka Boot Camp manual-adjustment channel: every other profile field, the active flag and the
+        copy's timestamps stay as they are.  Values must be finite numbers.  Returns the number of rows changed.
+        """
+
+        record_id = _integer(battle_record_id, "battle_record_id", minimum=1)
+        normalized: dict[int, dict[str, float]] = {}
+        for raw_character_id, overrides in overrides_by_character.items():
+            if not isinstance(overrides, Mapping):
+                raise UserDataValidationError(_L('战报边际属性调整必须是对象'))
+            values: dict[str, float] = {}
+            for property_id, raw_value in overrides.items():
+                key = str(property_id).strip()
+                if not key:
+                    continue
+                try:
+                    number = float(raw_value)
+                except (TypeError, ValueError) as error:
+                    raise UserDataValidationError(_L('战报边际属性调整必须是有限数值')) from error
+                if not math.isfinite(number):
+                    raise UserDataValidationError(_L('战报边际属性调整必须是有限数值'))
+                values[key] = number
+            normalized[_integer(raw_character_id, "character_id", minimum=1)] = values
+        connection = self._db()
+        changed = 0
+        try:
+            for character_id, values in normalized.items():
+                row = connection.execute(
+                    """
+                    SELECT raw_profile_json FROM battle_character_build_edit
+                    WHERE battle_record_id = ? AND character_id = ?
+                    """,
+                    (record_id, character_id),
+                ).fetchone()
+                if row is None:
+                    continue
+                profile = _decoded(row["raw_profile_json"], {})
+                if not isinstance(profile, dict) or profile.get("battle_stat_overrides") == values:
+                    continue
+                profile["battle_stat_overrides"] = values
+                connection.execute(
+                    """
+                    UPDATE battle_character_build_edit SET raw_profile_json = ?
+                    WHERE battle_record_id = ? AND character_id = ?
+                    """,
+                    (_json_object(profile, _L('战报角色修改副本')), record_id, character_id),
+                )
+                changed += 1
+            connection.commit()
+        except (sqlite3.Error, UserDataError, UserDataValidationError):
+            connection.rollback()
+            raise
+        return changed
+
     def set_battle_build_edit_active(
         self,
         battle_record_id: int,

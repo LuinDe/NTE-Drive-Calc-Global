@@ -92,6 +92,17 @@ def initialize_mode_runtime(window):
         if active_owner is not None:
             raise RuntimeError(active_feature_update_hint(active_owner))
 
+    # Global 인앱 업데이트 컨트롤러도 같은 차단 조건을 재사용 (작업 모드 전환 중·전투 기록 중·핫키 점유 중).
+    # 문구는 업데이트 쪽이 고른다(플러그인 업데이트 문구가 아님): 여기서는 막는 작업의 종류만 알려 준다.
+    def app_update_blocker():
+        if window.work_mode_controller.is_transitioning:
+            return "work_mode"
+        if window.battle_report_controller.is_running():
+            return "battle_report"
+        return window.global_hotkey_manager.active_owner
+
+    window.app_update_blocker = app_update_blocker
+
     maintenance = NativePluginMaintenance(
         session=window.native_game_session, sync=window.auto_sync_controller,
         performance=window.performance_controller, check_blockers=check_update_blockers,

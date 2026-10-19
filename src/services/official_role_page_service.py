@@ -21,9 +21,17 @@ from src.services.equipment_level_projection_service import (
 from src.services.graduation_bonus_service import graduation_extra_shape_drive_count
 from src.services.official_role_inventory_contexts import load_role_inventory_contexts
 from src.services.official_role_awakening_service import resolve_awakening_profile
+from src.services.puka_training_settings_service import (
+    PUKA_TRAINING_OPTIONS_SETTING_KEY,
+    PUKA_TRAINING_SETTING_KEY,
+    account_puka_options,
+    account_puka_training,
+    puka_training_property_stats,
+)
 from src.services.world_bonus_settings_service import (
     WORLD_BONUS_SETTING_KEY,
     WorldBonusSettings,
+    world_bonus_property_stats,
 )
 from src.services.skill_name_rendering_service import SkillNameRenderingService
 from src.services.damage_calculation_service import (
@@ -61,7 +69,6 @@ from src.services.official_role_attribute_service import (
     _equipment_property_stats,
     _property_stats_by_source,
     _likeability_property_stats,
-    _world_bonus_property_stats,
     _element_damage_property,
     _role_panel_damage_inputs,
     calculate_official_role_equipment_gain,
@@ -160,7 +167,8 @@ def calculate_official_role_damage_breakdown(
         if value - raw_equipment_stats.get(property_id, 0.0)
     }
     for source, source_stats in (
-        (_L('家具加成'), _world_bonus_property_stats(detail)),
+        (_L('家具加成'), world_bonus_property_stats(detail.get("world_bonus"))),
+        (_L('噗卡特训'), puka_training_property_stats(detail.get("puka_training"))),
         (_L('好感度 10 级'), _likeability_property_stats(detail)),
         (_L('弧盘'), fork_stats),
         (_L('空幕/驱动'), raw_equipment_stats),
@@ -460,9 +468,13 @@ def load_official_role_detail(
             static_dao.get_character_recommended_weights(character_id),
         ) or {}
         account_weight_record = user_dao.get_character_weight_preferences(character_id)
-        world_bonus = WorldBonusSettings.from_payload(
-            user_dao.list_application_setting_copies().get(WORLD_BONUS_SETTING_KEY)
-        )
+        setting_copies = user_dao.list_application_setting_copies()
+        world_bonus = WorldBonusSettings.from_payload(setting_copies.get(WORLD_BONUS_SETTING_KEY))
+        puka_training = account_puka_training(setting_copies.get(PUKA_TRAINING_SETTING_KEY))
+        # 决定 U1：毕业模板（效率表、毕业率）的噗卡特训等级 = 账号勾选框（0 或满级）。
+        puka_template_level = account_puka_options(
+            setting_copies.get(PUKA_TRAINING_OPTIONS_SETTING_KEY)
+        ).template_level()
         weight_record = account_weight_record or public_weight_record
         weights = {
             str(key): float(value)
@@ -540,6 +552,8 @@ def load_official_role_detail(
         "awakenings": awakenings,
         "likeability_bonus": likeability_bonus,
         "world_bonus": world_bonus.to_payload(),
+        "puka_training": puka_training.to_payload(),
+        "puka_template_level": puka_template_level,
         "forks": forks,
         "equipment_plan": equipment_plan,
         "shape_bonus": shape_bonus,

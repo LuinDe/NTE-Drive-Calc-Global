@@ -32,7 +32,9 @@ recompiled with the ORIGINAL co_filename), with four generalisations:
         - a name changed kind (module <-> package <-> namespace dir),
         - a tree file looks like a leftover dev/test script, or is not an importable name.
 
-usage: rebuild_exe_l10n.py <original exe> <root/src dir> <output exe> [--list-added]
+usage: rebuild_exe_l10n.py <original exe> <root/src dir> <output exe> [--list-added] [--remove=<src.module> ...]
+  --remove=<name>  drop that module of the original PYZ on purpose (it must be absent from the tree and a plain
+                   module of the original build); every other missing module still aborts the build
 """
 from __future__ import annotations
 
@@ -114,7 +116,8 @@ def scan_tree(src: pathlib.Path) -> dict[str, tuple[int, pathlib.Path | None]]:
 
 def main() -> None:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    flags = {a for a in sys.argv[1:] if a.startswith("--")}
+    flags = {a for a in sys.argv[1:] if a.startswith("--") and not a.startswith("--remove=")}
+    removes = {a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--remove=")}
     if len(args) != 3:
         die("usage: rebuild_exe_l10n.py <original exe> <root/src dir> <output exe> [--list-added]")
     orig_path, src_dir, out_path = (pathlib.Path(a) for a in args)
@@ -166,7 +169,16 @@ def main() -> None:
 
     # guards: nothing dropped, nothing changed kind, nothing that smells like a test script
     problems = []
+    for name in sorted(removes):
+        if name not in orig_src:
+            problems.append(f"--remove={name}: not a module of the original PYZ")
+        elif orig_src[name] != PYZ_ITEM_MODULE:
+            problems.append(f"--remove={name}: only plain modules can be removed (typecode {orig_src[name]})")
+        elif name in tree:
+            problems.append(f"--remove={name}: still present in the tree")
     for name, tc in orig_src.items():
+        if name in removes:
+            continue
         if name not in tree:
             problems.append(f"in the original PYZ but missing from the tree: {name} (typecode {tc})")
         elif tree[name][0] != tc:
@@ -177,6 +189,9 @@ def main() -> None:
     if problems:
         die("\n  - " + "\n  - ".join(problems))
 
+    if removes:
+        items = [(name, entry) for name, entry in items if name not in removes]
+        orig_src = {name: tc for name, tc in orig_src.items() if name not in removes}
     new_names = set(tree) - set(orig_src)
     first = [m for m in FIRST_ADDED if m in new_names]
     added = first + sorted(new_names - set(first))
@@ -301,6 +316,8 @@ def main() -> None:
     print(f"pe checksum : original verified ({stored:#010x}), new {new_csum:#010x}")
     print(f"sha256      : {hashlib.sha256(bytes(out)).hexdigest()}")
     print(f"output      : {out_path}")
+    for name in sorted(removes):
+        print(f"  - {name}  (removed on purpose: --remove)")
     if "--list-added" in flags:
         for name in added:
             print(f"  + {name}  (typecode {tree[name][0]})")

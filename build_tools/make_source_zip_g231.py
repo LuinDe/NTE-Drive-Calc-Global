@@ -72,12 +72,23 @@ NTE Drive Calc {version} Multilingual Edition "NTE Drive Calc Global" (unofficia
   - 전투 리포트 "내 캐릭터로 비교": src/features/battle_report/my_build_comparison.py,
     src/services/battle_import_comparison_service.py
   - 게임 폴더 보호(이 프로그램 것으로 확인되지 않는 d3d12.dll 등은 덮어쓰거나 지우지 않음)
+  - (2.3.1-global.2) Global 전용 프로그램 안 업데이트: src/app/global_release.py, src/services/global_update/
+    (원 프로젝트의 업데이트 모듈 src/features/settings/updates.py, src/ui/controllers/update_controller.py 삭제),
+    푸카 특훈(src/services/puka_training_*.py), RTSS 호환성 안내(src/services/rtss_compat*.py),
+    팀 시뮬레이션 자원 모델과 교체 규칙(src/services/team_resources.py, team_resource_data.py),
+    돌파(각성) 자유 선택(src/services/team_awakening.py, src/services/awakening_node_rules/)과 돌파 효율표
+    (src/services/awakening_efficiency_*.py, src/features/arc_efficiency/awakening_section.py),
+    아카네 린 중국 출시 데이터 보정(src/services/global_live_overlay*.py)
   src/ 밖의 원 프로젝트 파일(main.py, 빌드 스크립트, assets, data, 네이티브 구성 요소, third_party 등)은 바꾸지
   않았으므로 위 커밋의 원 프로젝트 저장소에 있는 것과 같습니다.
 
 실행 파일을 만드는 방법 (Python 3.11 필요: 실행 파일이 python311.dll 을 내장)
   python build_tools/rebuild_exe_l10n.py <공식 {version} NTE_Drive_Calc.exe> src <출력 exe>
+      --remove=src.features.settings.updates --remove=src.ui.controllers.update_controller
   python build_tools/verify_exe_l10n_g231.py <공식 {version} NTE_Drive_Calc.exe> <출력 exe> src
+      --removed=src.features.settings.updates --removed=src.ui.controllers.update_controller
+  (2.3.1-global.2 부터 원 프로젝트의 업데이트 모듈 두 개는 소스에 없으므로 --remove / --removed 로 일부러
+  뺍니다. 그 밖의 모듈이 빠져 있으면 빌드가 멈춥니다.)
   공식 PyInstaller 실행 파일의 PYZ 아카이브에서 src.* 모듈만 이 소스를 컴파일한 것으로 바꾸고, 나머지는 바이트
   단위로 그대로 둡니다. 기준 공식 실행 파일의 SHA-256 은
       {official_sha}
@@ -90,10 +101,11 @@ NTE Drive Calc {version} Multilingual Edition "NTE Drive Calc Global" (unofficia
   이 zip 은 build_tools/make_source_zip_g231.py 로 만듭니다. 자세한 사용법은 각 스크립트 첫머리에 있습니다.
 
 자동 생성 모듈
-  src/services/team_rotation_data.py, team_form_actions.py, team_custom_actions.py, arc_efficiency_data.py 는
+  src/services/team_rotation_data.py, team_form_actions.py, team_custom_actions.py, team_resource_data.py,
+  puka_training_data.py, arc_efficiency_data.py, awakening_efficiency_data.py 는
   build_tools 의 생성기가 게임 데이터와 조사 자료에서 만든 표입니다. 생성기의 입력 자료(게임 정적 DB, 조사 노트)
   일부는 이 zip 에 들어 있지 않습니다. 표를 고쳐야 하면 생성된 파일을 직접 고쳐도 프로그램은 그대로 동작합니다
-  (아크 효율표는 표가 데이터와 맞지 않으면 실행 중에 다시 계산합니다).
+  (아크 효율표와 돌파 효율표는 표가 데이터와 맞지 않으면 실행 중에 다시 계산합니다).
 
 [English]
 This zip is the corresponding source code of NTE Drive Calc Global, the unofficial multilingual edition (Korean /
@@ -123,12 +135,24 @@ In short:
     src/services/battle_import_comparison_service.py
   - game-folder protection (a d3d12.dll or other file that cannot be identified as this program's is never
     overwritten or deleted)
+  - (2.3.1-global.2) Global-only in-app updates: src/app/global_release.py, src/services/global_update/ (the
+    original's update modules src/features/settings/updates.py and src/ui/controllers/update_controller.py are
+    removed); Puka Boot Camp (src/services/puka_training_*.py); RTSS compatibility notice
+    (src/services/rtss_compat*.py); team-simulation resource model and swap rule
+    (src/services/team_resources.py, team_resource_data.py); free choice of awakening nodes
+    (src/services/team_awakening.py, src/services/awakening_node_rules/) and the awakening efficiency
+    table (src/services/awakening_efficiency_*.py, src/features/arc_efficiency/awakening_section.py);
+    Akane Rin CN-release data overlay (src/services/global_live_overlay*.py)
   All other files of the original project outside src/ (main.py, build scripts, assets, data, native components,
   third_party ...) are unchanged and therefore identical to the original repository at the commit above.
 
 Building the executable (Python 3.11 required: the executable embeds python311.dll)
   python build_tools/rebuild_exe_l10n.py <official {version} NTE_Drive_Calc.exe> src <output exe>
+      --remove=src.features.settings.updates --remove=src.ui.controllers.update_controller
   python build_tools/verify_exe_l10n_g231.py <official {version} NTE_Drive_Calc.exe> <output exe> src
+      --removed=src.features.settings.updates --removed=src.ui.controllers.update_controller
+  (From 2.3.1-global.2 the original project's two update modules are not in the source; --remove / --removed
+  drop them on purpose. Any other missing module still stops the build.)
   Only the src.* modules in the PYZ archive of the official PyInstaller executable are replaced by a compile of this
   tree; everything else is kept byte for byte. The official executable used as the base has the SHA-256
       {official_sha}
@@ -141,10 +165,12 @@ Building the executable (Python 3.11 required: the executable embeds python311.d
   This zip is made by build_tools/make_source_zip_g231.py. Each script starts with its usage.
 
 Generated modules
-  src/services/team_rotation_data.py, team_form_actions.py, team_custom_actions.py and arc_efficiency_data.py are
+  src/services/team_rotation_data.py, team_form_actions.py, team_custom_actions.py, team_resource_data.py,
+  puka_training_data.py, arc_efficiency_data.py and awakening_efficiency_data.py are
   tables generated by the generators in build_tools from game data and research notes. Some generator inputs (the
   game's static database, research notes) are not part of this zip. The generated files can be edited directly; the
-  program uses them as they are (the arc efficiency table is recomputed at run time when it does not match the data).
+  program uses them as they are (the arc and awakening efficiency tables are recomputed at run time when they do
+  not match the data).
 """
 
 
@@ -186,7 +212,8 @@ def main() -> int:
     zip_name = args.out.name
     offer = installer.render_source_offer(version=args.version, exe_sha256=args.exe_sha256, source_zip_name=zip_name)
     entries[f"{top}/SOURCE_OFFER.txt"] = offer.replace("\r\n", "\n").replace("\n", "\r\n").encode("utf-8-sig")
-    readme = README.format(version=args.version, upstream_url=installer.UPSTREAM_URL,
+    installer.parse_global_version(args.version)            # BuildError for a non-Global version
+    readme = README.format(version=installer.base_version(args.version), upstream_url=installer.UPSTREAM_URL,
                            upstream_commit=installer.UPSTREAM_COMMIT, project_url=installer.PROJECT_URL,
                            official_sha=OFFICIAL_EXE_SHA256, exe_sha=args.exe_sha256)
     entries[f"{top}/README_SOURCE.txt"] = readme.replace("\r\n", "\n").replace("\n", "\r\n").encode("utf-8-sig")

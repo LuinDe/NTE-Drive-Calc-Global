@@ -47,6 +47,11 @@ from src.services.native_role_profile_projection import project_native_role_prof
 from src.services.battle_capture_build_context import (
     native_build_unavailable_reason, native_equipment_projection, native_profile_observations,
 )
+from src.services.puka_training_settings_service import (
+    PUKA_TRAINING_SETTING_KEY,
+    account_puka_training,
+    frozen_capture_payload,
+)
 from src.services.world_bonus_settings_service import WORLD_BONUS_SETTING_KEY, WorldBonusSettings
 from src.services.native_battle_scopes import select_scope_builds
 from src.services.native_battle_world_bonus import native_world_bonus
@@ -155,9 +160,12 @@ class BattleReportPersistenceService:
             raise UserDataError(_L('战报采集缺少静态数据库路径'))
         snapshot_id = user_dao.latest_native_inventory_snapshot_id()
         equipment = user_dao.list_inventory_items(snapshot_id, equipped=True) if snapshot_id is not None else []
-        world_bonus = WorldBonusSettings.from_payload(
-            user_dao.list_application_setting_copies().get(WORLD_BONUS_SETTING_KEY),
-        ).to_payload()
+        setting_copies = user_dao.list_application_setting_copies()
+        world_bonus = WorldBonusSettings.from_payload(setting_copies.get(WORLD_BONUS_SETTING_KEY)).to_payload()
+        # 噗卡特训等级随本场一起冻结（calc_capture_context），结算与重建都用冻结等级而非当时的账号等级。
+        # 冻结内容含该等级的累计数值（values）：日后等级表修正也不改变旧战报的冻结值；损坏的设置按 Lv 0。
+        puka_training = frozen_capture_payload(
+            account_puka_training(setting_copies.get(PUKA_TRAINING_SETTING_KEY)), "account_setting")
         with StaticGameDataDao(dependencies.static_database_path) as static_dao:
             static_summary = static_dao.summary()
             dataset = dict(static_summary.get("dataset") or {})
@@ -170,12 +178,14 @@ class BattleReportPersistenceService:
             stats = self._resolve_character_stat_snapshots(
                 dependencies=dependencies, user_dao=user_dao, snapshot_id=snapshot_id,
                 character_ids=tuple(profiles), profiles=profiles, frozen_equipment=equipment, frozen_world_bonus=world_bonus,
+                frozen_puka_training=puka_training,
             ) if resolve_stats else {}
         return {
             "schema_version": 1, "freeze_phase": "capture_start", "snapshot_id": snapshot_id,
             "dataset_id": str(dataset.get("dataset_id") or "") or None,
             "static_schema_version": int(static_summary["schema_version"]),
             "profiles": profiles, "stat_snapshots": stats, "equipment": equipment, "world_bonus": world_bonus,
+            "puka_training": puka_training,
             "equipment_source": "capture_start_account_snapshot" if snapshot_id is not None else "graduation_assumed",
         }
 
@@ -192,6 +202,9 @@ class BattleReportPersistenceService:
                 raise UserDataError(_L('原生战报缺少开始时冻结的计算输入'))
             if snapshot.get("state") != "scoped":
                 raise UserDataError(_L('原生战报必须按第一击和半场绑定快照'))
+            if not isinstance(build.get("puka_training"), Mapping):
+                # 开始时没有冻结噗卡特训的采集：在此按账号等级冻结一次并随绑定保存，结算与重建都读同一个值。
+                build["puka_training"] = self._freeze_puka_training(user_dao, "binding_account_setting")
             from src.services.native_battle_scopes import team_character_ids
             previous = build.get("native_scope_builds") or {}
             scoped = {}
@@ -234,7 +247,7 @@ class BattleReportPersistenceService:
                             stats.update(self._resolve_character_stat_snapshots(
                                 dependencies=dependencies, user_dao=user_dao, snapshot_id=None,
                                 character_ids=(character_id,), profiles=profiles, frozen_equipment=selected_equipment,
-                                frozen_world_bonus=world_bonus,
+                                frozen_world_bonus=world_bonus, frozen_puka_training=build.get("puka_training"),
                             ))
                     except (UserDataError, ValueError, KeyError, TypeError):
                         unavailable_characters.append(character_id)
@@ -330,6 +343,12 @@ class BattleReportPersistenceService:
         return profiles
 
     @staticmethod
+    def _freeze_puka_training(user_dao: UserDataDao, source: str) -> dict[str, Any]:
+        """The account's Puka Boot Camp level as a frozen capture payload (a corrupt setting row is level 0)."""
+        payload = user_dao.list_application_setting_copies().get(PUKA_TRAINING_SETTING_KEY)
+        return frozen_capture_payload(account_puka_training(payload), source)
+
+    @staticmethod
     def _resolve_character_stat_snapshots(
         *,
         dependencies: BattleReportPersistenceDependencies,
@@ -339,6 +358,7 @@ class BattleReportPersistenceService:
         profiles: Mapping[int, Mapping[str, Any]],
         frozen_equipment: Sequence[Mapping[str, Any]] | None = None,
         frozen_world_bonus: Mapping[str, Any] | None = None,
+        frozen_puka_training: Mapping[str, Any] | None,
     ) -> dict[int, list[dict[str, Any]]]:
         """Freeze formula-ready role stats beside the historical build."""
 
@@ -368,6 +388,10 @@ class BattleReportPersistenceService:
             detail["profile"] = dict(profile)
             if frozen_world_bonus is not None:
                 detail["world_bonus"] = dict(frozen_world_bonus)
+            # 必须由调用方给出本场冻结的等级（不回落到当前账号等级）；None 与加载器一致按 Lv 0。
+            detail["puka_training"] = (
+                dict(frozen_puka_training) if isinstance(frozen_puka_training, Mapping) else {"level": 0}
+            )
             source_rows = calculate_official_role_combat_stat_sources(
                 detail,
                 items,

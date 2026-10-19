@@ -30,12 +30,9 @@ KEY_ROLE = int(Qt.ItemDataRole.UserRole) + 3      # (fork_id, refinement) of the
 _HAN = re.compile("[一-鿿]")            # what the display layer's term pass looks for
 
 
-def shown_as_is(text: str) -> str:
-    """Rich text that QToolTip shows exactly as given: the display layer's tooltip hook translates any text with
-    Chinese characters again, which would double a Korean text's kept term ("지식(蜘识)" -> "지식(지식(蜘识))").
-    The Han characters become character references, line breaks <br>; Qt renders the original."""
-    out = html.escape(str(text), quote=False).replace("\n", "<br>")
-    return "<qt>" + _HAN.sub(lambda m: f"&#{ord(m.group(0))};", out) + "</qt>"
+# Rich text that QToolTip shows exactly as given (moved to src/ui/rich_tooltip.py for the team simulation's cards too;
+# review UX F3): the Han characters become character references, line breaks <br>; Qt renders the original.
+from src.ui.rich_tooltip import shown_as_is  # noqa: E402,F401
 
 
 class SortItem(QTableWidgetItem):

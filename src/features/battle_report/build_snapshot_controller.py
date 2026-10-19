@@ -36,6 +36,7 @@ class BattleBuildSnapshotController:
         self._show_error = show_error
         page.build_edit_requested.connect(self.edit)
         page.build_edit_activation_requested.connect(self.set_active)
+        page.puka_overrides_requested.connect(self.set_puka_overrides)
 
     def refresh(self, battle_record_id: int) -> None:
         try:
@@ -51,6 +52,9 @@ class BattleBuildSnapshotController:
             has_edit=bool(state["has_edit"]),
             active=bool(state["is_active"]),
             available=bool(state["available"]),
+            puka_training_level=int(state.get("puka_training_level") or 0),
+            puka_training_source=str(state.get("puka_training_source") or ""),
+            puka_native_overrides=bool(state.get("puka_native_overrides", True)),
         )
 
     def edit(self) -> None:
@@ -114,6 +118,30 @@ class BattleBuildSnapshotController:
         self._reload_report(record_id)
         if not active:
             self._page.show_report()
+
+    def set_puka_overrides(self, enabled: bool) -> None:
+        """Decision U2 switch (account setting): save it, show it on both views and recalculate what is shown;
+        the native page loader re-syncs the saved modified copy and the comparison candidate."""
+        try:
+            self._service_provider().set_puka_native_overrides(bool(enabled))
+        except Exception as error:
+            self._show_error(_L('保存噗卡特训开关失败'), error)
+            return
+        marginal = getattr(self._page, "marginal_page", None)
+        if marginal is not None:
+            marginal.set_puka_overrides_state(bool(enabled))
+        record_id = self._editable_record_id()
+        if record_id is None:
+            return
+        self.refresh(record_id)
+        if marginal is not None and self._page._stack.currentWidget() is marginal:
+            try:
+                profiles = self._page.marginal_profiles()
+            except (KeyError, TypeError, ValueError):
+                return
+            self._page.marginal_recalculate_requested.emit(profiles)
+            return
+        self._reload_report(record_id)
 
     def _editable_record_id(self) -> int | None:
         record_id = self._record_id_provider()

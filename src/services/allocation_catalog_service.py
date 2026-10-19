@@ -103,12 +103,14 @@ class AllocationCatalogService:
                     "seeded_at_utc": record.get("seeded_at_utc"),
                     "updated_at_utc": record.get("updated_at_utc"),
                 })
+            setting_copies = dao.list_application_setting_copies()
             account = {
                 "weights": weights, "custom": sorted(custom, key=lambda row: row["character_id"]),
                 "profiles": sorted(dao.list_character_profiles(include_inactive=True), key=lambda row: row["character_id"]),
                 "native": dao.list_native_character_profile_observations(),
                 "observed_ids": dao.list_observed_character_ids(),
-                "world_bonus": dao.list_application_setting_copies().get("world_bonus"),
+                "world_bonus": setting_copies.get("world_bonus"),
+                "puka_training": setting_copies.get("puka_training"),
             }
         template = configured_workshop_weight_template_file()
         files = {}

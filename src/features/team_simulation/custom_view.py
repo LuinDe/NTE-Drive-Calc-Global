@@ -128,10 +128,10 @@ def action_tip(action: str) -> str:
         "swap": _L('普通切换：不放援护技，不触发环合反应'),
         "basic": _L('普通攻击：连续输入会依次打出各段'),
         "heavy": _L('重击（长按普通攻击）'),
-        "skill": "变轨技能",
+        "skill": _L('变轨技能'),
         "skill_hold": _L('变轨技能长按'),
-        "ult": "极轨终结",
-        "counter": "极限反击",
+        "ult": _L('极轨终结'),
+        "counter": _L('极限反击'),
         "dodge": _L('闪避（只占用时间）'),
         "plunge": _L('下落攻击'),
         "entry_attack": _L('登场攻击'),
@@ -145,7 +145,8 @@ def gauge_mode_text(code: str) -> str:
 
 
 def resource_check_text(code: str) -> str:
-    return {"off": _L('不检查'), "warn": _L('仅警告'), "wait": _L('插入等待')}.get(code, code)
+    return {"off": _L('不检查'), "warn": _L('仅警告'), "wait": _L('插入等待'),
+            "strict": _L('严格（未就绪时立即切换；单人时等待）')}.get(code, code)
 
 
 def buff_kind_text(kind: str) -> str:
@@ -226,7 +227,7 @@ def step_action_text(step, lang: str | None = None) -> str:
     """Action column: canonical token plus the game's ability name; "普通攻击第 N 段" for a basic chain hit."""
     lang = lang or current_lang()
     if step.action == "wait":
-        return token_text("wait", lang) + f" {float(step.duration_s):g}s"
+        return token_text("wait", lang) + f" {round(float(step.duration_s), 2):g}s"
     if step.action == notation.RAW_ACTION:
         key = step.keys[0] if step.keys else ("", "")
         if step.name_zh:
@@ -240,6 +241,20 @@ def step_action_text(step, lang: str | None = None) -> str:
     if step.name_zh and (step.keys or step.status == tx.STEP_TIME_ONLY):
         return _LF('{0}「{1}」').format(token, step.name_zh)
     return token
+
+
+def _energy_cell(step) -> tuple[str, str | None]:
+    """(text, tooltip) of the ultimate-energy column: the pool after the step (typed cost), the energy gained since
+    the member's last ultimate (cost unknown), Hotori's clock; "—" otherwise."""
+    clock = getattr(step, "clock_after", None)
+    if clock is not None:
+        return _L('时计') + f" {float(clock):.0f}", None
+    if step.energy_after is not None:
+        return f"{float(step.energy_after):.0f}", None
+    gained = getattr(step, "energy_gained", None)
+    if gained is not None and gained >= 0.05:
+        return f"+{float(gained):.0f}", _LF('终结能量获得 +{0:.0f}（消耗未知）').format(float(gained))
+    return "—", None
 
 
 def _note_parts(step, expl, ctx) -> list[tuple[str, bool]]:
@@ -263,7 +278,7 @@ def _note_parts(step, expl, ctx) -> list[tuple[str, bool]]:
     has_note = {tx.split_note(item)[0] for item in step.notes}
     if status and not (step.status == tx.STEP_TIME_ONLY and (tx.NOTE_CUSTOM_NO_ANIMATION in has_note
                                                              or step.action in ("wait", "dodge"))) \
-            and not (step.status == tx.STEP_SKIPPED and has_note):
+            and not (step.status in (tx.STEP_SKIPPED, tx.STEP_SWAP_OUT, tx.STEP_SWAP_DROPPED) and has_note):
         parts.append((status, step.status == tx.STEP_MISSING))
     for item in step.notes:
         parts.append((tx.note_text(item, ctx.names), tx.split_note(item)[0] in tx.WARNING_NOTES))
@@ -286,7 +301,11 @@ def render_custom_steps(lay: QVBoxLayout, expl, ctx) -> None:
     grid.setContentsMargins(10, 8, 10, 8)
     grid.setHorizontalSpacing(14)
     grid.setVerticalSpacing(4)
-    heads = ("#", _L('时间'), _L('队员'), _L('动作'), _L('命中'), _L('伤害'), _L('环合值'), _L('备注'))
+    energy = any(s.energy_after is not None or getattr(s, "energy_gained", None) is not None
+                 or getattr(s, "clock_after", None) is not None for s in custom.steps)
+    heads = ("#", _L('时间'), _L('队员'), _L('动作'), _L('命中'), _L('伤害'), _L('环合值'))
+    heads += ((_L('极轨终结能量'),) if energy else ()) + (_L('备注'),)
+    note_col = len(heads) - 1
     for c, text in enumerate(heads):
         grid.addWidget(view._label(text, "color:#8b949e;font-size:11px;font-weight:700"), 0, c)
     reactions = expl.reaction_by_index()
@@ -302,7 +321,7 @@ def render_custom_steps(lay: QVBoxLayout, expl, ctx) -> None:
             r += 1
         last_repeat = step.repeat_index
         inserted = step.source_index < 0
-        muted = inserted or step.status in (tx.STEP_SKIPPED, tx.STEP_TIME_ONLY)
+        muted = inserted or step.status in (tx.STEP_SKIPPED, tx.STEP_TIME_ONLY, tx.STEP_SWAP_DROPPED)
         text_style = view._MUTED if muted else view._TEXT
         if not inserted:
             number += 1
@@ -326,6 +345,9 @@ def render_custom_steps(lay: QVBoxLayout, expl, ctx) -> None:
                                    "color:#c9d1d9;font-size:12px;font-weight:700" if step.damage else view._MUTED),
                        r, 5, Qt.AlignTop)
         grid.addWidget(view._label(f"{float(step.gauge_after):.0f}", view._MUTED), r, 6, Qt.AlignTop)
+        if energy:
+            text, tip = _energy_cell(step)
+            grid.addWidget(view._label(text, view._MUTED, tip=tip), r, 7, Qt.AlignTop)
         parts = _note_parts(step, expl, ctx)
         if parts:
             notes = QWidget()
@@ -338,10 +360,10 @@ def render_custom_steps(lay: QVBoxLayout, expl, ctx) -> None:
                 label = view._label(text, style, wrap=True)
                 label.setObjectName("teamSimCustomWarn" if warn else "teamSimCustomNote")
                 notes_col.addWidget(label)
-            grid.addWidget(notes, r, 7, Qt.AlignTop)
+            grid.addWidget(notes, r, note_col, Qt.AlignTop)
         r += 1
-    grid.setColumnStretch(7, 1)
-    lay.addWidget(box)
+    grid.setColumnStretch(note_col, 1)
+    lay.addWidget(view._HScroll(box, "teamSimCustomStepsScroll"))
     if len(custom.steps) > MAX_STEP_ROWS:
         lay.addWidget(hidden_rows_label(len(custom.steps) - MAX_STEP_ROWS))
     if custom.warnings:

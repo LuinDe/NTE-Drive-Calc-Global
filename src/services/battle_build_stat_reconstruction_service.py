@@ -18,6 +18,10 @@ from src.services.official_role_attribute_service import (
     calculate_official_role_combat_stat_sources,
 )
 from src.services.official_role_page_service import load_official_role_detail
+from src.services.puka_training_settings_service import (
+    frozen_puka_training_detail,
+    puka_training_property_stats,
+)
 
 
 class BattleBuildStatReconstructionService:
@@ -39,6 +43,8 @@ class BattleBuildStatReconstructionService:
                 str(row.get("source_group") or "") for row in existing_stats
             }
             world_bonus_repair_required = "world_bonus" not in existing_sources
+            # 显式家具副本（battle_world_bonus）只含家具值：恢复时不再扣除噗卡特训份额。
+            explicit_world_bonus = bool(character.pop("_explicit_world_bonus", False))
             character_id = int(character["character_id"])
             items = battle_equipment_items(character)
             try:
@@ -61,14 +67,24 @@ class BattleBuildStatReconstructionService:
                     for row in existing_stats
                     if str(row.get("source_group") or "") == "world_bonus"
                 }
+                training_payload = build.get("puka_training")
+                if training_payload is not None:
+                    # 战报：加载器总会填入冻结等级（功能上线前的记录为 0）；队伍模拟的 build 没有该键，
+                    # 保留 detail 中的账号等级。冻结时记录的累计数值（values）优先于当前等级表。
+                    detail["puka_training"] = frozen_puka_training_detail(training_payload)
+                training = puka_training_property_stats(detail.get("puka_training"))
                 if frozen_world_bonus:
+                    # 冻结的 world_bonus 行 = 家具 + 噗卡特训份额；扣回份额得到家具值。round(…, 6) 必需：
+                    # (0.04 + t) - t 在 Lv 5–8/13–14 为 0.04000000000000001（超出 0.04 上限会放弃重建）。
+                    # 份额为 0（Lv 0、显式家具副本）时原值不动，保证与功能上线前逐字节一致。
+                    def furniture_value(property_id: str) -> float:
+                        value = frozen_world_bonus.get(property_id, 0.0)
+                        share = 0.0 if explicit_world_bonus else training.get(property_id, 0.0)
+                        return round(value - share, 6) if share else value
+
                     detail["world_bonus"] = {
-                        "yaodao_attack_add": frozen_world_bonus.get(
-                            "AtkAdd", 0.0
-                        ),
-                        "quantao_crit_damage": frozen_world_bonus.get(
-                            "CritDamageBase", 0.0
-                        ),
+                        "yaodao_attack_add": furniture_value("AtkAdd"),
+                        "quantao_crit_damage": furniture_value("CritDamageBase"),
                     }
                 profile = dict(character.get("profile") or {})
                 static_shape_fields = character_shape_profile_fields(

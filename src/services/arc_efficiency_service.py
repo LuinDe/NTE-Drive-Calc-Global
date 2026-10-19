@@ -25,6 +25,12 @@ whose value the engine could not resolve), ``FLAG_DEDUP`` (B2 removed a double-c
 interval was applied to any hit: ``BattleHitBuffProjection.applied_interval_ids``), ``FLAG_MISSING`` (rotation actions without animation data);
 ``FLAG_AXIS`` (cycle length differs between arcs -> compare by DPS) is derived by ``build_table``.
 
+Graduation template level (decision U1, 2026-10-14): one account checkbox shows the table with the template's Puka
+Boot Camp (噗卡特训) at Lv 0 (default, the rows above) or at max level (``TEMPLATE_LEVELS``).  The level is part of the
+identity (``Identity.template_level``): L1 keeps the level-0 rows in ``ROWS`` exactly as before and the others in
+``ROWS_BY_TEMPLATE[level]``; L2 keys of a level > 0 carry a "|puka<level>" suffix.  A level > 0 run uses an empty
+account whose only setting is that training level.
+
 Dev switch: ``NTE_ARC_EFF_FORCE_STALE=1`` ignores L1 and L2 (forces the background recomputation).
 """
 from __future__ import annotations
@@ -37,6 +43,7 @@ import os
 import re
 import sqlite3
 import sys
+import tempfile
 import threading
 import time
 from dataclasses import dataclass, field
@@ -53,6 +60,7 @@ FORCE_STALE_ENV = "NTE_ARC_EFF_FORCE_STALE"
 CACHE_FILE = "arc_efficiency_cache.json"
 PREFERENCES_FILE = "arc_efficiency_preferences.json"
 QUALITY_ORDER = {"ORANGE": 0, "PURPLE": 1, "BLUE": 2}
+TEMPLATE_LEVELS = (0, 20)       # graduation template Puka Boot Camp level: off / max (puka_training_settings_service)
 
 FLAG_UNRESOLVED = 0x01
 FLAG_DEDUP = 0x02
@@ -63,7 +71,9 @@ FLAG_AXIS = 0x20                # derived (build_table), never stored
 
 SEED_MODULE = "src.services.arc_efficiency_data"
 FP_ROOT_MODULE = "src.services.arc_efficiency_service"
-FP_EXCLUDE = frozenset((SEED_MODULE, "src.services.arc_efficiency_notes"))
+# both efficiency tables' generated seeds and hand-kept notes (display only) never enter a fingerprint
+FP_EXCLUDE = frozenset((SEED_MODULE, "src.services.arc_efficiency_notes", "src.services.awakening_efficiency_data",
+                        "src.services.awakening_efficiency_notes"))
 FP_EXCLUDE_PREFIXES = ("src.i18n_", "src.features.", "src.ui.")
 
 _COMPUTE_LOCK = threading.Lock()          # one efficiency computation at a time (shared static connection)
@@ -284,10 +294,11 @@ class Cancelled(Exception):
 
 def compute_character(static_path, entry: CharacterEntry, loops: int, jobs: Iterable[tuple[str, int]] | None = None, *,
                       cancel: threading.Event | None = None, on_row: Callable[[tuple, Row], None] | None = None,
-                      user_db_path=None) -> dict[tuple, Row]:
+                      user_db_path=None, template_level: int = 0) -> dict[tuple, Row]:
     """Run the character alone for every (arc, refinement) of ``jobs`` (default: ``job_order``) on one shared
     session; ``on_row(key, row)`` after each run.  ``cancel`` is checked before every run (raises ``Cancelled``
-    after keeping what is done in the returned mapping's ``on_row`` calls).  Uses an empty account."""
+    after keeping what is done in the returned mapping's ``on_row`` calls).  Uses an empty account; with
+    ``template_level`` > 0 an empty account whose Puka Boot Camp level is that level (decision U1)."""
     from src.services import team_fork_corrections as tfc
     from src.services import team_simulation_service as svc
 
@@ -303,8 +314,15 @@ def compute_character(static_path, entry: CharacterEntry, loops: int, jobs: Iter
     with _COMPUTE_LOCK:
         if cancel is not None and cancel.is_set():
             raise Cancelled()
-        with svc.solo_session(static_path, entry.character_id, loops=loops, user_db_path=user_db_path,
-                              account_id="arc_efficiency") as run:
+        with contextlib.ExitStack() as stack:
+            if int(template_level or 0) > 0 and user_db_path is None:
+                from src.services.puka_training_settings_service import template_account_database
+
+                folder = stack.enter_context(tempfile.TemporaryDirectory(prefix="nte_arc_eff_tpl_",
+                                                                         ignore_cleanup_errors=True))
+                user_db_path = template_account_database(folder, int(template_level))
+            run = stack.enter_context(svc.solo_session(static_path, entry.character_id, loops=loops,
+                                                       user_db_path=user_db_path, account_id="arc_efficiency"))
             for fork_id, refine in jobs:
                 if cancel is not None and cancel.is_set():
                     raise Cancelled()
@@ -428,12 +446,13 @@ def source_closure(src_root: Path, root_module: str = FP_ROOT_MODULE) -> dict[st
     return found
 
 
-def engine_fingerprint(src_root: Path | None = None) -> str:
-    """16 hex characters over the sources of the computation path (``source_closure``)."""
+def engine_fingerprint(src_root: Path | None = None, root_module: str = FP_ROOT_MODULE) -> str:
+    """16 hex characters over the sources of the computation path (``source_closure`` of ``root_module``; the
+    awakening efficiency table passes its own service module)."""
     if src_root is None:
         src_root = Path(__file__).resolve().parents[2]
     h = hashlib.sha256()
-    for name, path in sorted(source_closure(Path(src_root)).items()):
+    for name, path in sorted(source_closure(Path(src_root), root_module).items()):
         h.update(name.encode("utf-8") + b"\0" + hashlib.sha256(path.read_bytes()).hexdigest().encode("ascii") + b"\n")
     return h.hexdigest()[:16]
 
@@ -493,14 +512,30 @@ class Identity:
     engine_fp: str
     dataset_id: str = ""
     corrections: str = field(default_factory=corrections_state)
+    template_level: int = 0                 # decision U1: graduation template Puka Boot Camp level (0 / max)
 
-    def prefix(self) -> str:
+    def family_prefix(self) -> str:
+        """Algorithm, data, engine and corrections: every template level of one build."""
         return f"{self.algo}|{self.db_sha256}|{self.engine_fp}|{self.corrections}"
 
+    def prefix(self) -> str:
+        base = self.family_prefix()
+        return f"{base}|puka{int(self.template_level)}" if int(self.template_level or 0) > 0 else base
 
-def current_identity(static_path) -> Identity:
+
+def current_identity(static_path, template_level: int = 0) -> Identity:
     return Identity(ALGO_VERSION, db_sha256(static_path), current_engine_fp(),
-                    str(manifest_dataset(static_path).get("dataset_id") or ""))
+                    str(manifest_dataset(static_path).get("dataset_id") or ""),
+                    template_level=int(template_level or 0))
+
+
+def seed_rows(module, template_level: int = 0) -> dict:
+    """The seed's rows of one template level (``ROWS`` at level 0, ``ROWS_BY_TEMPLATE[level]`` above)."""
+    if module is None:
+        return {}
+    if not int(template_level or 0):
+        return getattr(module, "ROWS", {}) or {}
+    return (getattr(module, "ROWS_BY_TEMPLATE", {}) or {}).get(int(template_level), {}) or {}
 
 
 def _force_stale() -> bool:
@@ -509,9 +544,58 @@ def _force_stale() -> bool:
 
 # ── L2 cache ──────────────────────────────────────────────────────────────────
 
+def resource_model_state() -> str:
+    """The team simulator's resource level the rows are computed at (``team_resources.DEFAULT_RESOURCE_MODEL``; the
+    dev switch ``NTE_TEAM_RESOURCE_MODEL``).  Review F8: rows of another level never meet the shipped level's L1 / L2."""
+    from src.services import team_resources
+
+    return str(team_resources.DEFAULT_RESOURCE_MODEL)
+
+
+def resource_suffix() -> str:
+    """"" at the shipped level (its keys are unchanged), "|res-<level>" for a regression run at another level."""
+    from src.services import team_resources
+
+    model = resource_model_state()
+    return "" if model == team_resources.SHIPPED_RESOURCE_MODEL else f"|res-{model}"
+
+
+def state_suffix() -> str:
+    """"" at the shipped switch state (every awakening node-rule group on, the Global live overlay at its default
+    groups: the seeds' state, keys unchanged); "|rules-<groups>|overlay-<groups>" otherwise (dev / test switches
+    ``NTE_TEAM_AWAKENING_RULES`` / ``NTE_GLOBAL_OVERLAY``): rows of another state never meet the seed or its keys."""
+    parts = []
+    try:
+        from src.services.awakening_node_rules import core
+
+        if core.ENABLED_GROUPS is not None:
+            parts.append("|rules-" + (",".join(sorted(core.ENABLED_GROUPS)) or "off"))
+    except Exception:
+        pass
+    try:
+        from src.services import global_live_overlay as glo
+
+        if glo.ENABLED_GROUPS is not None:
+            defaults = {g for g, spec in glo.D.GROUPS.items() if spec.get("default")}
+            on = set(glo.groups_on())
+            if on != defaults:
+                parts.append("|overlay-" + (",".join(sorted(on)) or "off"))
+    except Exception:
+        pass
+    return "".join(parts)
+
+
+def dataset_suffix(identity) -> str:
+    """"|ds-<manifest dataset id>" of an identity ("" without one).  Review L-F1: the Global live overlay switches on the
+    dataset id AND the DB sha256, so the same DB bytes under another dataset id give other rows (L2 keys differ)."""
+    dataset = str(getattr(identity, "dataset_id", "") or "")
+    return f"|ds-{dataset}" if dataset else ""
+
+
 def cache_key_text(identity: Identity, key: tuple) -> str:
     cid, fork_id, refine, loops, entry = key
-    return f"{identity.prefix()}|{cid}|{fork_id}|{refine}|{loops}|{entry}"
+    return (f"{identity.prefix()}{dataset_suffix(identity)}{resource_suffix()}{state_suffix()}"
+            f"|{cid}|{fork_id}|{refine}|{loops}|{entry}")
 
 
 class Cache:
@@ -542,10 +626,14 @@ class Cache:
             self.error = f"{type(exc).__name__}: {exc}"
             _log(f"arc efficiency cache ignored: {self.error}")
 
+    def key_text(self, identity: Identity, key: tuple) -> str:
+        """The entry key of a row key (the awakening efficiency cache overrides it for its own key shape)."""
+        return cache_key_text(identity, key)
+
     def get(self, identity: Identity, key: tuple) -> Row | None:
         with self._lock:
             self._load()
-            value = self._entries.get(cache_key_text(identity, key))
+            value = self._entries.get(self.key_text(identity, key))
             if value is None:
                 return None
             try:
@@ -556,13 +644,13 @@ class Cache:
     def put(self, identity: Identity, key: tuple, row: Row) -> None:
         with self._lock:
             self._load()
-            self._entries[cache_key_text(identity, key)] = [row.damage, row.flags, row.end_us, row.active_us,
-                                                            time.strftime("%Y-%m-%d %H:%M")]
+            self._entries[self.key_text(identity, key)] = [row.damage, row.flags, row.end_us, row.active_us,
+                                                           time.strftime("%Y-%m-%d %H:%M")]
 
     def computed_at(self, identity: Identity, key: tuple) -> str:
         with self._lock:
             self._load()
-            value = self._entries.get(cache_key_text(identity, key))
+            value = self._entries.get(self.key_text(identity, key))
             return str(value[4]) if value is not None and len(value) > 4 else ""
 
     def save(self, identity: Identity) -> bool:
@@ -570,7 +658,8 @@ class Cache:
             return False
         with self._lock:
             self._load()
-            prefix = identity.prefix() + "|"
+            # every template level of the same build stays (U1: switching the checkbox must not drop the other)
+            prefix = identity.family_prefix() + "|"
             self._entries = {k: v for k, v in self._entries.items() if k.startswith(prefix)}
             payload = json.dumps({"format": FORMAT, "entries": dict(sorted(self._entries.items()))},
                                  ensure_ascii=False, separators=(",", ":"))
@@ -613,9 +702,17 @@ class Resolution:
 def seed_matches(module, identity: Identity) -> bool:
     if module is None:
         return False
+    from src.services import team_resources
+
     dataset = getattr(module, "DATASET", {}) or {}
+    # the seed's resource level (a seed without the line predates review F8: the shipped level) - review F8
+    if str(getattr(module, "RESOURCE_MODEL", team_resources.SHIPPED_RESOURCE_MODEL)) != resource_model_state():
+        return False
+    if state_suffix():              # node rules / live overlay switched away from the shipped state
+        return False
     return (str(getattr(module, "ALGO_VERSION", "")) == identity.algo
             and str(dataset.get("sha256", "")).upper() == identity.db_sha256.upper()
+            and str(dataset.get("dataset_id", "")) == str(identity.dataset_id)    # review L-F1 (overlay key)
             and str(getattr(module, "ENGINE_FP", "")) == identity.engine_fp and bool(identity.engine_fp)
             and identity.corrections == full_corrections())       # L1 is computed with B1-B4 on
 
@@ -628,7 +725,7 @@ def resolve(static_path, entries: Iterable[CharacterEntry], loops: int, cache: C
     force = _force_stale()
     ok_seed = (not force) and seed_matches(module, identity)
     seed_chars = getattr(module, "CHARACTERS", {}) if ok_seed else {}
-    seed_rows = getattr(module, "ROWS", {}) if ok_seed else {}
+    table = seed_rows(module, identity.template_level) if ok_seed else {}
     sources: dict[int, str] = {}
     rows: dict[tuple, Row] = {}
     stamps: dict[int, str] = {}
@@ -637,9 +734,9 @@ def resolve(static_path, entries: Iterable[CharacterEntry], loops: int, cache: C
         keys = [row_key(cid, f, r, loops) for f, r in job_order(entry)]
         info = seed_chars.get(cid) or {}
         if ok_seed and tuple(sorted(tuple(x) for x in info.get("forks", ()))) == entry.forks_key \
-                and all(k in seed_rows for k in keys):
+                and all(k in table for k in keys):
             for k in keys:
-                rows[k] = Row(*seed_rows[k])
+                rows[k] = Row(*table[k])
             sources[cid] = SOURCE_SEED
             continue
         got = {k: cache.get(identity, k) for k in keys} if (cache is not None and not force) else {}
@@ -749,7 +846,8 @@ class Computation:
 
             try:
                 compute_character(self.static_path, self.entries[cid], self.loops, list(self.pending[cid]),
-                                  cancel=gate, on_row=watch, user_db_path=self.user_db_path)
+                                  cancel=gate, on_row=watch, user_db_path=self.user_db_path,
+                                  template_level=self.identity.template_level)
             except Cancelled:
                 pass
             except Exception as exc:  # noqa: BLE001 - one character failing never stops the others
@@ -949,10 +1047,14 @@ def load_star_texts(static_path, fork_ids: Iterable[str]) -> dict[tuple[str, int
                 "AND v.refinement_level = p.star_level"):
             if pack in packs:
                 params.setdefault((packs[pack], int(level)), []).append((int(ordinal), bool(percent), value))
+        from src.services import global_live_overlay       # release texts on the overlay's DB (「月的对跖点」)
+
         for pack, level, description in con.execute("SELECT star_pack_id, star_level, description_zh FROM fork_star_level"):
             if pack in packs:
                 key = (packs[pack], int(level))
-                out[key] = (str(description or ""), tuple(sorted(params.get(key, ()))))
+                text = global_live_overlay.patch_star_text(packs[pack], int(level), str(description or ""),
+                                                           static_path, con)
+                out[key] = (text, tuple(sorted(params.get(key, ()))))
     finally:
         con.close()
     return out

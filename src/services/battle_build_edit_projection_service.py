@@ -34,6 +34,8 @@ def apply_battle_build_edit(
         ]
         if "battle_world_bonus" in profile:
             frozen_world_bonus = world_bonus_edit_stats(profile["battle_world_bonus"])
+            # 显式家具副本只含家具值；重建时不扣除噗卡特训份额（标记由重建服务 pop 掉，不会持久化）。
+            character["_explicit_world_bonus"] = True
         character.update({
             "profile_source": "user_edited_snapshot",
             "character_level": int(edited["character_level"]),

@@ -64,6 +64,10 @@ def start_equipment_mod_loader(window: Any) -> None:
     if not executable.strip():
         window.operation_unavailable(_L('启动 Mod Loader'), _L('尚未选择游戏主程序 HTGame.exe。'), target="deployment")
         return
+    # Global: non-blocking RTSS reminder (read-only check; the user may continue, fix RTSS, or cancel).
+    from src.ui.controllers.rtss_compat_notice import METHOD_LOADER, confirm_rtss_before_injection
+    if not confirm_rtss_before_injection(window, method=METHOD_LOADER):
+        return
     from src.ui.controllers.native_plugin_deployment_ui import start_native_loader_from_settings
     start_native_loader_from_settings(window)
 

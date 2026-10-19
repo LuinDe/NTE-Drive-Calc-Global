@@ -13,6 +13,7 @@ from src.domain.stat_catalog import StatCatalog
 from src.integrations.bundled_resources import bundled_config_dir
 from src.services.graduation_bonus_service import graduation_extra_shape_stats
 from src.services.official_role_scoring_service import calculate_official_role_margins
+from src.services.puka_training_settings_service import graduation_template_level
 from src.services.world_bonus_settings_service import WorldBonusSettings
 
 _WEIGHT_PROPERTY_CHOICES = (
@@ -67,6 +68,8 @@ def _full_progression_detail(detail: dict, template: dict) -> dict | None:
         **detail,
         "profile": dict(profile),
         "world_bonus": WorldBonusSettings().to_payload(),
+        # 毕业率两侧都按模板等级计算噗卡特训（决定 U1：账号勾选框，0 = 不计或满级 20），与账号自身等级无关。
+        "puka_training": {"level": graduation_template_level(detail)},
     }
 
 
@@ -323,7 +326,9 @@ def graduation_tooltip(detail: dict) -> str:
     lines.extend(f"　　　　　{line}" for line in substat_lines[1:])
     lines.extend((
         _L('毕业率 = 满练度配当前空幕直伤 ÷ 满练度配毕业空幕直伤，结果不封顶。'),
-        _L('两侧均固定满级养成、精1弧盘常驻、好感10与家具满加成。'),
+        (_L('两侧均固定满级养成、精1弧盘常驻、好感10、家具满加成与噗卡特训满级（Lv.20）。')
+         if graduation_template_level(detail) > 0
+         else _L('两侧均固定满级养成、精1弧盘常驻、好感10与家具满加成，不计噗卡特训。')),
         _L('只计算直伤，不计条件被动、机制伤害和队友加成。'),
     ))
     return "\n".join(lines)

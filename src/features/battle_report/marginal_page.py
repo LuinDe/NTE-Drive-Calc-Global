@@ -6,6 +6,7 @@ from src.i18n_runtime import L as _L, LF as _LF
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -62,6 +63,7 @@ from src.features.battle_report.timeline_layout import TimelineSelection
 from src.features.battle_report.timeline_view import BattleUnifiedTimelineWidget
 from src.features.official_role.profile_editor import OfficialRoleProfileEditor
 from src.services.battle_build_equipment_service import freeze_equipment_context
+from src.services.puka_training_settings_service import frozen_puka_training_level
 from src.services.battle_marginal_candidate_service import (
     BattleMarginalCandidateService,
 )
@@ -73,6 +75,18 @@ from src.ui.dashboard_widgets import metric_card
 from src.ui.widgets import NoWheelComboBox
 
 
+def puka_training_notice(editor_data) -> str:
+    """Notice of a record that froze a Puka Boot Camp level > 0 and offers candidates ('' otherwise): with the
+    account's Tier 2 switch on (default) what the manual-adjustment channel shows; off, badge T4 (the bias)."""
+
+    level = frozen_puka_training_level(editor_data.get("puka_training"))
+    if level <= 0 or not editor_data.get("details"):
+        return ""
+    if editor_data.get("puka_native_overrides", True):
+        return _LF('本战报冻结了噗卡特训 Lv.{0}，重算时计入全部特训加成：其中防御力、生命值、暴击率、环合强度与倾陷强度这 5 项经「边际手工调整」通道交给原生核心，所以来源明细会多出「边际手工调整」行，量化状态也可能显示为「部分」（表示部分逐击公式无法逐项拆分这些属性，数值已计入）。空幕主属性候选与弧盘拆分不含这 5 项，「替换当前」与弧盘收益可能有几个百分点的偏差。可在下方取消勾选。').format(level)
+    return _LF('本战报冻结了噗卡特训 Lv.{0}。修改副本与边际候选由原生核心重算面板时，只保留其攻击力与暴击伤害部分（防御力/生命值/暴击率/环合强度/倾陷强度未计入），候选对比会整体偏低（Lv.20 时未改动的候选约显示 −2.4%），请比较候选之间的差值。').format(level)
+
+
 def _number(value: float) -> str:
     return f"{value:,.0f}"
 
@@ -82,6 +96,7 @@ class BattleMarginalPage(BattleMarginalBuffRenderMixin, QWidget):
 
     back_requested = Signal()
     recalculate_requested = Signal(object)
+    puka_overrides_toggled = Signal(bool)
     reset_requested = Signal()
     draft_changed = Signal()
     role_changed = Signal(object)
@@ -131,6 +146,23 @@ class BattleMarginalPage(BattleMarginalBuffRenderMixin, QWidget):
         model_notice.setWordWrap(True)
         model_notice.setStyleSheet(themed_style("color:#d29922;font-size:12px"))
         root.addWidget(model_notice)
+        # 噗卡特训 Lv>0 的战报：原生核心重算候选面板时只保留攻击力与暴击伤害份额（设计 §5 T4）。
+        puka_notice = QLabel("")
+        puka_notice.setObjectName("battleMarginalPukaNotice")
+        puka_notice.setWordWrap(True)
+        puka_notice.setStyleSheet(themed_style("color:#d29922;font-size:12px"))
+        puka_notice.hide()
+        root.addWidget(puka_notice)
+        self.puka_notice = puka_notice
+        # 账号开关（决定 U2）：与战报页卡片上的勾选框是同一设置。
+        puka_check = QCheckBox(_L('计入全部噗卡特训（经边际手工调整通道）'))
+        puka_check.setObjectName("battleMarginalPukaOverrides")
+        puka_check.setToolTip(_L('账号设置，适用于所有冻结了噗卡特训等级的战报：原生核心重算修改副本、边际对比候选与「与我的角色对比」时，把防御力、生命值、暴击率、环合强度与倾陷强度的特训份额经「边际手工调整」补回。关闭后只保留攻击力与暴击伤害份额（未改动的候选约 −2.4%）。'))
+        puka_check.setChecked(True)
+        puka_check.hide()
+        puka_check.toggled.connect(self.puka_overrides_toggled)
+        root.addWidget(puka_check)
+        self.puka_overrides_check = puka_check
 
         metrics = QGridLayout()
         definitions = (
@@ -328,6 +360,14 @@ class BattleMarginalPage(BattleMarginalBuffRenderMixin, QWidget):
         self._equipment_editable = bool(
             editor_data.get("marginal_equipment_editable", True)
         )
+        puka_notice = puka_training_notice(editor_data)
+        self.puka_notice.setText(puka_notice)
+        self.puka_notice.setVisible(bool(puka_notice))
+        self._puka_editor_data = {key: editor_data.get(key) for key in ("puka_training", "details")}
+        self.puka_overrides_check.blockSignals(True)
+        self.puka_overrides_check.setChecked(bool(editor_data.get("puka_native_overrides", True)))
+        self.puka_overrides_check.blockSignals(False)
+        self.puka_overrides_check.setVisible(bool(puka_notice))
         self._inferred_fact_ids = tuple(
             str(getattr(fact, "fact_id", ""))
             for fact in editor_data.get("inferred_character_facts") or ()
@@ -353,6 +393,16 @@ class BattleMarginalPage(BattleMarginalBuffRenderMixin, QWidget):
                 self.character_combo.setCurrentIndex(selected_index)
         self.character_combo.blockSignals(False)
         self._character_changed(notify=False)
+
+    def set_puka_overrides_state(self, enabled: bool) -> None:
+        """The account switch changed (here or on the report card): checkbox and notice follow it."""
+        self.puka_overrides_check.blockSignals(True)
+        self.puka_overrides_check.setChecked(bool(enabled))
+        self.puka_overrides_check.blockSignals(False)
+        data = dict(getattr(self, "_puka_editor_data", None) or {})
+        if data:
+            data["puka_native_overrides"] = bool(enabled)
+            self.puka_notice.setText(puka_training_notice(data))
 
     def clear_candidate(self) -> None:
         self._load_editor_data({"details": [], "marginal_equipment_editable": True})

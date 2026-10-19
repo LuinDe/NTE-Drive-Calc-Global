@@ -5,9 +5,14 @@
 This guide explains how to use the native features of NTE Drive Calc 2.3.1 (native sync, native battle reports, Rapid Equip, plugins) together with ReShade and DLSS5 (a neural rendering add-on).
 It applies to the official 2.3.1, the Korean patch v2.3.1-ko and Global 2.3.1. Where the builds behave differently, this is marked.
 
-> [!WARNING]
-> **Part of this has not yet been tested in the actual game on 2.3.1.**
-> Starting with 2.3.1, the calculator file that the Loader loads into the game is also named `d3d12.dll`. It sits in the calculator's folder, so it does not clash with the ReShade file in the game folder. However, it has not been confirmed whether ReShade still loads correctly, or whether the two conflict, when two DLLs with the same name end up in one game process. The original author also marked this Loader build as not validated in the game.
+> [!IMPORTANT]
+> **Tested in the actual game on 2026-10-14: the game starts and runs without crashing.**
+> Tested setup: calculator 2.3.1 Loader + ReShade 6.8 (add-on build, `d3d12.dll` in the game folder) + DLSS5 add-ons (latest versions) + RTSS (with Detours). Starting with 2.3.1, the calculator host that the Loader loads into the game is also named `d3d12.dll`, but in this setup the game ran without crashing with both of them loaded into one game process. Whether the calculator's connection (native features) works in this setup has not yet been checked on screen (see [Step 5](#step-5-check-that-it-works)).
+> Two conditions were required. In the author's setup, the game closed right after starting whenever one of them was missing.
+> 1. **Keep the DLSS5 add-ons up to date** — an outdated DLSS5 overlay add-on was one of the causes. → [Keep DLSS5 add-ons up to date](#keep-dlss5-add-ons-up-to-date)
+> 2. **If you use RTSS (MSI Afterburner), turn on Detours in an HTGame.exe profile** — RTSS's default settings conflicted with the calculator host. → [Using with RTSS](#using-with-rtss-rivatunermsi-afterburner)
+>
+> Scope: this was tested on one PC (NVIDIA RTX graphics card, Windows 11). There is no guarantee it behaves the same elsewhere. The original author marked this Loader build as not validated in the game. This test is only about whether the programs conflict with each other; it says nothing about how ACE reacts (see [Read this first](#read-this-first)).
 > After you start using it, be sure to check it with [Step 5](#step-5-check-that-it-works).
 
 ## Who this is for
@@ -15,6 +20,7 @@ It applies to the official 2.3.1, the Korean patch v2.3.1-ko and Global 2.3.1. W
 - You use ReShade and a DLSS5 add-on and also want the calculator's native features
 - You could not keep the calculator's D3D method and ReShade together because both use the name `d3d12.dll`
 - You saw the "Legacy component found" dialog after updating from 2.3.0 to 2.3.1
+- The game closes right after starting when you use the Loader with RTSS (MSI Afterburner) running
 
 ## At a glance
 
@@ -25,7 +31,7 @@ The D3D method, by contrast, places the calculator's `d3d12.dll` directly in the
 |---|---|---|
 | Where the calculator's files go | Game folder `Win64` | Calculator folder `config\native-loader` |
 | `d3d12.dll` in the game folder | Used by the calculator | Used by ReShade |
-| Using it with ReShade (`d3d12.dll`) | Not possible | Files do not clash. Whether they actually work together on 2.3.1 is not confirmed (pending check) |
+| Using it with ReShade (`d3d12.dll`) | Not possible | Runs without crashing (tested in the actual game on 2026-10-14, one PC; the calculator connection has not yet been checked on screen). Requires [up-to-date DLSS5 add-ons](#keep-dlss5-add-ons-up-to-date) and, if you use RTSS, the [Detours setting](#using-with-rtss-rivatunermsi-afterburner) |
 | Start-up order | Deploy in advance with the game closed | Every time: calculator (Loader) → launcher → game |
 
 ## Read this first
@@ -45,12 +51,13 @@ The D3D method, by contrast, places the calculator's `d3d12.dll` directly in the
 
 | Item | Details |
 |---|---|
-| Calculator | One of: official 2.3.1, [Korean patch v2.3.1-ko](https://github.com/LuinDe/NTE-Drive-Calc-KO/releases/tag/v2.3.1-ko) (Korean UI), [Global 2.3.1](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/tag/v2.3.1-global.1). **If you use ReShade, the Korean patch or Global is recommended.** See [Differences between builds](#differences-between-builds) for why. The calculator runs with administrator rights (a UAC prompt appears). |
+| Calculator | One of: official 2.3.1, [Korean patch v2.3.1-ko](https://github.com/LuinDe/NTE-Drive-Calc-KO/releases/tag/v2.3.1-ko) (Korean UI), [Global 2.3.1](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/latest). **If you use ReShade, the Korean patch or Global is recommended.** See [Differences between builds](#differences-between-builds) for why. The calculator runs with administrator rights (a UAC prompt appears). |
 | Work mode | **Medium Risk** (or Development), with the risk acknowledged. |
 | Runtime | Microsoft Visual C++ 2015–2022 Redistributable (x64). The calculator checks for it before starting the Loader. |
 | Game path | The calculator must have the `HTGame.exe` path set. The game must keep the official folder layout (`game install folder\Client\WindowsNoEditor\HT\Binaries\Win64\HTGame.exe`). The official launcher `NTELauncher.exe` or `NTEGlobalLauncher.exe` must be in the install root (the folder that contains `Client`), or inside an `NTELauncher\` folder there. |
 | Starting the game | Use the **official launcher**. The Loader reaches the game through the launcher. |
-| Graphics mods | ReShade (add-on build) and a DLSS5 add-on. For installation, see the external guides in [Step 3](#step-3-install-reshade-and-dlss5). |
+| Graphics mods | ReShade (add-on build) and a DLSS5 add-on. The DLSS5 add-ons must be **up to date** ([why](#keep-dlss5-add-ons-up-to-date)). For installation, see the external guides in [Step 3](#step-3-install-reshade-and-dlss5). |
+| RTSS | If you use RivaTuner Statistics Server (bundled with MSI Afterburner), you must turn on **Use Microsoft Detours API hooking** in an HTGame.exe profile. See [Using with RTSS](#using-with-rtss-rivatunermsi-afterburner). Not needed if you do not use it. |
 
 ## Before you start: back up
 
@@ -144,6 +151,17 @@ To use them with this guide, only these points matter:
 - This guide assumes a setup where ReShade is `Win64\d3d12.dll`. If the installer created `dxgi.dll`, rename it to `d3d12.dll`.
 - If you already use ReShade as `d3d12.dll`, leave it as is. The Loader method does not touch this file (on the official build, only once Steps 0 and 2 are done).
 - Back up your add-ons before uninstalling or reinstalling with the ReShade installer.
+- Use up-to-date DLSS5 add-ons. See [Keep DLSS5 add-ons up to date](#keep-dlss5-add-ons-up-to-date) below.
+- If you use RTSS (MSI Afterburner), set it up as described in [Using with RTSS](#using-with-rtss-rivatunermsi-afterburner) before starting the game.
+
+### Keep DLSS5 add-ons up to date
+
+In the author's setup, an **outdated DLSS5 overlay add-on** also made the game close right after starting. The crash reporter showed the same error as with the [RTSS conflict](#using-with-rtss-rivatunermsi-afterburner) (`D3D12Viewport.cpp` … `80004004` `E_ABORT`). Updating the DLSS5 add-ons fixed it.
+
+- Add-ons the author updated: the DLSS5 overlay add-on (`dlss5-lab-overlay`, new build), `renodx-dlss5.addon64` and `renodx-neural-interposer`. The names may differ depending on where you got them.
+- Get the latest versions from where you originally got the add-ons (for example the [community guide](https://arca.live/b/nevernesstoeverness/181463229) or [RenoDX](https://github.com/clshortfuse/renodx)). This repository does not distribute or verify add-on files.
+- Before replacing them, [back up](#before-you-start-back-up) the `*.addon64` files you use now.
+- After replacing them, check in `ReShade.log` that each add-on has a `Registered add-on "…"` line, as in [Step 5](#step-5-check-that-it-works).
 
 ## Step 4: Start-up order every time
 
@@ -172,7 +190,45 @@ To use them with this guide, only these points matter:
 | ReShade log | `Win64\ReShade.log` (check that its modified time matches the run you just did) | It has an `Initializing crosire's ReShade version '…' (64-bit) loaded from '…\d3d12.dll' into '…\HTGame.exe'` line and a `Registered add-on "…"` line for each add-on. |
 | DLSS5 | The DLSS5 (neural rendering) panel in the ReShade overlay | Its status shows as active (ACTIVE). |
 
-If anything looks wrong, see [Troubleshooting](#troubleshooting) below. In particular, **if ReShade does not appear, or the game is unstable, only when you use the Loader**, please report it. It may be related to the unconfirmed part described in the WARNING above.
+If anything looks wrong, see [Troubleshooting](#troubleshooting) below. If the game closes right after starting, first check the [RTSS setting](#using-with-rtss-rivatunermsi-afterburner) and the [DLSS5 add-on versions](#keep-dlss5-add-ons-up-to-date). If **ReShade still does not appear, or the game is still unstable, only when you use the Loader**, please report it. In the author's setup (one PC) the game runs without crashing, but other setups, or other tools used alongside, may behave differently.
+
+## Using with RTSS (RivaTuner/MSI Afterburner)
+
+RTSS (RivaTuner Statistics Server) is a program that shows information such as FPS on top of the game. It is often installed together with MSI Afterburner, and it may also run in the background while Afterburner is open. If RTSS is installed, or there is an RTSS icon in the notification area (the right end of the taskbar; it may be hidden under ^), read this section.
+
+**Symptom**
+
+- With the calculator attached through the Loader, the game closes right after starting.
+- The Unreal Engine crash reporter appears, and the error mentions `D3D12Util.cpp:1019`, `D3D12Viewport.cpp:554` and error code `80004004` (`E_ABORT`). The game failed while creating its display output (swap chain). The line numbers may differ between game versions.
+- In the author's setup it happened whenever the calculator's Loader and RTSS (with default settings) were running at the same time.
+
+**Cause**
+
+To draw its overlay, RTSS loads its own DLL (`RTSSHooks64.dll`) into the game and intercepts graphics functions (hooking). In the author's setup, RTSS's default hooking engine conflicted with the calculator's 2.3.1 host, and switching RTSS's hooking engine to Microsoft Detours stopped the crash.
+
+**Fix: turn on Detours in an HTGame.exe profile**
+
+This setting applies only to HTGame.exe; RTSS settings for other games stay the same. The calculator does not change RTSS settings, so do this yourself.
+
+1. Close the game.
+2. Open the RTSS window from the RTSS icon in the notification area (the icon may be hidden under ^).
+3. Press **Add** and choose `HTGame.exe` (`game install folder\Client\WindowsNoEditor\HT\Binaries\Win64\HTGame.exe`). **HTGame.exe** is added to the list and selected. If it is already there, just select it.
+4. With **HTGame.exe** selected in the list, press **Setup**. If you change the option while **Global** is selected, it applies to other games too.
+5. On the **General** tab, check **Use Microsoft Detours API hooking**, then press **OK** to save and close the setup window (closing it with × may discard the change).
+6. Start again in the order of [Step 4](#step-4-start-up-order-every-time) (calculator → Loader → official launcher → game).
+
+According to RTSS's own help text, this option switches RTSS from its own hook-chaining engine to Microsoft Detours, for compatibility with other hooking tools. In the author's setup, this option was the only thing changed in the HTGame.exe profile. Tested with RTSS 7.3.7. If you do not see this option, update RTSS or use the alternative below (Application detection level None).
+
+**Check the setting (optional)**: open `Profiles\HTGame.exe.cfg` in the RTSS install folder (by default `C:\Program Files (x86)\RivaTuner Statistics Server`) in Notepad. Under `[Hooking]` there is a `UseDetours=1` line. Only look at it; do not edit the file by hand (change settings in the RTSS window).
+
+**Undo**: select **HTGame.exe** in the list, press **Setup**, uncheck **Use Microsoft Detours API hooking** on the **General** tab and press **OK**. If you created the HTGame.exe profile only for this, you can instead press **Remove** with **HTGame.exe** selected (this deletes every setting in that profile, and the game follows the Global settings again). Using the Loader afterwards may make the game close again.
+
+**Alternative: turn RTSS off for HTGame.exe**: with **HTGame.exe** (not **Global**) selected in the RTSS window, setting **Application detection level** to **None** also avoids the conflict. With **Global** selected, it would turn RTSS off for every game. The RTSS overlay (FPS display and so on) then does not appear in this game.
+
+**In the calculator**: Global 2.3.1-global.2 and later versions check this setting when you press **Start native Loader** yourself, show a reminder, and list it as a yellow item under **Detection Details**. When auto sync starts the Loader by itself, no reminder window appears; it is listed only under **Detection Details**. The calculator only reads RTSS settings and never changes them. This RTSS fix applies to the official build, the Korean patch and Global alike (all three use the same Loader component).
+
+> [!NOTE]
+> The same error can also come from an outdated DLSS5 overlay add-on. If the game closes without RTSS, or still closes after you changed the RTSS setting, see [Keep DLSS5 add-ons up to date](#keep-dlss5-add-ons-up-to-date).
 
 ## Undo
 
@@ -214,9 +270,11 @@ After you press **Handle Later**:
 | A "Feature Restricted" dialog | The work mode is Offline or Low Risk. | Switch to **Medium Risk** as in [Step 1](#step-1-switch-the-calculator-to-the-loader-method). |
 | "Feature temporarily unavailable — Component processing is incomplete…" on a manual start | Several causes, such as a missing or broken Visual C++ x64 runtime (this dialog does not show the detailed cause). | Install the x64 version from the [Microsoft page](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist), then try again. |
 | **Detection Details** shows "Auto Loader failed to start: …; automatic retries stopped" | When the automatic start fails, automatic retries stop until you fix the cause (this persists across calculator restarts). Example: "Missing Microsoft Visual C++ 2015–2022 Redistributable x64: …". In the Korean patch and Global, former D3D users also get this when automatic deployment stopped to protect ReShade's file ("Automatic native component deployment failed: The d3d12.dll in the game folder could not be confirmed…"). | Fix the cause (including switching the loading method to Loader), then press **Check and Fix** in the **🔧 Settings** → **Work Mode** card. |
-| The Loader started but **Detection Details** shows no connection | The game may have been started without the official launcher, you may not be logged in yet (yellow "Waiting for Login"), or (2.3.1, pending check) the calculator DLL may not have loaded into the game. | Close the game and the launcher and repeat the order in [Step 4](#step-4-start-up-order-every-time). |
-| The game closes or freezes right after starting, or shows a black screen | (2.3.1, pending check) ReShade and the calculator DLL may conflict when loaded together. | Close the calculator and start only the game from the launcher. If it works without the Loader, please report it to the repository, and use the calculator in Low Risk or Offline mode in the meantime. |
-| The ReShade overlay does not appear | ① `d3d12.dll` is not ReShade ② (2.3.1, pending check) ReShade does not load when used with the Loader | ① Check the product name in `d3d12.dll`'s properties; if it is not `ReShade`, restore it in the order given under "`d3d12.dll` was replaced by a calculator file or is gone" below. ② If `ReShade.log` was not updated at this run's time, close the calculator and start only the game from the launcher. If the overlay appears without the Loader but not with it, please report it to the repository. In the meantime, use the calculator in Low Risk or Offline mode. |
+| The Loader started but **Detection Details** shows no connection | The game may have been started without the official launcher, you may not be logged in yet (yellow "Waiting for Login"), or the calculator DLL may not have loaded into the game. | Close the game and the launcher and repeat the order in [Step 4](#step-4-start-up-order-every-time). |
+| The game closes right after starting while RTSS (MSI Afterburner) is running, and the crash reporter shows `D3D12Viewport.cpp` … `80004004` (`E_ABORT`) | Most likely RTSS's default hooking engine conflicting with the calculator's 2.3.1 host (seen in the author's setup). | In RTSS, create an HTGame.exe profile and turn on **Setup** → **General** → **Use Microsoft Detours API hooking**. For the detailed steps, see [Using with RTSS](#using-with-rtss-rivatunermsi-afterburner). |
+| The game closes with the same error (`80004004`) without RTSS, or even after turning on Detours | An outdated DLSS5 overlay add-on | Update the DLSS5 add-ons from where you got them. See [Keep DLSS5 add-ons up to date](#keep-dlss5-add-ons-up-to-date). |
+| Otherwise, the game closes or freezes right after starting, or shows a black screen | If neither case above applies, the calculator DLL may conflict with ReShade or with another overlay, hooking tool or mod (in the author's setup, the game did not crash with Loader + ReShade + DLSS5 + RTSS (Detours) running together). | Close the calculator and start only the game from the launcher. If it works without the Loader, please report it to the repository with a list of the tools you use, and use the calculator in Low Risk or Offline mode in the meantime. |
+| The ReShade overlay does not appear | ① `d3d12.dll` is not ReShade ② ReShade does not load when used with the Loader (in the author's setup the game ran without crashing with both loaded) | ① Check the product name in `d3d12.dll`'s properties; if it is not `ReShade`, restore it in the order given under "`d3d12.dll` was replaced by a calculator file or is gone" below. ② If `ReShade.log` was not updated at this run's time, close the calculator and start only the game from the launcher. If the overlay appears without the Loader but not with it, please report it to the repository. In the meantime, use the calculator in Low Risk or Offline mode. |
 | "Legacy component found" appears every time you start the calculator | (Official build) On the D3D method, a ReShade `d3d12.dll` in the game folder is taken for an old calculator file. A `dwmapi.dll` in the game folder (even another mod's) also triggers it. Or the Loader files have not been prepared for 2.3.1 yet. | Press **Handle Later**, switch the loading method to **Native Loader (Fallback)** and press **Start native Loader** once (the official build deletes `dwmapi.dll` at that point, so back it up first if it belongs to another mod). The Korean patch and Global do not show this dialog because of ReShade or other mods' files. |
 | `d3d12.dll` was replaced by a calculator file or is gone | The official build ran a D3D deploy, an automatic deploy or a cleanup. | ① Switch the loading method to **Native Loader (Fallback)**. ② With the game and launcher closed, press **Start native Loader** once to clean up the old D3D record (the official build deletes `Win64\d3d12.dll` by name alone at this point). ③ **Only after** checking that no calculator `d3d12.dll` is left in `Win64`, put your backed-up ReShade `d3d12.dll` back. On the official build, do not press **Clean Game Directory** afterwards. The Korean patch and Global never overwrite or delete a `d3d12.dll` that is not a calculator file. |
 | Add-ons (`*.addon64`) are gone | This happens when you run Uninstall in the ReShade installer. | Restore them from your backup. |
@@ -245,6 +303,9 @@ In `calculator install folder\config\native-loader` (or `%LOCALAPPDATA%\NTE Driv
 
 **Can I use OptiScaler too?**
 Not tested. The author turned OptiScaler off and used only ReShade. Note that the official build deletes `d3d12.dll` (on cleanup) and `dwmapi.dll` (on cleanup, on a manual Loader start and on a manual D3D deploy) by name alone. The same caution applies if another mod uses these names.
+
+**Does the RTSS Detours setting affect other games?**
+Not if you turn it on only in the HTGame.exe profile; it then applies only to this game. If you change it in the **Global** profile, it applies to other games too. The calculator does not change RTSS settings (newer Global versions only read them and show a reminder).
 
 ## Differences between builds
 
@@ -304,4 +365,4 @@ The steps use Global's English labels. The official build shows the Chinese labe
 
 ---
 
-This is an unofficial document. It is not affiliated with the original author, the game's developer or publisher, ReShade, RenoDX or NVIDIA. Written on 2026-10-11 for calculator version 2.3.1.
+This is an unofficial document. It is not affiliated with the original author, the game's developer or publisher, ReShade, RenoDX, NVIDIA, RTSS (RivaTuner Statistics Server) or MSI. Written on 2026-10-11 for calculator version 2.3.1; the in-game test results and the RTSS section were added on 2026-10-14. 2026-10-19: the calculator's RTSS reminder ships in Global 2.3.1-global.2.

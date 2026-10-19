@@ -211,6 +211,12 @@ def build_work_mode_report(
             items.append(_native_check(capability.value, label, getattr(probe, capability.value), probe,
                                        needs_snapshot=needs_snapshot,
                                        external_provider_allowed=settings.mode == WorkMode.DEVELOPER))
+    if Capability.NATIVE_LOAD in allowed:
+        # Global: RTSS hooking conflict (advisory; listed only for a 'risk' result in injecting modes).
+        from src.services.rtss_compat_guidance import rtss_feature_check
+        rtss_item = rtss_feature_check(probe.rtss, game_executable=settings.game_executable)
+        if rtss_item is not None:
+            items.append(rtss_item)
     if Capability.NATIVE_SYNC in allowed:
         for feature, label in (
             ("native_character", _L('DLL 角色状态（已支持字段）')),

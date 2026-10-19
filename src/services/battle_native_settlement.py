@@ -1,5 +1,6 @@
 from src.i18n_runtime import L as _L, LF as _LF
 # 在结算时补齐原生战报计算输入，保留首击原始证据和逐角色兜底来源。
+from collections.abc import Mapping
 from copy import deepcopy
 
 from src.services.native_battle_scopes import select_scope_builds, team_character_ids, validate_first_hit
@@ -10,6 +11,10 @@ def complete_native_build(service, dao, original, record, observed_ids, operatio
     """Database values fill missing calculation inputs, never raw DLL observations."""
     if original.get("freeze_phase") == "settlement_native":
         return original
+    # 噗卡特训：开始/绑定时未冻结等级的构建在此按账号等级冻结一次，所有角色与结果记录同一个值。
+    puka_training = original.get("puka_training")
+    if not isinstance(puka_training, Mapping):
+        puka_training = service._freeze_puka_training(dao, "settlement_account_setting")
     scopes = (record.get("native_capture") or {}).get("scopeAttempts")
     if isinstance(scopes, dict):
         selected, reason = select_scope_builds(original, record)
@@ -94,6 +99,7 @@ def complete_native_build(service, dao, original, record, observed_ids, operatio
                 dependencies=service._dependencies, user_dao=dao, snapshot_id=None,
                 character_ids=(cid,), profiles={cid: profile}, frozen_equipment=equipment,
                 frozen_world_bonus=native_world_bonuses.get(cid, original.get("world_bonus")),
+                frozen_puka_training=puka_training,
             ))
         except (UserDataError, ValueError, KeyError, TypeError):
             unresolved.append(cid)
@@ -107,7 +113,7 @@ def complete_native_build(service, dao, original, record, observed_ids, operatio
               "native_conflict_character_ids": sorted(conflicted),
               "settlement_fallback": fallback_evidence,
               "calculation_unavailable_reason": conflict or ("character_calculation_inputs_missing" if unresolved else None),
-              "unresolved_character_ids": unresolved}
+              "unresolved_character_ids": unresolved, "puka_training": puka_training}
     if not service._context_is_current(service._dependencies):
         raise UserDataError(_L('战报账号上下文已经变化'))
     return dao.freeze_battle_settlement_build(

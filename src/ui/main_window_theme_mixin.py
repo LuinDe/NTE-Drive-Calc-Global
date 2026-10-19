@@ -1,5 +1,5 @@
-# 管理主窗口的全局主题和账号更新偏好。
-"""Global theme and account-scoped update preference methods."""
+# 管理主窗口的全局主题和账号界面偏好。
+"""Global theme and account-scoped UI preference methods."""
 
 from __future__ import annotations
 from src.i18n_runtime import L as _L, LF as _LF
@@ -20,12 +20,6 @@ from src.app.theme import (
 
 
 class MainWindowThemeMixin:
-    def _load_update_config(self):
-        return self._account_settings.load("update")
-
-    def _save_update_config(self):
-        self._update_config = self._account_settings.save("update", self._update_config)
-
     def _load_ui_preferences(self):
         return self._account_settings.load("ui")
 
@@ -77,6 +71,11 @@ class MainWindowThemeMixin:
 
     def _restart_application_as_admin(self):
         QApplication.processEvents()
+        # Global 업데이트: 새 인스턴스를 띄우기 전에 다운로드 중이면 취소 여부를 묻는다. [계속 다운로드]면 재시작을
+        # 하지 않는다(두 인스턴스가 남지 않게). 설치 준비 상태에서는 종료 시 설치를 묻지 않는다(재시작이 Setup을 띄우지 않게).
+        gup_controller = getattr(self, "global_update_controller", None)
+        if gup_controller is not None and gup_controller.close_decision(offer_install=False) == "cancel":
+            return False
         program = sys.executable
         args = sys.argv[:]
         parameters = ""
@@ -94,10 +93,14 @@ class MainWindowThemeMixin:
                 1,
             )
             if result <= 32:
+                if gup_controller is not None:
+                    gup_controller.reset_close_decision()
                 QMessageBox.warning(self, _L('重启失败'), _L('未能以管理员方式重启应用，主题设置已取消。'))
                 return False
             QApplication.quit()
             return True
+        if gup_controller is not None:
+            gup_controller.reset_close_decision()
         QMessageBox.warning(self, _L('重启失败'), _L('当前系统不支持自动管理员重启，主题设置已取消。'))
         return False
 

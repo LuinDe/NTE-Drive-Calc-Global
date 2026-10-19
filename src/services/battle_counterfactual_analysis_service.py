@@ -103,6 +103,7 @@ from src.services.battle_linko_coattack_buff_service import (
     LINKO_COATTACK_BUFF_MODEL_VERSION,
     BattleLinkoCoattackBuffService,
 )
+from src.services.puka_training_settings_service import frozen_puka_training_level
 
 
 FORMULA_MODEL_VERSION = "battle-counterfactual-v26"
@@ -121,6 +122,12 @@ def _baselines(build: Mapping[str, Any] | None) -> tuple[BattleCharacterBaseline
     enabled_team_passive_ids = tuple(
         row.definition.passive_id
         for row in BattleCharacterPassiveService.enabled_passives(build)
+    )
+    # 冻结的 world_bonus 组在噗卡特训 Lv>0 时同时含家具与特训份额：组名随之说明。
+    training_level = frozen_puka_training_level(build.get("puka_training"))
+    world_bonus_source_name = (
+        _L('家具加成') if training_level <= 0
+        else _LF('家具加成＋噗卡特训 Lv.{0}').format(training_level)
     )
     for character in build.get("characters") or ():
         resolved = [
@@ -144,7 +151,7 @@ def _baselines(build: Mapping[str, Any] | None) -> tuple[BattleCharacterBaseline
                     "character": _L('人物'),
                     "fork": _L('弧盘'),
                     "likeability": _L('好感度 10 级'),
-                    "world_bonus": _L('家具加成'),
+                    "world_bonus": world_bonus_source_name,
                     "equipment": _L('装备'),
                     "battle_override": _L('边际手工调整'),
                 }.get(str(row.get("source_group") or ""), "其他"),

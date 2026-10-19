@@ -1062,13 +1062,16 @@ class ReactionScheduler:
                     break
         last_energy_at = None
         energy_by_pair: dict[tuple[int, int], int] = {}
+        grants_by_pair: dict[tuple[int, int], list[int]] = {}      # active µs of each energy grant (ICD applied)
         for f, pair in sorted((f, pair) for pair, fs in charge_hits.items() for f in fs):
             if last_energy_at is None or f - last_energy_at >= us(rules.charge_cd_s):
                 energy_by_pair[pair] = energy_by_pair.get(pair, 0) + 1
+                grants_by_pair.setdefault(pair, []).append(f)
                 last_energy_at = f
         for pair, fs in charge_hits.items():
             combos.append({"zh": "盈蓄", "code": "charge", "a_us": min(fs), "parents": pair,
-                           "effects": [("charge_energy", (rules.charge_energy * energy_by_pair.get(pair, 0), len(fs)))]})
+                           "effects": [("charge_energy", (rules.charge_energy * energy_by_pair.get(pair, 0), len(fs)))],
+                           "grants": tuple((f, float(rules.charge_energy)) for f in grants_by_pair.get(pair, ()))})
         seen_discord = set()
         for s_start, s_end, s_indices in scorch_spans:
             for n_start, n_end, n_index in nova_spans:
@@ -1209,6 +1212,14 @@ class ReactionScheduler:
                 scope=tuple(raw["scope"]), reaction_indices=tuple(t.index for t in raw["triggers"]),
                 trigger_active_us=tuple(t.a_us for t in raw["triggers"]), trigger_event_ids=frozenset(ids)))
         return tuple(out)
+
+    def charge_grants(self) -> tuple[tuple[int, float], ...]:
+        """(wall µs, ultimate energy) of every 盈蓄 energy grant - a flower landing on a 延滞 target gives the member
+        on the field +Reaction_GuangLingXiang_Charge, at most once per Reaction_GuangLingXiang_ChargeCD."""
+        plan = self._plan()
+        return tuple(sorted((int(self._to_wall(a_us)), float(amount))
+                            for combo in plan.combos if combo.get("code") == "charge"
+                            for a_us, amount in combo.get("grants", ())))
 
     def traces(self) -> tuple[CycleReactionEvent, ...]:
         """Base reactions (indices = trigger order) followed by 盈蓄 / 失谐 combinations."""

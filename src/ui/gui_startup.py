@@ -26,6 +26,13 @@ def _global_exception_handler(exc_type, exc_value, exc_tb):
 def run_gui(APP_CONTEXT, GLOBAL_THEME_SETTINGS, MainWindow, _ensure_admin):
     import faulthandler
 
+    # Global 자동 업데이트 재실행 후: Setup이 물려준 TMP/TEMP가 updates\ 안을 가리키면 되돌림 (자식 프로세스도 상속)
+    try:
+        from src.services.global_update.env import restore_temp_environment
+
+        restore_temp_environment(APP_CONTEXT.paths.data_root)
+    except Exception as exc:
+        logger.warning(_LF('恢复临时目录环境变量失败: {0}').format((exc)))
     _ensure_admin()
     APP_CONTEXT.account.log_dir.mkdir(parents=True, exist_ok=True)
     _fault_log = open(

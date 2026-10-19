@@ -86,6 +86,9 @@ def calculate_official_role_margins(detail: Mapping[str, Any], context_key: str)
                 updated.append(replace(
                     item, damage_increases=(*item.damage_increases, unit),
                 ))
+            elif field == "crit_rate":
+                # 已封顶的暴击率再加一单位没有收益（与 _role_panel_damage_inputs 的 100% 上限一致）。
+                updated.append(replace(item, crit_rate=min(1.0, item.crit_rate + unit)))
             else:
                 updated.append(replace(item, **{field: getattr(item, field) + unit}))
         next_damage = _total_direct_damage(tuple(updated))

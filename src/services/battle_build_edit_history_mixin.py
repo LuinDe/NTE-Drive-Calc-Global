@@ -15,6 +15,13 @@ from src.services.official_role_profile_service import (
     OfficialRoleProfileService,
     OfficialRoleProfileUpdate,
 )
+from dataclasses import replace as _replace
+
+from src.services.puka_training_settings_service import (
+    PukaTrainingSettingsService,
+    frozen_puka_training_level,
+    load_account_puka_options,
+)
 from src.storage.sqlite.user_data_dao import (
     UserDataError,
     UserDataValidationError,
@@ -49,18 +56,34 @@ class BattleBuildEditHistoryMixin:
             ),
         )
 
-    def load_build_edit_state(self, battle_record_id: int) -> dict[str, bool]:
+    def load_build_edit_state(self, battle_record_id: int) -> dict[str, Any]:
         with self._open_current_dao() as user_dao:
             build = user_dao.load_battle_build_snapshot(battle_record_id)
             build_edit = user_dao.load_battle_build_edit(battle_record_id)
             available = user_dao.battle_report_counterfactual_editable(
                 battle_record_id
             )
+        training = (build or {}).get("puka_training") or {}
         return {
             "available": build is not None and available,
             "has_edit": build_edit is not None,
             "is_active": bool((build_edit or {}).get("is_active")),
+            # 本场冻结的噗卡特训等级与来源（pre_feature = 功能上线前的记录，按 Lv 0）。
+            "puka_training_level": frozen_puka_training_level(training),
+            "puka_training_source": str(training.get("source") or "pre_feature"),
+            # 账号开关（决定 U2）：原生重算时经「边际手工调整」通道补回五项特训加成。
+            "puka_native_overrides": load_account_puka_options(
+                getattr(getattr(self, "_dependencies", None), "user_database_path", None)
+            ).native_overrides,
         }
+
+    def set_puka_native_overrides(self, enabled: bool) -> bool:
+        """Save the account's Tier 2 switch; the next page load re-syncs saved modified copies."""
+
+        service = PukaTrainingSettingsService(self._dependencies.user_database_path)
+        options = service.load_options()
+        service.save_options(_replace(options, native_overrides=bool(enabled)))
+        return bool(enabled)
 
     def save_build_edit(
         self,

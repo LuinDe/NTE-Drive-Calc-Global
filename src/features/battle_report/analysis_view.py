@@ -207,6 +207,12 @@ class BattleLongAnalysisView(
 
         self.action_summary_label = QLabel(_L('等待动作与输入推算'), timeline_card)
         self.action_summary_label.hide()
+        # Global live overlay: the native analysis core keeps the 9-24 catalogue for characters released since then
+        self.overlay_notice_label = QLabel("", timeline_card)
+        self.overlay_notice_label.setWordWrap(True)
+        self.overlay_notice_label.setStyleSheet(themed_style("color:#d29922"))
+        self.overlay_notice_label.hide()
+        timeline_layout.addWidget(self.overlay_notice_label)
         self.timeline = BattleUnifiedTimelineWidget(
             game_ui_asset_root=self._game_ui_asset_root
         )
@@ -388,6 +394,7 @@ class BattleLongAnalysisView(
         self._selected_character_id = None
         self.capability_label.setText(message)
         self.capability_label.show()
+        self.overlay_notice_label.hide()
         self.action_summary_label.setText(_L('当前没有可用的动作推算。'))
         self.timeline.set_analysis(None)
         self.roles_pie.set_roles(())
@@ -438,6 +445,7 @@ class BattleLongAnalysisView(
         self._hide_hit_buff_dialog()
         self.timeline.set_analysis(analysis)
         self.timeline.set_time_mode(self._time_mode)
+        self._render_overlay_notice(analysis)
         self._focus_selected_timeline_range()
         self._render_time_presentation()
         self.capability_label.hide()
@@ -494,6 +502,20 @@ class BattleLongAnalysisView(
             self.current_scope_label.setText("未知")
             self.environment_button.setToolTip(_L('打开后确认战斗环境和目标。'))
         apply_inferred_scope_warning(self.current_scope_label, analysis, condition)
+
+    def _render_overlay_notice(self, analysis) -> None:
+        """One line when the record holds a character the Global live overlay updates (numbers unchanged: the native
+        core keeps its catalogue)."""
+        ids = {getattr(h, "character_id", None) for h in (getattr(analysis, "hits", None) or ())}
+        ids |= {getattr(a, "character_id", None) for a in (getattr(analysis, "inferred_actions", None) or ())}
+        try:
+            from src.services import global_live_overlay
+
+            text = global_live_overlay.battle_report_notice(c for c in ids if c is not None)
+        except Exception:
+            text = None
+        self.overlay_notice_label.setText(text or "")
+        self.overlay_notice_label.setVisible(bool(text))
 
     def set_target_catalog(self, catalog: dict[str, object]) -> None:
         self.target_vital_panel.set_catalog(catalog)

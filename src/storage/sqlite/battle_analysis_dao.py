@@ -428,6 +428,12 @@ class BattleAnalysisDaoMixin(UserDataDaoMixinHost):
         validation = capture_record.get("calc_build_validation")
         if isinstance(validation, Mapping):
             header["calculation_status"] = dict(validation)
+        # 本场冻结的噗卡特训等级来自采集上下文；没有记录（功能上线前的战报）按 Lv 0，不追加当前账号等级。
+        context = capture_record.get("calc_capture_context")
+        training = context.get("puka_training") if isinstance(context, Mapping) else None
+        header["puka_training"] = (
+            dict(training) if isinstance(training, Mapping) else {"level": 0, "source": "pre_feature"}
+        )
         characters = self._rows(
             """
             SELECT * FROM battle_character_build_snapshot

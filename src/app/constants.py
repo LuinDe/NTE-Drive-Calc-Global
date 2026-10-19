@@ -7,11 +7,7 @@ from src.app.version import __version__
 
 APP_VERSION = __version__
 ALLOCATION_TOTAL_SCORE_AREA = 35
-GITHUB_HOME_URL = "https://github.com/hxwd94666/NTE-Drive-Calculator"
-GITHUB_RELEASES_URL = GITHUB_HOME_URL + "/releases"
-GITHUB_LATEST_RELEASE_URL = GITHUB_RELEASES_URL + "/latest"
-MIRROR_UPDATE_API = "https://mirrorchyan.com/api/resources/NTE-Drive-Calc/latest"
-MIRROR_PROJECT_URL = "https://mirrorchyan.com/zh/projects?rid=NTE-Drive-Calc&channel=stable"
+GITHUB_HOME_URL = "https://github.com/hxwd94666/NTE-Drive-Calculator"   # original project (attribution only)
 BILIBILI_HOME_URL = "https://b23.tv/nXJGdh3"
 SUPPORT_US_URL = "https://afdian.com/a/hxwd94666"
 DISCORD_GROUP_URL = "https://discord.gg/P3ZvMN7Hwj"
@@ -19,14 +15,6 @@ QQ_GROUP_NUMBER = "1029030672"
 GROUP_CHAT_DEVELOPER_HINT = _L('若想加入开发群，请先入本群私聊群主')
 GROUP_CHAT_DISCORD_HINT = _L('获取开发动态，也可在这里交流。')
 WORKSHOP_WEIGHT_CONFIGS_API = "https://yh.zzzmap.com/api/open/game-character/weight-configs"
-QUARK_NETDISK_URL = "https://pan.quark.cn/s/82f16b845aec"
-BAIDU_NETDISK_URL = "https://pan.baidu.com/s/1sPVqCpzmkQwKYCGstcZuIQ?pwd=ygke"
-XUNLEI_NETDISK_URL = "https://pan.xunlei.com/s/VP0W_ptzSZwkVamy2UvF_CliA1?pwd=2hb6#"
-NETDISK_DOWNLOAD_LINKS = (
-    (_L('夸克网盘'), QUARK_NETDISK_URL),
-    (_L('百度网盘'), BAIDU_NETDISK_URL),
-    (_L('迅雷网盘'), XUNLEI_NETDISK_URL),
-)
 
 CORE_CONFIG_FILES = ("stats.json",)
 ACCOUNT_USER_FILES = (

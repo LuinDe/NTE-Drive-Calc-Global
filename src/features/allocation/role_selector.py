@@ -465,11 +465,19 @@ class RoleSelector(RoleSelectorPreferencesMixin, QWidget):
         except (TypeError, ValueError):
             return 0.0
 
+    def _account_crit_rate(self, name: str) -> float:
+        """Account-wide Puka Boot Camp crit rate (fraction) of the catalog entry; 0.0 without a level."""
+        role = self.all_roles.get(name) or {}
+        try:
+            return max(0.0, float(role.get("account_crit_rate_bonus") or 0.0))
+        except (TypeError, ValueError):
+            return 0.0
+
     def _automatic_crit_rate_cap(self, name: str, weapon_name: str) -> float | None:
-        """Leave room for the selected fork and enabled level-10 affinity."""
+        """Leave room for the selected fork, enabled level-10 affinity and the Puka Boot Camp crit rate."""
 
         fork_crit = self._active_fork_crit_rate(name, weapon_name)
-        affinity_crit = self._likeability_crit_rate(name)
+        affinity_crit = self._likeability_crit_rate(name) + self._account_crit_rate(name)
         if fork_crit is None:
             return None
         return round(max(0.0, 100.0 - fork_crit - affinity_crit * 100.0), 4)
@@ -526,7 +534,7 @@ class RoleSelector(RoleSelectorPreferencesMixin, QWidget):
         """
 
         return {
-            name: round(crit_rate + self._likeability_crit_rate(name) * 100.0, 4)
+            name: round(crit_rate + (self._likeability_crit_rate(name) + self._account_crit_rate(name)) * 100.0, 4)
             for name in self.selected
             if (
                 crit_rate := self._active_fork_crit_rate(

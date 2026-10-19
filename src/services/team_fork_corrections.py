@@ -26,6 +26,8 @@ B4  「月的对跖点」 (fork_prism).  No buff link reaches the engine (combat
     normal-attack damage +``DamageUp2`` for ``DamageUp2_CD`` seconds (a re-cast refreshes); (3) both at once ->
     Lakshana damage +``LakshanaUp``.  "Normal attack" is the engine's own ``State.Damage.NormalAttack`` test
     (``battle_buff_projection_rules._confirmed_source_tags_apply``); 4 stacks / 0.3 s are the description's numbers.
+    Release mode (``PRISM_MODES``; the Global live overlay's DB, group arc_release): (1) Skill damage +DamageUp1 x 4 for
+    the whole fight, (2) as above, (3) Lakshana damage inside every (2) window.
 B3 and B4 are Global modelling from the description text and the DB parameters (upstream 2.3.1 models Raven only in
 its native core).  Their intervals carry ``source_kind = "global_fork_supplement"``.
 
@@ -67,6 +69,10 @@ PRISM_PARAMETERS = ("buff_Prism_DamageUp1", "buff_Prism_DamageUp2", "buff_Prism_
 PRISM_STACK_MAX = 4                     # 这个效果最多可叠加4次
 PRISM_STACK_INTERVAL_US = 300_000       # 每0.3秒最多叠加一次
 PRISM_KINDS = ("skill_damage", "normal_damage", "lakshana_damage")
+# "db": the 9-24 description (stacks / both effects at once); "release": the CN release text (global_live_overlay
+# arc_release, only for the overlay's DB): (1) Skill damage +DamageUp1 x 4 for the whole fight, (2) unchanged, (3)
+# Lakshana damage +LakshanaUp inside the (2) window
+PRISM_MODES = ("db", "release")
 
 
 def parse_switch(value: str | None) -> set[str]:
@@ -175,6 +181,14 @@ def load_parameters(con, fork_id: str, refinement: int) -> dict[str, float]:
 def prepare(con, characters: Iterable[Mapping]) -> "ForkCorrections":
     """Read what the corrections need for these members (static DB connection, read-only)."""
     star_packs = {str(sp): str(fid) for fid, sp in _rows(con, "SELECT fork_id, star_pack_id FROM fork_item") if sp}
+    prism_mode = "db"
+    try:            # Global live overlay: 「月的对跖点」 as released (CN 10-15) on the overlay's DB only
+        from src.services import global_live_overlay
+
+        if global_live_overlay.active_for_con(con, "arc_release"):
+            prism_mode = "release"
+    except Exception:
+        prism_mode = "db"
     members: dict[int, MemberArc] = {}
     parameters: dict[tuple[str, int], dict[str, float]] = {}
     for character in characters:
@@ -188,7 +202,7 @@ def prepare(con, characters: Iterable[Mapping]) -> "ForkCorrections":
                                  load_permanent(con, panel_fork, panel_refinement) if panel_fork else ())
         if fork_id and refinement > 0 and (fork_id, refinement) not in parameters:
             parameters[(fork_id, refinement)] = load_parameters(con, fork_id, refinement)
-    return ForkCorrections(members, star_packs, parameters)
+    return ForkCorrections(members, star_packs, parameters, prism_mode=prism_mode)
 
 
 # ── the active clock (as battle_buff_interval_support._interval_end) ─────────
@@ -280,10 +294,11 @@ class ForkCorrections:
     custom-cycle ``buff_edit``.  ``last_report`` holds what the latest call changed."""
 
     def __init__(self, members: Mapping[int, MemberArc], star_packs: Mapping[str, str],
-                 parameters: Mapping[tuple[str, int], Mapping[str, float]]) -> None:
+                 parameters: Mapping[tuple[str, int], Mapping[str, float]], *, prism_mode: str = "db") -> None:
         self.members = dict(members)
         self.star_packs = dict(star_packs)
         self.parameters = {k: dict(v) for k, v in parameters.items()}
+        self.prism_mode = prism_mode if prism_mode in PRISM_MODES else "db"
         self.last_report: CorrectionReport = EMPTY_REPORT
 
     def __call__(self, analysis):
@@ -418,11 +433,12 @@ class ForkCorrections:
         hits = sorted((h for h in analysis.hits
                        if h.character_id == cid and getattr(h, "direction", "outgoing") == "outgoing"),
                       key=lambda h: (h.relative_time_us, h.event_id))
+        release = self.prism_mode == "release"
         # (1) normal-attack damage -> E damage stacks (active clock: interval, duration and refresh)
         stack_s = float(p["buff_Prism_DamageUp1_CD"])
         segments: list[list[int]] = []          # [wall start, wall end, stacks]
         count, expiry_active, last_active = 0, None, None
-        for hit in hits:
+        for hit in (() if release else hits):
             if not is_normal_attack(hit):
                 continue
             t = int(hit.relative_time_us)
@@ -447,6 +463,10 @@ class ForkCorrections:
             elif end > start:
                 windows.append([int(start), end])
         out = []
+        if release:                                     # (1) release: the whole fight, no stacks (x 4)
+            from src.services.global_live_overlay_data import PRISM_STATIC_FACTOR
+
+            segments = [[0, battle_end, PRISM_STATIC_FACTOR]] if battle_end > 0 else []
         for i, (s, e, c) in enumerate(segments):
             out.append(self._interval(member, PRISM_KINDS[0], i, s, e, "DamageUpGeneralBase",
                                       float(p["buff_Prism_DamageUp1"]) * c, ("State.Damage.Skill",), c))
@@ -454,6 +474,12 @@ class ForkCorrections:
             out.append(self._interval(member, PRISM_KINDS[1], i, s, e, "DamageUpGeneralBase",
                                       float(p["buff_Prism_DamageUp2"]), ("State.Damage.NormalAttack",)))
         k = 0
+        if release:                                     # (3) release: inside every E window
+            for s, e in windows:
+                out.append(self._interval(member, PRISM_KINDS[2], k, s, e, "DamageUpLakshanaBase",
+                                          float(p["buff_Prism_LakshanaUp"])))
+                k += 1
+            segments = []
         for s1, e1, _c in segments:                     # (3) both effects -> Lakshana damage
             for s2, e2 in windows:
                 s, e = max(s1, s2), min(e1, e2)

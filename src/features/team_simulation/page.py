@@ -1,7 +1,8 @@
 # 构建队伍模拟页面（演示版）：四人队伍设置、出场顺序选项（固定 3 轮、第 1、3 轮环合值 100）、假设说明、伤害/DPS 结果与「使用的循环」说明。
 """Team simulation page (preview).
 
-Four member cards (character, awakening, fork, refinement, cartridge set), a notice listing the
+Four member cards (character, awakening = six freely chosen effects whose count is the level - Korean UI "돌파" -,
+fork, refinement, cartridge set), a notice listing the
 simulation assumptions, the visit-order option (planner "transformation damage dealer first" by
 default, most reactions, or slot order) and a fixed loop rule (three loops; every member's cycle gauge
 is 100 at the start of loops 1 and 3, loop 2 keeps the built-up gauge), and a result panel: team totals (damage, battle time without time stops, DPS, cycle reaction
@@ -22,6 +23,8 @@ from __future__ import annotations
 
 from src.i18n_runtime import L as _L, LF as _LF
 
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
@@ -31,13 +34,17 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
+from PySide6.QtCore import Signal  # member cards: awakening_changed (own line: keeps the Puka patch's context)
 
+from src.ui.rich_tooltip import translated_as_is  # review UX F3
 from src.app.theme import theme_color, theme_rgba, themed_style
 from src.app.workers import WorkerThread
 from src.ui.dashboard_widgets import metric_card
@@ -72,8 +79,55 @@ def _option_caption(text: str) -> QLabel:
     return label
 
 
+from PySide6.QtCore import QEvent  # the member card's character combo (own line: keeps the Puka patch's context)
+from PySide6.QtWidgets import QStyle, QStyleOptionComboBox, QStylePainter, QToolTip  # character combo (own line)
+
+
+class _CharacterCombo(QComboBox):
+    """Character choice of a member card (2.3.1-global.2).  The card's avatar sits right next to it, so the closed
+    combo draws the name without the list icon (the popup list keeps the icons) and with tighter padding: names such
+    as "라크리모사", "ダフォディル" or "Akane Rin" fit a 230 px card (they were clipped, e.g. "라크리모").  A name that
+    still does not fit (a larger system font) ends with "…" and shows in full as the tooltip."""
+
+    STYLE = ("QComboBox#teamSimCharacterCombo{padding:7px 4px 7px 8px}"
+             "QComboBox#teamSimCharacterCombo::drop-down{width:14px}")
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setObjectName("teamSimCharacterCombo")
+        self.setStyleSheet(self.STYLE)
+        self._elided = False
+
+    def shown_name(self) -> str:
+        """The name as shown (display role: the translated name)."""
+        value = self.itemData(self.currentIndex(), Qt.ItemDataRole.DisplayRole)
+        return "" if value is None else str(value)
+
+    def paintEvent(self, _event) -> None:  # noqa: N802 - Qt override
+        painter = QStylePainter(self)
+        opt = QStyleOptionComboBox()
+        self.initStyleOption(opt)
+        painter.drawComplexControl(QStyle.ComplexControl.CC_ComboBox, opt)
+        opt.currentIcon = QIcon()
+        field = self.style().subControlRect(QStyle.ComplexControl.CC_ComboBox, opt,
+                                            QStyle.SubControl.SC_ComboBoxEditField, self)
+        full = opt.currentText
+        opt.currentText = self.fontMetrics().elidedText(full, Qt.TextElideMode.ElideRight, max(0, field.width() - 2))
+        self._elided = opt.currentText != full
+        painter.drawControl(QStyle.ControlElement.CE_ComboBoxLabel, opt)
+
+    def event(self, event) -> bool:
+        if event.type() == QEvent.Type.ToolTip and self._elided:
+            QToolTip.showText(event.globalPos(), self.shown_name(), self)
+            return True
+        return super().event(event)
+
+
 class _MemberCard(QFrame):
-    """One team slot: character, awakening 0-6, fork, refinement 1-5, cartridge set."""
+    """One team slot: character, awakening (six effects chosen freely - any order, any subset; the count is the level
+    and decides the resonances), fork, refinement 1-5, cartridge set."""
+
+    awakening_changed = Signal()            # an effect toggle / the quick menu / a team load changed the selection
 
     def __init__(self, page: "TeamSimulationPage", slot: int) -> None:
         super().__init__()
@@ -96,14 +150,45 @@ class _MemberCard(QFrame):
         self.avatar = QLabel()
         self.avatar.setFixedSize(40, 40)
         head.addWidget(self.avatar)
-        self.character_combo = QComboBox()
+        self.character_combo = _CharacterCombo()
         self.character_combo.currentIndexChanged.connect(self._on_character_changed)
         head.addWidget(self.character_combo, 1)
         lay.addLayout(head)
 
-        lay.addWidget(self._caption(_L('觉醒')))
-        self.awakening_group, row = self._level_row(range(0, 7), color)
+        # awakening (A13; Korean UI "돌파"): the count of the six non-exclusive effect toggles is the level
+        from src.features.team_simulation import awakening_text as awt
+
+        awk = QHBoxLayout()
+        awk.setSpacing(6)
+        self.awakening_caption = self._caption(awt.count_caption(0))
+        awk.addWidget(self.awakening_caption)
+        # review UX F2: the resonance labels sit on their own row under the toggles (en cut them at 242 px)
+        resonance_row = QHBoxLayout()
+        resonance_row.setSpacing(10)
+        self.resonance_labels: dict[int, QLabel] = {}
+        for level in (3, 6):
+            label = QLabel()
+            label.setStyleSheet(themed_style("color:#8b949e;font-size:11px"))
+            resonance_row.addWidget(label)
+            self.resonance_labels[level] = label
+        resonance_row.addStretch()
+        awk.addStretch()
+        self.awakening_menu_btn = QToolButton()
+        self.awakening_menu_btn.setText("⋯")
+        self.awakening_menu_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.awakening_menu = QMenu(self.awakening_menu_btn)
+        self._menu_actions = {}
+        for key in ("all", "none", "template"):
+            action = self.awakening_menu.addAction(awt.menu_texts()[key])
+            action.triggered.connect(lambda _checked=False, k=key: self._menu_pick(k))
+            self._menu_actions[key] = action
+        self.awakening_menu_btn.setMenu(self.awakening_menu)
+        awk.addWidget(self.awakening_menu_btn)
+        lay.addLayout(awk)
+        self.awakening_group, row = self._node_row(color)
+        self.awakening_group.idToggled.connect(self._on_node_toggled)
         lay.addLayout(row)
+        lay.addLayout(resonance_row)
 
         lay.addWidget(self._caption(_L('弧盘')))
         self.fork_combo = QComboBox()
@@ -122,6 +207,115 @@ class _MemberCard(QFrame):
         label = QLabel(text)
         label.setStyleSheet(themed_style("color:#8b949e;font-size:12px"))
         return label
+
+    @staticmethod
+    def _node_row(color: str):
+        """Six check toggles (ids 1..6 = Effect1..Effect6), several at once, in any order."""
+        group = QButtonGroup()
+        group.setExclusive(False)
+        row = QHBoxLayout()
+        row.setSpacing(4)
+        for value in range(1, 7):
+            btn = QPushButton(str(value))
+            btn.setCheckable(True)
+            btn.setFixedHeight(26)
+            btn.setMinimumWidth(24)
+            btn.setStyleSheet(
+                "QPushButton{background:#161b22;border:1px solid #30363d;border-radius:4px;color:#c9d1d9;"
+                "padding:0px;min-width:0px;font-weight:700;}"
+                f"QPushButton:checked{{background:{theme_color(color)};color:#0d1117;font-weight:800;"
+                f"border-color:{theme_color(color)};}}")
+            group.addButton(btn, value)
+            row.addWidget(btn)
+        return group, row
+
+    # ── awakening selection ──
+    def selection(self):
+        """team_awakening.AwakeningSel of the toggles (level = count)."""
+        from src.services import team_awakening
+
+        effects = tuple(team_awakening.NODE_IDS[i - 1] for i in range(1, 7)
+                        if self.awakening_group.button(i) is not None and self.awakening_group.button(i).isChecked())
+        return team_awakening.AwakeningSel(len(effects), effects)
+
+    def template_selection(self):
+        """The graduation template's own selection (list_template_characters; never hard-coded)."""
+        from src.services import team_awakening
+
+        tpl = self._page.template(self.character_combo.currentData()) or {}
+        ids = tpl.get("selected_awaken_effect_ids")
+        return team_awakening.normalize(tpl.get("awakening_level", 0), ids if isinstance(ids, (list, tuple)) else None)
+
+    def set_selection(self, selection, *, notify: bool = True) -> None:
+        """Check exactly the selected effects (one change signal at the end)."""
+        from src.services import team_awakening
+
+        sel = team_awakening.coerce(selection, team_awakening.EMPTY)
+        self.awakening_group.blockSignals(True)
+        try:
+            for i in range(1, 7):
+                button = self.awakening_group.button(i)
+                if button is not None:
+                    button.setChecked(team_awakening.NODE_IDS[i - 1] in sel.effects)
+        finally:
+            self.awakening_group.blockSignals(False)
+        self._refresh_awakening()
+        if notify:
+            self.awakening_changed.emit()
+
+    def _on_node_toggled(self, _id: int, _on: bool) -> None:
+        self._refresh_awakening()
+        self.awakening_changed.emit()
+
+    def _menu_pick(self, key: str) -> None:
+        from src.services import team_awakening
+
+        choice = {"all": team_awakening.TEMPLATE, "none": team_awakening.EMPTY}.get(key)
+        self.set_selection(self.template_selection() if choice is None else choice)
+
+    def _refresh_awakening(self) -> None:
+        """Count caption and resonance dots (on at 3 / 6 selected effects, whatever they are)."""
+        from src.features.team_simulation import awakening_text as awt
+
+        count = self.selection().count
+        self.awakening_caption.setText(awt.count_caption(count))
+        effects = {str(e.get("effect_id")): e for e in self._page.awaken_effects(self.character_combo.currentData())}
+        for level, label in self.resonance_labels.items():
+            active = count >= level
+            label.setText(awt.resonance_caption(level) + (" ●" if active else " ○"))
+            label.setStyleSheet(themed_style("color:#3fb950;font-size:11px;font-weight:700" if active
+                                             else "color:#8b949e;font-size:11px"))
+            effect = effects.get(f"resonance_{level}")
+            # review UX F3: rich text, so Qt word-wraps it (a plain-text tooltip is one line as wide as the text)
+            label.setToolTip(translated_as_is(awt.resonance_tooltip(effect, level, active,
+                                                                    self._node_info(f"resonance_{level}")))
+                             if effect else "")
+
+    def _node_info(self, node):
+        try:
+            from src.services.awakening_node_rules import node_info
+
+            return node_info(int(self.character_combo.currentData()), node)
+        except Exception:
+            return None
+
+    def retranslate(self) -> None:
+        """Texts and tooltips again (character changes call it too); tooltips are rich text that wraps (UX F3)."""
+        from src.features.team_simulation import awakening_text as awt
+
+        menu = awt.menu_texts()
+        for key, action in self._menu_actions.items():
+            action.setText(menu[key])
+        self.awakening_menu_btn.setToolTip(menu["tip"])
+        effects = {str(e.get("effect_id")): e for e in self._page.awaken_effects(self.character_combo.currentData())}
+        for i in range(1, 7):
+            button = self.awakening_group.button(i)
+            node = f"Effect{i}"
+            effect = effects.get(node)
+            if button is not None:
+                button.setToolTip(translated_as_is(awt.node_tooltip(effect, self._node_info(node))) if effect
+                                  else awt.node_caption(node))
+        self._refresh_awakening()
 
     @staticmethod
     def _level_row(values, color: str):
@@ -165,7 +359,8 @@ class _MemberCard(QFrame):
         pix = QPixmap(str(icon_path)) if icon_path else QPixmap()
         self.avatar.setPixmap(pix.scaled(40, 40, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
                               if not pix.isNull() else QPixmap())
-        self.awakening_group.button(int(tpl["awakening_level"])).setChecked(True)
+        self.set_selection(self.template_selection())       # the template's own node set (A13)
+        self.retranslate()
         self.refine_group.button(max(1, min(5, int(tpl["fork_refinement_level"])))).setChecked(True)
         self.fork_combo.clear()
         for fork in self._page.forks_for(tpl):
@@ -193,12 +388,14 @@ class _MemberCard(QFrame):
     def spec(self):
         from src.services.team_simulation_service import MemberSpec
 
+        selection = self.selection()
         return MemberSpec(
             character_id=int(self.character_combo.currentData()),
-            awakening_level=self.awakening_group.checkedId(),
+            awakening_level=selection.level,
             fork_id=self.fork_combo.currentData(),
             fork_refinement_level=self.refine_group.checkedId(),
             suit_id=self.suit_combo.currentData(),
+            awakening_effects=tuple(selection.effects),
         )
 
 
@@ -215,12 +412,15 @@ class TeamSimulationPage(QWidget):
         self._last_result = None
         self._mode = "approved"             # "approved" | "custom"
         self._results = {"approved": None, "custom": None}      # each mode keeps its own last result
+        self._result_puka = {"approved": None, "custom": None}  # Puka Boot Camp level each result was calculated at
         self._job_mode = "approved"
+        self._job_puka_level = 0
         self._custom_panel = None           # built the first time the custom mode is used
         self._applying_team = False
         self._team_touched = False          # a member card changed its character in this session
         self._catalog = None
         self._fork_cache: dict = {}
+        self._awaken_catalog = None         # {cid: awakening nodes} for the cards' tooltips (loaded on first use)
         self._attr_names = None
         self._explain_open: dict = {}       # expanded sections of the explanation panel, kept across re-renders
 
@@ -229,6 +429,7 @@ class TeamSimulationPage(QWidget):
         self.templates = svc.list_template_characters(self._static_path)
         self.suits = svc.list_suits(self._static_path)
         self._by_id = {t["character_id"]: t for t in self.templates}
+        self._puka_level = self._puka_training_level()      # shown in the notes; the engine reads the same account
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -268,9 +469,10 @@ class TeamSimulationPage(QWidget):
             steps.addWidget(_chip(text))
         steps.addStretch()
         lay.addLayout(steps)
-        note = QLabel(_L('（各队员的驱动与主/副词条按官方毕业模板计算）'))
+        note = QLabel(self._template_note_text())
         note.setStyleSheet(themed_style("color:#8b949e;font-size:12px;font-style:italic"))
         lay.addWidget(note)
+        self._template_note = note
 
         grid = QGridLayout()
         grid.setSpacing(12)
@@ -286,6 +488,7 @@ class TeamSimulationPage(QWidget):
             card.load_characters(self.templates, ids.index(want) if want in ids else slot)
         for card in self.cards:
             card.character_combo.currentIndexChanged.connect(lambda *_a: self._on_team_changed())
+            card.awakening_changed.connect(self._on_awakening_changed)
 
         lay.addWidget(self._build_notice())
 
@@ -325,10 +528,29 @@ class TeamSimulationPage(QWidget):
         self.order_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         options.addStretch()
         lay.addLayout(options)
+        # resource model (team_resources): ultimate energy / cooldown checks and the gauge refill rule; its own row,
+        # so the order combo keeps its width after a language switch
+        options = QHBoxLayout()
+        options.setSpacing(8)
+        self._resource_caption = _option_caption(_L('资源模型'))
+        options.addWidget(self._resource_caption)
+        self.resource_combo = QComboBox()
+        self.resource_combo.addItem(_L('游戏数据 + 社区冷却'), "community")
+        self.resource_combo.addItem(_L('游戏数据'), "data")
+        self.resource_combo.addItem(_L('旧规则（第 1、3 轮补满，不检查能量与冷却）'), "legacy")
+        from src.services.team_resources import DEFAULT_RESOURCE_MODEL
+
+        self.resource_combo.setCurrentIndex(max(0, self.resource_combo.findData(DEFAULT_RESOURCE_MODEL)))
+        self.resource_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        self.resource_combo.setToolTip(self._resource_tip())
+        self.resource_combo.currentIndexChanged.connect(self._on_resource_model_changed)
+        options.addWidget(self.resource_combo)
+        options.addStretch()
+        lay.addLayout(options)
         # three loops (team_simulation_service.DEFAULT_LOOPS); every gauge is 100 at the start of loops 1 and 3
         # (team_cycle_reactions.FULL_GAUGE_LOOPS), loop 2 keeps the built-up gauge: fixed, no control for it.
         # Its own line: the long translated caption must not squeeze the order combo.
-        loop_rule = _option_caption(_L('3 轮循环 · 第 1、3 轮开始时所有队员环合值为 100（第 2 轮沿用累积值）'))
+        loop_rule = _option_caption(self._loop_rule_text())
         loop_rule.setWordWrap(True)
         lay.addWidget(loop_rule)
         self._loop_rule = loop_rule
@@ -385,11 +607,13 @@ class TeamSimulationPage(QWidget):
         return path_for(config_dir)
 
     def team_json(self) -> list:
-        """The four member cards as stored with a saved cycle."""
+        """The four member cards as stored with a saved cycle (A14: the node set under ``selected_awaken_effect_ids``,
+        plain str ids; ``awakening_level`` = its count, so an older version reads Effect1..count)."""
         out = []
         for card in self.cards:
             spec = card.spec()
             out.append({"character_id": spec.character_id, "awakening_level": spec.awakening_level,
+                        "selected_awaken_effect_ids": [str(e) for e in spec.awakening_effects or ()],
                         "fork_id": spec.fork_id, "fork_refinement_level": spec.fork_refinement_level,
                         "suit_id": spec.suit_id})
         return out
@@ -411,9 +635,11 @@ class TeamSimulationPage(QWidget):
                 if index < 0:
                     continue
                 card.character_combo.setCurrentIndex(index)
-                button = card.awakening_group.button(number(row.get("awakening_level"), 0))
-                if button is not None:
-                    button.setChecked(True)
+                # A14: the saved node set; a row without one (older saves) = Effect1..awakening_level; a malformed
+                # value keeps the template's selection (team_awakening.from_json_row)
+                from src.services import team_awakening
+
+                card.set_selection(team_awakening.from_json_row(row, template=card.template_selection()))
                 button = card.refine_group.button(number(row.get("fork_refinement_level"), 1))
                 if button is not None:
                     button.setChecked(True)
@@ -437,6 +663,36 @@ class TeamSimulationPage(QWidget):
             self._custom_panel = panel
             panel.reload_store()            # again, now that its messages reach the status line
         return self._custom_panel
+
+    def resource_model(self) -> str:
+        """The selected resource model (team_resources.RESOURCE_MODELS)."""
+        combo = getattr(self, "resource_combo", None)
+        value = combo.currentData() if combo is not None else None
+        if value:
+            return str(value)
+        from src.services.team_resources import DEFAULT_RESOURCE_MODEL
+
+        return DEFAULT_RESOURCE_MODEL
+
+    @staticmethod
+    def _resource_tip() -> str:
+        """Tooltip of the resource-model combo (built at render time: a language switch re-sets it)."""
+        return _L('资源模型决定检查哪些数值：\n· 游戏数据 + 社区冷却（默认）：游戏数据，加上社区资料（prydwen）的变轨技能与极轨终结冷却\n· 游戏数据：只用游戏数据（卡厄斯的极轨终结冷却、浔的时计等）\n· 旧规则：不检查冷却与能量，第 1、3 轮开始时环合值补满 100\n缺少数据的队员在结果说明中标出，不检查')  # noqa: E501
+
+    def _loop_rule_text(self):
+        if self.resource_model() == "legacy":
+            return _L('3 轮循环 · 第 1、3 轮开始时所有队员环合值为 100（第 2 轮沿用累积值）')
+        return _L('3 轮循环 · 第 1 轮开始时环合值为 100，之后按命中累积（缺少数据的队员第 3 轮补满）')
+
+    def _on_resource_model_changed(self, *_args) -> None:
+        if not getattr(self, "_restoring_model", False):
+            self._save_resource_model()
+        if hasattr(self, "_loop_rule"):
+            self._loop_rule.setText(self._loop_rule_text())
+        if hasattr(self, "_notice_body"):
+            self._notice_body.setText(self._notice_text())
+        if self._custom_panel is not None and hasattr(self._custom_panel, "on_resource_model_changed"):
+            self._custom_panel.on_resource_model_changed(self.resource_model())
 
     def set_mode(self, mode: str) -> None:
         """Switch between the reviewed rotations and the custom cycle; each mode shows its own last result."""
@@ -475,6 +731,59 @@ class TeamSimulationPage(QWidget):
             self.result_box.setVisible(False)
         self._update_calc_enabled()
 
+    def _save_resource_model(self) -> None:
+        """Remember the resource model the user picked (working-state entry of the account's cycle file)."""
+        try:
+            if self._custom_panel is not None:
+                self._custom_panel.save_last(self._mode)      # its options carry the model
+            path = self.custom_store_path()
+            if path is None:
+                return
+            from src.services import team_custom_cycle_store as store
+
+            last = store.load(path).last if path.is_file() else None
+            last = dict(last) if isinstance(last, dict) else {"mode": self._mode}
+            last["resource_model"] = self.resource_model()
+            store.save_last(path, last)
+        except Exception:
+            pass
+
+    def _restore_resource_model(self, last) -> None:
+        from src.services.team_resources import RESOURCE_MODELS
+
+        if not isinstance(last, dict):
+            return
+        model = last.get("resource_model")
+        if model is None and isinstance(last.get("cycle"), dict):
+            model = (last["cycle"].get("options") or {}).get("resource_model")
+        if model not in RESOURCE_MODELS or model == self.resource_model():
+            return
+        self._restoring_model = True
+        try:
+            self.resource_combo.setCurrentIndex(max(0, self.resource_combo.findData(model)))
+        finally:
+            self._restoring_model = False
+
+    def _restore_account_model(self) -> None:
+        """After an account switch: that account's remembered resource model, else the default."""
+        from src.services.team_resources import DEFAULT_RESOURCE_MODEL
+
+        last = None
+        try:
+            path = self.custom_store_path()
+            if path is not None and path.is_file():
+                from src.services import team_custom_cycle_store as store
+
+                last = store.load(path).last
+        except Exception:
+            last = None
+        model = None
+        if isinstance(last, dict):
+            model = last.get("resource_model")
+            if model is None and isinstance(last.get("cycle"), dict):
+                model = (last["cycle"].get("options") or {}).get("resource_model")
+        self._restore_resource_model({"resource_model": model or DEFAULT_RESOURCE_MODEL})
+
     def _restore_last_mode(self) -> None:
         """Page build: come back in the custom mode with its working cycle when that is where the user left."""
         try:
@@ -484,6 +793,7 @@ class TeamSimulationPage(QWidget):
             from src.services.team_custom_cycle_store import load
 
             file = load(path)
+            self._restore_resource_model(file.last)
             if file.moved_aside:
                 from src.features.team_simulation.custom_view import moved_aside_text
 
@@ -497,9 +807,23 @@ class TeamSimulationPage(QWidget):
 
     def _on_account_changed(self) -> None:
         try:
+            self._restore_account_model()   # the new account's resource model (review F7)
+        except RuntimeError:        # the page's widgets are gone (the subscription outlives the page)
+            pass
+        try:
             if self._custom_panel is not None:
                 self._custom_panel.reload_store()
+            self._refresh_puka_note()       # the new account's level (showEvent does not fire on a switch)
         except RuntimeError:        # the page's widgets are gone (the subscription outlives the page)
+            pass
+
+    def _on_awakening_changed(self) -> None:
+        """Custom cycles: cooldown rules unlocked by an awakening effect (Linko ③, Haniel ⑥, Mint ①) follow the
+        cards' node sets."""
+        try:
+            if self._custom_panel is not None and hasattr(self._custom_panel, "on_awakening_changed"):
+                self._custom_panel.on_awakening_changed()
+        except RuntimeError:
             pass
 
     def _on_team_changed(self) -> None:
@@ -529,6 +853,7 @@ class TeamSimulationPage(QWidget):
         account = self._window.app_context.account
         static_path = self._static_path
         order_mode = self.order_combo.currentData() or "plan"
+        resource_model = self.resource_model()
         approved = self._results.get("approved")
         order = None
         team = sorted(s.character_id for s in specs)
@@ -540,7 +865,8 @@ class TeamSimulationPage(QWidget):
             from src.services.team_custom_cycle_service import approved_as_sequence
 
             return approved_as_sequence(static_path, account.user_database_path, account.active_account_id, specs,
-                                        order=order, order_mode=order_mode, whole_run=whole_run)
+                                        order=order, order_mode=order_mode, whole_run=whole_run,
+                                        resource_model=resource_model)
 
         def done(steps) -> None:
             if whole_run:
@@ -609,6 +935,20 @@ class TeamSimulationPage(QWidget):
     def template(self, cid):
         return self._by_id.get(cid)
 
+    def awaken_effects(self, cid) -> list:
+        """Awakening nodes of a character (effects + resonances) for the cards' tooltips, [] when unknown."""
+        if getattr(self, "_awaken_catalog", None) is None:
+            try:
+                from src.services.team_simulation_service import awaken_effect_catalog
+
+                self._awaken_catalog = awaken_effect_catalog(self._static_path)
+            except Exception:
+                self._awaken_catalog = {}
+        try:
+            return list(self._awaken_catalog.get(int(cid)) or ())
+        except (TypeError, ValueError):
+            return []
+
     def icon_path(self, cid):
         if self._catalog is None:
             from src.services.game_ui_asset_catalog import GameUiAssetCatalog
@@ -652,26 +992,72 @@ class TeamSimulationPage(QWidget):
         self._notice_body = body
         return box
 
+    def _puka_training_level(self) -> int:
+        """Puka Boot Camp level of the current account (the stat reconstruction reads the same account copy)."""
+        try:
+            from src.services.puka_training_settings_service import PukaTrainingSettingsService
+
+            path = self._window.app_context.account.user_database_path
+            if path is None or not Path(path).is_file():
+                return 0
+            return int(PukaTrainingSettingsService(path).load().level)
+        except Exception:  # noqa: BLE001 - an unreadable account only loses the note, never the page
+            return 0
+
+    def _template_note_text(self):
+        return _LF('（各队员的驱动与主/副词条按官方毕业模板计算；噗卡特训按账号 Lv.{0}）').format(self._puka_level)
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        # the level is entered on the character page: re-read it whenever the page comes back
+        self._refresh_puka_note()
+
+    def _refresh_puka_note(self) -> None:
+        """Re-read the account level; on a change update the notes and flag a result calculated at another level."""
+        level = self._puka_training_level()
+        if level == self._puka_level:
+            return
+        self._puka_level = level
+        self._template_note.setText(self._template_note_text())
+        self._notice_body.setText(self._notice_text())
+        if self._last_result is not None:
+            self._render(self._last_result)
+            shown = self._result_puka.get(self._mode)
+            if shown is not None and shown != level:
+                self.status.setText(_LF('噗卡特训等级已变为 Lv.{0}，当前结果按 Lv.{1} 计算，请重新计算。')
+                                    .format(level, shown))
+
     def _notice_text(self) -> str:
         """The assumptions; the custom-cycle line is listed while that mode is active."""
         # built with `+`: str.join drops the translation provenance, so a live language switch would miss it
+        legacy = self.resource_model() == "legacy"
         lines = (
             _L('队伍模拟仅用于粗略比较队伍强度，不代表实战结果。'),
             "",
             _L('基本假设：'),
             _L('- 敌人 80 级、抗性 20%，原地不动的训练木桩'),
             _L('- 驱动与主/副词条按官方毕业模板'),
+            _LF('- 噗卡特训：按当前账号 Lv.{0} 计算（0 = 未录入，可在角色页录入）').format(self._puka_level),
             _L('- 动作：各队员按已审核的循环行动，出场顺序与登场方式见结果下方的说明'),
-            _L('- 不检查冷却时间与能量'),
+            (_L('- 不检查冷却时间与能量') if legacy
+             else _L('- 冷却时间与极轨终结能量：只按游戏数据检查；缺少数据的队员在说明中标出（不检查）')
+             if self.resource_model() == "data"
+             else _L('- 冷却时间与极轨终结能量：按游戏数据检查（默认含社区冷却）；缺少数据的队员在说明中标出（不检查）')),
             _L('- 环合反应：切换到相邻属性队员时一并计算（创生、覆纹、浊燃、黯星、浸染、延滞及盈蓄、失谐）'),
             _L('- 环合值按每次命中累积，满 100 后切换才触发（规则待实战确认）'),
-            _L('- 循环：3 轮，第 1、3 轮开始时环合值补满 100，第 2 轮按累积的环合值判定'),
+            (_L('- 循环：3 轮，第 1、3 轮开始时环合值补满 100，第 2 轮按累积的环合值判定') if legacy
+             else _L('- 循环：3 轮，第 1 轮开始时环合值为 100，之后按命中累积（缺少数据的队员在第 3 轮开始时补满 100）')),
             _L('- 变身/形态角色：形态中的动作按动画数据计算伤害，形态时间按游戏数据'),
             _L('- 环合反应伤害由等级、环合强度与敌方防御/抗性决定，不受攻击力 Buff 影响'),
             _L('- 时间：极轨终结演出按实测时停扣除，DPS 按扣除时停后的战斗时间计算'),
             _L('- 召唤物与残虹、安魂曲以外的持续伤害未计入'),
             _L('- 战斗引擎无法解析的 Buff 不计入'),
         )
+        if not legacy and getattr(self, "_mode", "approved") != "custom":     # D3 (custom: the strict label)
+            from src.services.team_resources import SWAP_MIN_WAIT_S
+
+            lines = lines + (_LF('- 技能未就绪（冷却未结束，或已知消耗的终结能量不足）时立即切换到下一名队员（冷却还差不到 {0:.1f} 秒时等待后使用）；单人时原地等待').format(
+                SWAP_MIN_WAIT_S),)
         if getattr(self, "_mode", "approved") == "custom":
             lines = lines + (_L('- 直接输入模式：按输入的顺序行动，援护技、冷却、Buff 与数值可在选项中调整'),)
         text = lines[0]
@@ -694,15 +1080,18 @@ class TeamSimulationPage(QWidget):
             self._calculate_custom(specs, account, static_path)
             return
         self._job_mode = "approved"
+        self._job_puka_level = self._puka_training_level()     # the level the engine reads for this job
         self._save_last_mode()
         order_mode = self.order_combo.currentData() or "plan"
+        resource_model = self.resource_model()
         from src.services.team_simulation_service import DEFAULT_LOOPS
 
         def job():
             from src.services.team_simulation_service import simulate_team
 
             return simulate_team(static_path, account.user_database_path, account.active_account_id, specs,
-                                 order_mode=order_mode, loops=DEFAULT_LOOPS, gauge_rule="game", opening_gauge="full")
+                                 order_mode=order_mode, loops=DEFAULT_LOOPS, gauge_rule="game", opening_gauge="full",
+                                 resource_model=resource_model)
 
         self.calc_btn.setEnabled(False)
         self.status.setText(_L('正在计算…（比较出场顺序）') if order_mode == "plan" else _L('正在计算…'))
@@ -720,8 +1109,13 @@ class TeamSimulationPage(QWidget):
             self._update_calc_enabled()
             return
         steps, options = panel.steps(), panel.options()
+        import dataclasses
+
+        if hasattr(options, "resource_model"):      # the page's resource model decides the data level
+            options = dataclasses.replace(options, resource_model=self.resource_model())
         panel.save_last("custom")           # the working state survives a restart
         self._job_mode = "custom"
+        self._job_puka_level = self._puka_training_level()
 
         def job():
             from src.services.team_custom_cycle_service import simulate_custom
@@ -746,6 +1140,11 @@ class TeamSimulationPage(QWidget):
         self.status.setText("")
         mode = self._job_mode
         self._results[mode] = result
+        self._result_puka[mode] = self._job_puka_level
+        if self._job_puka_level != self._puka_level:     # changed on the character page while this page was shown
+            self._puka_level = self._job_puka_level
+            self._template_note.setText(self._template_note_text())
+            self._notice_body.setText(self._notice_text())
         if mode == "custom" and self._custom_panel is not None:
             self._custom_panel.set_result_buffs(getattr(result, "team_buffs", ()))
         if mode == self._mode:
@@ -754,6 +1153,13 @@ class TeamSimulationPage(QWidget):
         self._update_calc_enabled()
 
     def _rerender(self) -> None:
+        if hasattr(self, "resource_combo"):     # Qt keeps a tooltip as plain text: set it again (review F-UX5)
+            self.resource_combo.setToolTip(self._resource_tip())
+        for card in getattr(self, "cards", ()):     # awakening captions / tooltips (plain text in Qt)
+            try:
+                card.retranslate()
+            except RuntimeError:
+                pass
         if self._custom_panel is not None:
             self._custom_panel.retranslate()
         if self._last_result is not None:
@@ -778,10 +1184,19 @@ class TeamSimulationPage(QWidget):
                 self._clear_layout(item.layout())
 
     def _render(self, result) -> None:
+        self._rendering = result            # the member rows read its resource traces
         self._clear_results()
         head = QLabel(_L('📊 结果'))
         head.setStyleSheet(themed_style("font-size:17px;font-weight:800;color:#f0f6fc"))
         self.result_layout.addWidget(head)
+        result_level = self._result_puka.get(self._mode)
+        if result_level is not None:
+            stale = result_level != self._puka_level
+            level_line = QLabel(_LF('结果按噗卡特训 Lv.{0} 计算').format(result_level))
+            level_line.setObjectName("teamSimResultPukaLevel")
+            level_line.setStyleSheet(themed_style("color:#d29922;font-size:12px" if stale
+                                                  else "color:#8b949e;font-size:12px"))
+            self.result_layout.addWidget(level_line)
 
         totals = QHBoxLayout()
         reaction_damage = float(getattr(result, "reaction_damage", 0.0) or 0.0)
@@ -791,7 +1206,7 @@ class TeamSimulationPage(QWidget):
             (_L('总伤害'), _fmt_amount(result.total_damage), "#f0f6fc", ""),
             # 总时间 = battle time without time stops (the DPS denominator); the wall time is the subtitle
             (_L('总时间'), f"{result.total_time_s:.1f}s", "#3fb950",
-             _L('包含时停') + f" {wall_time:.1f}s" if wall_time > 0 else ""),
+             (_L('包含时停') + f" {wall_time:.1f}s" if wall_time > 0 else "") + self._waited_suffix(result)),
             (_L('队伍 DPS'), _fmt_amount(result.dps), "#d2a8ff", ""),
             (_L('环合反应伤害'), _fmt_amount(reaction_damage), REACTION_COLOR,
              _LF('环合反应占总伤害 {0:.1f}%').format(share)),
@@ -847,7 +1262,14 @@ class TeamSimulationPage(QWidget):
         # names are translated by the display layer (explicit tr() where they sit inside an f-string)
         from src.i18n_display import tr
 
-        name_line = QLabel(f"{tr(member.name_zh)} (A{member.awakening_level})")
+        from src.services import team_awakening
+
+        selection = team_awakening.AwakeningSel(int(member.awakening_level),
+                                                tuple(getattr(member, "awakening_effects", ()) or ()))
+        from src.features.team_simulation import awakening_text as awt
+
+        # A15: the node set; review UX F11: translated ("돌파 3 · ①③⑤"), compact_label stays for saves
+        name_line = QLabel(f"{tr(member.name_zh)} ({awt.display_label(selection)})")
         name_line.setStyleSheet(themed_style("font-weight:700;color:#f0f6fc"))
         fork_line = QLabel(f"{tr(self._fork_name(member.fork_id))} · R{member.fork_refinement_level}")
         fork_line.setStyleSheet(themed_style("color:#8b949e;font-size:12px"))
@@ -871,6 +1293,12 @@ class TeamSimulationPage(QWidget):
             visit_label = QLabel(_LF('出场 {0} 次').format(visits))
             visit_label.setStyleSheet(themed_style("color:#8b949e;font-size:11px"))
             tags.addWidget(visit_label)
+        for text, tone, tip in self._resource_tags(member):
+            tag = QLabel(text)
+            tag.setStyleSheet(themed_style(f"color:{tone};font-size:11px;font-weight:700"))
+            if tip:
+                tag.setToolTip(tip)
+            tags.addWidget(tag)
         top.addLayout(tags)
         lay.addLayout(top)
 
@@ -903,6 +1331,51 @@ class TeamSimulationPage(QWidget):
             warn.setStyleSheet(themed_style("color:#e3b341;font-size:11px"))
             lay.addWidget(warn)
         return row
+
+    def _waited_suffix(self, result) -> str:
+        expl = getattr(result, "explanation", None)
+        waited = float(getattr(expl, "waited_s", 0.0) or 0.0) if expl is not None else 0.0
+        if not waited and expl is not None:     # a custom cycle keeps its waits in the custom trace (review F-UX8)
+            waited = float(getattr(getattr(expl, "custom", None), "waited_s", 0.0) or 0.0)
+        return (" · " + _LF('等待 {0:.1f}s').format(waited)) if waited > 0.005 else ""
+
+    def _resource_tags(self, member) -> list:
+        """(text, colour, tooltip) tags of a member row at a resource level: ultimates cast, waits, unchecked
+        energy, the fixed gauge rule."""
+        result = getattr(self, "_rendering", None) or self._last_result
+        expl = getattr(result, "explanation", None) if result is not None else None
+        r = expl.resource(member.character_id) if expl is not None and hasattr(expl, "resource") else None
+        if r is None:
+            return []
+        from src.services import team_simulation_explanation as tx
+
+        out = []
+        names = {member.character_id: member.name_zh}
+        if r.q_planned:
+            tip = None
+            if r.q_skipped:
+                tip = tx.note_text(tx.note(tx.LIMIT_ENERGY_SHORT, r.character_id, len(r.q_skipped)), names)
+            out.append((_LF('极轨终结 {0}/{1}').format(r.q_cast, r.q_planned),
+                        "#f85149" if r.q_skipped else "#8b949e", tip))
+        if r.waited_s > 0.005:
+            out.append((_LF('等待 {0:.1f}s').format(r.waited_s), "#e3b341", None))
+        early = tuple(getattr(r, "early_swaps", ()) or ())
+        if early:                           # D3: swapped out at once when a step was not ready
+            out.append((_LF('提前切换 {0} 次').format(len(early)), "#f0883e",
+                        tx.note_text(tx.note(tx.LIMIT_EARLY_SWAP, r.character_id, len(early),
+                                             len(early) + sum(int(x[5]) for x in early)), names)))
+        if not r.cost_enforced:             # unknown cost, Shinku's unconfirmed meter (review F-UX4)
+            note = (tx.note(tx.LIMIT_ENERGY_UNKNOWN, r.character_id) if r.energy_kind == "ultimate"
+                    else tx.note(tx.LIMIT_OWN_RESOURCE_UNIT, r.character_id, r.own_name_zh))
+            out.append((_L('能量未检查'), "#8b949e", tx.note_text(note, names)))
+        unchecked = [row[0] for row in r.cd if row[0] in ("E", "Q", "E_alt") and row[1] is None]
+        if unchecked:                       # a cooldown without an enforced value: shown, never waited for
+            kinds = "/".join(dict.fromkeys("E" if k == "E_alt" else k for k in unchecked))
+            out.append((_L('冷却未检查'), "#8b949e", tx.note_text(tx.note(tx.LIMIT_CD_UNKNOWN, r.character_id, kinds),
+                                                               names)))
+        if r.gauge_fallback:
+            out.append((_L('固定环合值规则'), "#e3b341", None))
+        return out
 
     @staticmethod
     def _element_badge(element: str) -> QLabel | None:

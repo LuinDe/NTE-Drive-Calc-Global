@@ -295,7 +295,16 @@ class CharacterDetailView(QWidget):
                 if character.classification == "scheduled_character"
                 else _L('上线 ')
             )
-            self.release_line.setText(prefix + release.release_date)
+            text = prefix + release.release_date
+            try:        # Global live overlay: CN release with the Global (KR) date (Akane Rin)
+                from src.services import global_live_overlay
+
+                global_date = global_live_overlay.global_release_date(character_id)
+            except Exception:
+                global_date = None
+            if global_date:
+                text = text + _LF('（国服）· 全球 {0}').format(global_date)
+            self.release_line.setText(text)
         else:
             self.release_line.setText(_L('上线信息未提供'))
         self.art.clear()

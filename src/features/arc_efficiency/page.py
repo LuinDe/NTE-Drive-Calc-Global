@@ -6,7 +6,9 @@ Left: the characters with an exclusive arc (status chip, best alternative).  Rig
 bar, header badges (support / sub, low rotation confidence, Global supplement rule, DPS fallback), the legend and
 "open in team simulation".  Options: loops (3 default / 1), basis (exclusive R1 = 100 % / same refinement), other
 characters' exclusive arcs (†) shown or hidden, damage columns.  Options are kept in
-``<config>/arc_efficiency_preferences.json`` (account independent).
+``<config>/arc_efficiency_preferences.json`` (account independent).  The graduation template's Puka Boot Camp level
+(decision U1: Lv 0 or max, one checkbox) is an account setting shared with the role page's graduation rate; every
+level keeps its own rows, layer decisions and identity, so switching back and forth never recomputes.
 
 Nothing is read or computed while the main window is built: the first show loads the catalog and decides per
 character which layer serves it (``arc_efficiency_service.resolve``: precomputed seed, this PC's cache, or a
@@ -38,10 +40,26 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from dataclasses import replace as dataclasses_replace
+
 from src.app.theme import theme_color, theme_rgba, themed_style
 from src.app.workers import WorkerThread
 from src.features.arc_efficiency.table_view import BAR_ROLE, KEY_ROLE, SORT_ROLE, ArcTable, SortItem
 from src.services import arc_efficiency_notes as notes
+
+
+def _prism_release_lines() -> tuple:
+    """Notice lines of the Global live overlay (Akane Rin CN release data) while it is on for the application's DB."""
+    try:
+        from src.services import global_live_overlay
+
+        if not global_live_overlay.active(None, "arc_release"):
+            return ()
+    except Exception:
+        return ()
+    return (_L('「月的对跖点」按国服上线说明计算：变轨技能伤害常驻提升（DamageUp1×4，R2–R5 为推算值），释放变轨技能后 15 秒内获得相属性伤害提升；R1 暴击率与相属性数值未确认（沿用数据库）。'),
+            _L('明音凛按国服上线数据（10-15）计算：觉醒、共鸣与「烁星激昂」已更新，冷却与终结能量未确认。'))
+
 from src.services import arc_efficiency_service as aes
 
 QUALITY_COLORS = {"ORANGE": "#f0883e", "PURPLE": "#d2a8ff", "BLUE": "#58a6ff"}
@@ -211,6 +229,10 @@ class ArcEfficiencyPage(QWidget):
         self._shown_cid = None
         self._pixmaps: dict = {}
         self._computation_loops = None
+        self._computation_level = None
+        self._template_level = 0                # U1: graduation template Puka level (0 / max); read on first show
+        self._view_states: dict = {}            # template level -> its rows / sources / stamps / failed / identity
+        self._register_view_state()
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setSingleShot(True)
         self._refresh_timer.setInterval(50)
@@ -225,6 +247,12 @@ class ArcEfficiencyPage(QWidget):
         app = QApplication.instance()
         if app is not None:
             app.aboutToQuit.connect(lambda: self.stop_computation(wait_ms=3000))
+        try:        # the template checkbox is an account setting
+            subscribe = getattr(window.app_context, "subscribe_account_changed", None)
+            if subscribe is not None:
+                subscribe(lambda *_a: self._on_account_changed())
+        except Exception:
+            pass
 
     # ── skeleton (no data access) ─────────────────────────────────────────
     def _build(self) -> None:
@@ -302,6 +330,14 @@ class ArcEfficiencyPage(QWidget):
         options.addWidget(self.damage_check)
         options.addStretch()
         outer.addLayout(options)
+        # U1: the template's Puka Boot Camp level on its own row (the option row is already full in ko / en / ja)
+        template_row = QHBoxLayout()
+        self.template_check = QCheckBox()
+        self.template_check.setObjectName("arcEffPukaTemplateMax")
+        self.template_check.toggled.connect(self._on_template)
+        template_row.addWidget(self.template_check)
+        template_row.addStretch()
+        outer.addLayout(template_row)
 
         body = QHBoxLayout()
         body.setSpacing(12)
@@ -357,18 +393,129 @@ class ArcEfficiencyPage(QWidget):
         actions.addWidget(self.open_btn)
         right.addLayout(actions)
         body.addLayout(right, 1)
-        outer.addLayout(body, 1)
+        self._make_awakening_section(body)
+        if self.awakening_section is None:
+            outer.addLayout(body, 1)
+        else:
+            outer.addWidget(self.splitter, 1)
         self.status = QLabel("")
         self.status.setStyleSheet(themed_style("color:#8b949e;font-size:12px"))
         outer.addWidget(self.status)
         self._apply_static_texts()
+
+    # review UX F1: the arc body keeps about six table rows when the section opens by default
+    ARC_MIN_PX = 380
+    SECTION_DEFAULT_PX = 400
+    SECTION_MIN_PX = 200
+
+    def _make_awakening_section(self, body) -> None:
+        """The character awakening (돌파) efficiency section under the arc table, in a vertical splitter with the
+        page body; None (the page body alone) when the section cannot be created."""
+        self.awakening_section = None
+        self.splitter = None
+        try:
+            from PySide6.QtWidgets import QSplitter
+
+            class _FirstSizeSplitter(QSplitter):
+                """Calls ``on_first_size`` once, when the splitter first has a height (the split needs it)."""
+
+                def __init__(self, orientation, parent, on_first_size) -> None:
+                    super().__init__(orientation, parent)
+                    self._on_first_size = on_first_size
+
+                def resizeEvent(self, event) -> None:  # noqa: N802
+                    super().resizeEvent(event)
+                    callback = self._on_first_size
+                    if callback is not None and self.height() > 0 and sum(self.sizes()) > 0:
+                        self._on_first_size = None
+                        callback()
+
+            from src.features.arc_efficiency.awakening_section import AwakeningEfficiencySection
+
+            config_dir = getattr(self._window.app_context.paths, "config_dir", None)
+            section = AwakeningEfficiencySection(self._static_path, config_dir, self)
+        except Exception:  # noqa: BLE001 - the arc table never depends on the section
+            try:
+                from src.utils.logger import logger
+
+                logger.opt(exception=True).warning("awakening efficiency section unavailable")
+            except Exception:
+                pass
+            return
+        holder = QWidget()
+        holder.setObjectName("arcEffBody")
+        body.setContentsMargins(0, 0, 0, 0)
+        holder.setLayout(body)
+        splitter = _FirstSizeSplitter(Qt.Vertical, self, lambda: self._apply_awakening_split(first=True))
+        splitter.setObjectName("arcEffSplitter")
+        splitter.setChildrenCollapsible(False)
+        splitter.addWidget(holder)
+        splitter.addWidget(section)
+        splitter.setStretchFactor(0, 3)
+        splitter.setStretchFactor(1, 2)
+        sizes = section.preferences().get("split")
+        splitter.setSizes(list(sizes) if sizes else [600, 400])   # replaced at the first real size
+        splitter.splitterMoved.connect(lambda *_a: section.save_split(splitter.sizes()))
+        section.character_activated.connect(self._on_awakening_character)
+        section.collapsed_changed.connect(self._on_awakening_collapsed)
+        self.awakening_section = section
+        self.splitter = splitter
+
+    def _on_awakening_character(self, cid: int) -> None:
+        if cid in self._entries and cid != self.selected_character():
+            self.select_character(cid)
+
+    def _on_awakening_collapsed(self, collapsed: bool) -> None:
+        """Collapsed: the arc body takes the freed space (the section keeps its header).  Expanded again: the section
+        gets its kept share back, clamped so the arc table stays readable (review UX F1)."""
+        if self.splitter is None:
+            return
+        self._apply_awakening_split()
+
+    def _apply_awakening_split(self, first: bool = False) -> None:
+        """Sizes of the arc body / 돌파 section split for the splitter's current height (review UX F1)."""
+        splitter, section = self.splitter, getattr(self, "awakening_section", None)
+        if splitter is None or section is None:
+            return
+        try:
+            total = int(sum(splitter.sizes()))
+            if total <= 0:
+                return
+            if (first and not section.collapsed and not section.has_saved_preferences()
+                    and total < self.ARC_MIN_PX + self.SECTION_MIN_PX):
+                section.set_collapsed(True, save=False)     # emits collapsed_changed -> back here, collapsed
+                return
+            if section.collapsed:
+                height = min(int(section.collapsed_height()), total)
+                splitter.setSizes([max(0, total - height), height])
+                return
+            saved = section.preferences().get("split")
+            if saved and sum(saved) > 0:
+                want = int(round(total * saved[1] / sum(saved)))
+            else:
+                want = self.SECTION_DEFAULT_PX
+            want = min(want, total - self.ARC_MIN_PX)
+            want = max(want, min(self.SECTION_MIN_PX, total // 2))
+            splitter.setSizes([total - want, want])
+        except RuntimeError:            # widgets already gone
+            pass
+
+    def _sync_awakening_section(self) -> None:
+        section = getattr(self, "awakening_section", None)
+        if section is None:
+            return
+        try:
+            section.set_context(self._prefs["loops"], self._template_level, bool(self._prefs["show_damage"]),
+                                self.selected_character())
+        except RuntimeError:            # widgets already gone
+            pass
 
     def _apply_static_texts(self) -> None:
         self.title.setText(_L('弧盘效率表 (Beta)'))
         self.preview.setText(_L('未完成'))
         self.subtitle.setText(_L('按单人循环伤害比较角色可装备的弧盘。专属弧盘精炼 1 = 100%。'))
         self.notice_toggle.setText(_L('⚠ 注意事项'))
-        self.notice_body.setText(self._notice_text())
+        self.notice_body.setText(self._notice_text(self._template_level))
         self.loops_caption.setText(_L('循环轮数'))
         for loops, button in self.loops_buttons.items():
             button.setText(_LF('{0} 轮').format(loops))
@@ -377,30 +524,35 @@ class ArcEfficiencyPage(QWidget):
         self.basis_buttons["same_refine"].setText(_L('同精炼对比'))
         self.foreign_check.setText(_L('显示其他角色的专属弧盘'))
         self.damage_check.setText(_L('显示伤害数值'))
+        self.template_check.setText(_L('按噗卡特训满级（Lv.20）查看'))
+        self.template_check.setToolTip(_L('毕业模板（弧盘效率表、空幕直伤毕业率）计算噗卡特训的等级：不勾选为 Lv.0（不计特训），勾选为满级 Lv.20。只影响模板，不影响你的角色面板；按账号保存，两页共用。'))
         self.cancel_btn.setText(_L('取消'))
         self.open_btn.setText(_L('在队伍模拟中打开'))
         self._sync_option_widgets()
 
     def _sync_option_widgets(self) -> None:
-        for widget in (self.foreign_check, self.damage_check):
+        for widget in (self.foreign_check, self.damage_check, self.template_check):
             widget.blockSignals(True)
         self.loops_buttons[self._prefs["loops"]].setChecked(True)
         self.basis_buttons[self._prefs["basis"]].setChecked(True)
         self.foreign_check.setChecked(bool(self._prefs["show_foreign"]))
         self.damage_check.setChecked(bool(self._prefs["show_damage"]))
-        for widget in (self.foreign_check, self.damage_check):
+        self.template_check.setChecked(self._template_level > 0)
+        for widget in (self.foreign_check, self.damage_check, self.template_check):
             widget.blockSignals(False)
 
     @staticmethod
-    def _notice_text():
+    def _notice_text(template_level: int = 0):
         lines = (
             _L('效率表只比较弧盘，不代表实战结果。'),
             _L('角色按官方毕业模板计算，只更换弧盘与精炼。'),
+            _L('噗卡特训按满级计算（模板 Lv.20）。') if template_level > 0 else _L('不计噗卡特训（模板 Lv.0）。'),
             _L('只有角色本人按已审核循环行动，没有队友、换人与环合反应。'),
             _L('依赖援护技、队友、队伍构成、环合强度或倾陷强度的弧盘效果按 0 计算。'),
-            _L('目标为 80 级木桩（非首领、未倾陷、不受击），能量与冷却不影响循环。'),
+            _L('目标为 80 级木桩（非首领、未倾陷、不受击）；循环按冷却与时计检查，未就绪时原地等待（单人没有可切换的队员；等待期间不攻击）。'),
             _L('叠层效果每次从 0 层开始；3 轮可看到延续的层数。'),
             _L('「罪与罚」「月的对跖点」的条件效果按 Global 补充规则（依据说明文与数据库数值）计算；常驻效果的重复计算已修正。'),
+        ) + _prism_release_lines() + (
             _L('标 † 的弧盘按计算器的同类型规则列出，未在游戏内实测。'),
             _L('所有弧盘的循环时长相同，因此伤害比 = DPS 比。'),
             _L('没有专属弧盘的角色不在此表中。'),
@@ -413,14 +565,28 @@ class ArcEfficiencyPage(QWidget):
         if not self._ready:
             self._ready = True
             self.ensure_loaded()
+        # the role page may have switched the template level meanwhile (the first load reads it itself)
+        if self._identity is not None:
+            level = self._account_template_level()
+            if level != self._template_level:
+                self._sync_option_widgets_template(level)
+                self._switch_template(level)
 
     def ensure_loaded(self) -> None:
         """Catalog + identity + layer decision for the current loops (idempotent)."""
         if self._identity is None:
+            level = self._account_template_level()
+            if level != self._template_level and not self._rows:
+                self._view_states.pop(self._template_level, None)
+                self._template_level = level
+                self._register_view_state()
+                self.notice_body.setText(self._notice_text(level))
+            self._sync_option_widgets_template(self._template_level)
             try:
                 self._catalog = aes.eligible_characters(self._static_path)
                 self._entries = {e.character_id: e for e in self._catalog}
-                self._identity = aes.current_identity(self._static_path)
+                self._identity = aes.current_identity(self._static_path, template_level=self._template_level)
+                self._view_states[self._template_level]["identity"] = self._identity
                 self._star_texts = aes.load_star_texts(
                     self._static_path, {a.fork_id for e in self._catalog for a in e.arcs})
             except Exception as exc:  # noqa: BLE001
@@ -474,19 +640,22 @@ class ArcEfficiencyPage(QWidget):
         order = ([selected] if selected in pending else []) + [c for c in stale if c in pending and c != selected]
         worker_ref: list = []
 
+        level = self._template_level
+
         def on_row(key, row) -> None:
             if worker_ref:
-                worker_ref[0].progress.emit(("row", generation, key, row))
+                worker_ref[0].progress.emit(("row", generation, key, row, level))
 
         def on_character(cid, ok, message) -> None:
             if worker_ref:
-                worker_ref[0].progress.emit(("character", generation, cid, loops, ok, message))
+                worker_ref[0].progress.emit(("character", generation, cid, loops, ok, message, level))
 
         computation = aes.Computation(self._static_path, self._entries, loops, pending, self._cache, self._identity,
                                       on_row=on_row, on_character=on_character, order=order, generation=generation)
         computation.prioritize(selected)
         self._computation = computation
         self._computation_loops = loops
+        self._computation_level = level
         worker = WorkerThread(computation.run, self)
         worker_ref.append(worker)
         worker.progress.connect(self._on_progress)
@@ -511,31 +680,39 @@ class ArcEfficiencyPage(QWidget):
         kind, generation = payload[0], payload[1]
         if generation != self._generation:
             return                          # a late result of an abandoned computation
+        level = payload[-1]                 # the template level the background run computed (U1)
+        state = self._view_states.get(level)
+        if state is None:
+            return
         if kind == "row":
-            _kind, _g, key, row = payload
-            self._rows[key] = row
+            _kind, _g, key, row, _level = payload
+            state["rows"][key] = row
         elif kind == "character":
-            _kind, _g, cid, loops, ok, message = payload
-            self._finish_character(cid, loops, ok, message)
+            _kind, _g, cid, loops, ok, message, _level = payload
+            self._finish_character(cid, loops, ok, message, level=level)
         self._refresh_timer.start()
 
-    def _finish_character(self, cid: int, loops: int, ok: bool, message: str) -> None:
+    def _finish_character(self, cid: int, loops: int, ok: bool, message: str, level: int | None = None) -> None:
+        state = self._view_states[self._template_level if level is None else level]
+        identity = state["identity"]
         if ok:
-            self._sources[(cid, loops)] = aes.SOURCE_CACHE
-            self._stamps[(cid, loops)] = self._cache.computed_at(self._identity, aes.row_key(
-                cid, self._entries[cid].exclusive_fork_id, 1, loops)) if self._identity is not None else ""
+            state["sources"][(cid, loops)] = aes.SOURCE_CACHE
+            state["stamps"][(cid, loops)] = self._cache.computed_at(identity, aes.row_key(
+                cid, self._entries[cid].exclusive_fork_id, 1, loops)) if identity is not None else ""
         else:
-            self._sources[(cid, loops)] = "failed"
-            self._failed[(cid, loops)] = message
+            state["sources"][(cid, loops)] = "failed"
+            state["failed"][(cid, loops)] = message
 
     def _on_worker_done(self, generation: int, message: str) -> None:
         if generation != self._generation:
             return
         self._computation = None
         loops = self._computation_loops if self._computation_loops is not None else self._prefs["loops"]
+        state = self._view_states.get(getattr(self, "_computation_level", self._template_level)) or {}
+        sources = state.get("sources", self._sources)
         for cid in self._entries:
-            if self._sources.get((cid, loops)) == "computing":
-                self._sources[(cid, loops)] = aes.SOURCE_STALE        # interrupted (cancel)
+            if sources.get((cid, loops)) == "computing":
+                sources[(cid, loops)] = aes.SOURCE_STALE              # interrupted (cancel, template switch)
         if message:
             self.status.setText(_LF('计算失败：{0}').format(message))
         self._render()
@@ -577,6 +754,75 @@ class ArcEfficiencyPage(QWidget):
         self._prefs["show_damage"] = bool(checked)
         self._save_prefs()
         self._render()
+
+    # ── graduation template Puka Boot Camp level (decision U1) ─────────────
+    def _account_database_path(self):
+        account = getattr(getattr(self._window, "app_context", None), "account", None)
+        return getattr(account, "user_database_path", None)
+
+    def _account_template_level(self) -> int:
+        try:
+            from src.services.puka_training_settings_service import load_account_puka_options
+
+            return load_account_puka_options(self._account_database_path()).template_level()
+        except Exception:  # noqa: BLE001 - the table never fails over an option
+            return 0
+
+    def _register_view_state(self) -> None:
+        self._view_states[self._template_level] = {
+            "rows": self._rows, "sources": self._sources, "stamps": self._stamps, "failed": self._failed,
+            "resolved": self._resolved_loops, "identity": self._identity,
+        }
+
+    def _on_template(self, checked: bool) -> None:
+        try:
+            from dataclasses import replace
+
+            from src.services.puka_training_settings_service import PukaTrainingSettingsService
+
+            path = self._account_database_path()
+            if path is not None:
+                service = PukaTrainingSettingsService(path)
+                service.save_options(replace(service.load_options(), template_max=bool(checked)))
+        except Exception as exc:  # noqa: BLE001 - the view still switches; the setting is retried next time
+            aes._log(f"arc efficiency template switch not saved: {type(exc).__name__}: {exc}")
+        self._switch_template(aes.TEMPLATE_LEVELS[-1] if checked else 0)
+
+    def _on_account_changed(self) -> None:
+        try:
+            level = self._account_template_level()
+            self._sync_option_widgets_template(level)
+            self._switch_template(level)
+        except RuntimeError:            # widgets already gone
+            pass
+
+    def _sync_option_widgets_template(self, level: int) -> None:
+        self.template_check.blockSignals(True)
+        self.template_check.setChecked(level > 0)
+        self.template_check.blockSignals(False)
+
+    def _switch_template(self, level: int) -> None:
+        """Show the table of another template level: its own state (rows, layers, identity); a running background
+        computation of the old level stops (its finished rows stay with the old level)."""
+        level = int(level)
+        if level == self._template_level:
+            return
+        self.stop_computation()
+        self._view_states[self._template_level]["identity"] = self._identity
+        self._template_level = level
+        state = self._view_states.get(level)
+        if state is None:
+            identity = None if self._identity is None else dataclasses_replace(self._identity, template_level=level)
+            state = {"rows": {}, "sources": {}, "stamps": {}, "failed": {}, "resolved": set(), "identity": identity}
+            self._view_states[level] = state
+        self._rows, self._sources, self._stamps = state["rows"], state["sources"], state["stamps"]
+        self._failed, self._resolved_loops, self._identity = state["failed"], state["resolved"], state["identity"]
+        self._paused = False
+        self.notice_body.setText(self._notice_text(self._template_level))
+        if self._identity is not None:
+            self._resolve(self._prefs["loops"])
+        self._render()
+        self._maybe_start()
 
     def _on_header(self, column: int) -> None:
         if column in (COL_NOTES,):
@@ -758,6 +1004,7 @@ class ArcEfficiencyPage(QWidget):
         self._render_header()
         self._render_table()
         self._render_status()
+        self._sync_awakening_section()
 
     def _render_header(self) -> None:
         cid = self.selected_character()
@@ -1092,6 +1339,8 @@ class ArcEfficiencyPage(QWidget):
         template = target.template(cid) or {}
         first = {"character_id": cid, "awakening_level": template.get("awakening_level"), "fork_id": fork_id,
                  "fork_refinement_level": refine, "suit_id": template.get("suit_id")}
+        if isinstance(template.get("selected_awaken_effect_ids"), (list, tuple)):     # A16: the template's node set
+            first["selected_awaken_effect_ids"] = [str(e) for e in template["selected_awaken_effect_ids"]]
         if cid in ids[1:]:                  # the character sits in another slot: swap with slot 1
             team[ids.index(cid)] = team[0]
         team[0] = first

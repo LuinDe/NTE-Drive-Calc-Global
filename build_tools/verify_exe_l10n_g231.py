@@ -27,6 +27,7 @@ Checks
      data/manifest.json and the shipped game_static.sqlite3 (hash + size).
 
 usage (python 3.11): verify_exe_l10n_g231.py <original exe> <new exe> <root/src dir> [<payload data dir>]
+                     [--removed=<src.module> ...]   modules dropped on purpose (rebuild_exe_l10n.py --remove)
        (payload data dir default: <original exe dir>/_internal/data)
 """
 from __future__ import annotations
@@ -42,7 +43,9 @@ import types
 import zlib
 
 assert sys.version_info[:2] == (3, 11), "run under Python 3.11"
-orig_p, new_p, src_dir = (pathlib.Path(a) for a in sys.argv[1:4])
+REMOVED = {a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--removed=")}
+ARGS = [sys.argv[0]] + [a for a in sys.argv[1:] if not a.startswith("--removed=")]
+orig_p, new_p, src_dir = (pathlib.Path(a) for a in ARGS[1:4])
 
 PYZ_ITEM_MODULE, PYZ_ITEM_PKG, PYZ_ITEM_NSPKG = 0, 1, 3
 FIRST_ADDED = ("src.i18n_display", "src.i18n_desc")
@@ -249,8 +252,11 @@ names_o = [n for n, *_ in po["items"]]
 names_n = [n for n, *_ in pn["items"]]
 if len(set(names_n)) != len(names_n):
     bad("duplicate names in the new PYZ TOC")
-if names_n[:len(names_o)] != names_o:
+names_o_kept = [n for n in names_o if n not in REMOVED]
+if names_n[:len(names_o_kept)] != names_o_kept:
     bad("original PYZ entry order not preserved / entries dropped")
+if REMOVED - set(names_o) or REMOVED & set(names_n):
+    bad(f"--removed names must be original entries absent from the new PYZ: {sorted(REMOVED)}")
 do = {n: (tc, po["data"][off:off + ln]) for n, tc, off, ln in po["items"]}
 dn = {n: (tc, pn["data"][off:off + ln]) for n, tc, off, ln in pn["items"]}
 nonsrc_same = 0
@@ -326,8 +332,10 @@ print("[5] added modules")
 added = [n for n in names_n if n not in do]
 expected_added = set(tree) - set(orig_src)
 dropped = set(orig_src) - set(new_src)
-if dropped:
-    bad(f"original src modules dropped: {sorted(dropped)}")
+if dropped != REMOVED:
+    bad(f"original src modules dropped: {sorted(dropped)} (declared --removed: {sorted(REMOVED)})")
+elif REMOVED:
+    ok(f"dropped on purpose (--removed): {sorted(REMOVED)}")
 if set(added) != expected_added:
     bad(f"added set != tree - original: unexpected {sorted(set(added) - expected_added)}, "
         f"missing {sorted(expected_added - set(added))}")
@@ -382,15 +390,20 @@ except Exception as exc:                    # noqa: BLE001
     bad(f"reader emulation failed: {exc!r}")
 
 # ── 8. Global 2.3.1: the efficiency-table seed belongs to the shipped static DB ─────────────────────────────
-print("[8] arc efficiency seed (src/services/arc_efficiency_data.py) vs the payload's static DB")
-try:
+print("[8] efficiency seeds (src/services/arc_efficiency_data.py, awakening_efficiency_data.py) vs the payload's "
+      "static DB")
+_seed_names = ["arc_efficiency_data.py"]
+if (src_dir / "services" / "awakening_efficiency_service.py").is_file():     # the 돌파 table: its seed is required
+    _seed_names.append("awakening_efficiency_data.py")
+for _seed_name in _seed_names:
+  try:
     import ast as _ast
     import json as _json
-    _seed = src_dir / "services" / "arc_efficiency_data.py"
+    _seed = src_dir / "services" / _seed_name
     _vals = {n.targets[0].id: _ast.literal_eval(n.value) for n in _ast.parse(_seed.read_text(encoding="utf-8")).body
              if isinstance(n, _ast.Assign) and isinstance(n.targets[0], _ast.Name)
              and n.targets[0].id in ("DATASET", "ENGINE_FP")}
-    _payload = pathlib.Path(sys.argv[4]) if len(sys.argv) > 4 else orig_p.parent / "_internal" / "data"
+    _payload = pathlib.Path(ARGS[4]) if len(ARGS) > 4 else orig_p.parent / "_internal" / "data"
     _manifest = _json.loads((_payload / "manifest.json").read_text(encoding="utf-8"))["database"]
     _db = _payload / _manifest["filename"]
     _h = hashlib.sha256()
@@ -401,12 +414,12 @@ try:
     _ds = _vals["DATASET"]
     if _ds["sha256"].upper() == _manifest["sha256"].upper() == _real and _ds["dataset_id"] == _manifest["dataset_id"] \
             and _ds["schema"] == _manifest["schema_version"] and _db.stat().st_size == _manifest["size_bytes"]:
-        ok(f"seed DATASET.sha256 == payload manifest == {_db.name} ({_real[:16]}..., {_manifest['dataset_id']}, "
-           f"schema {_manifest['schema_version']}); ENGINE_FP {_vals['ENGINE_FP']}")
+        ok(f"{_seed_name}: seed DATASET.sha256 == payload manifest == {_db.name} ({_real[:16]}..., "
+           f"{_manifest['dataset_id']}, schema {_manifest['schema_version']}); ENGINE_FP {_vals['ENGINE_FP']}")
     else:
-        bad(f"seed DATASET {_ds} != payload manifest {_manifest['sha256'][:16]} / file {_real[:16]}")
-except Exception as exc:                    # noqa: BLE001
-    bad(f"seed check failed: {exc!r}")
+        bad(f"{_seed_name}: seed DATASET {_ds} != payload manifest {_manifest['sha256'][:16]} / file {_real[:16]}")
+  except Exception as exc:                    # noqa: BLE001
+    bad(f"{_seed_name}: seed check failed: {exc!r}")
 
 print()
 if fail:

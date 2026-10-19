@@ -5,7 +5,7 @@ from src.i18n_runtime import L as _L, LF as _LF
 from time import perf_counter
 from PySide6.QtGui import QColor, QTextCursor
 from PySide6.QtWidgets import QFrame, QLabel, QMessageBox, QVBoxLayout
-from src.app.constants import APP_VERSION, NETDISK_DOWNLOAD_LINKS
+from src.app.constants import APP_VERSION
 from src.app.theme import theme_color
 from src.features.home.page import build_home_page
 from src.features.scanning.file_lifecycle import (
@@ -262,7 +262,6 @@ class MainWindowDataMixin:
             APP_VERSION,
             self.app_context,
             _iter_image_files,
-            NETDISK_DOWNLOAD_LINKS,
         )
 
     def _page_plugins(self):

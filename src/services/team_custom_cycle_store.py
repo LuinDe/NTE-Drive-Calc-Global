@@ -10,6 +10,17 @@ File: ``<account config dir>/team_custom_cycles.json``::
 ``team`` / ``steps`` / ``options`` are stored as plain JSON (``team_custom_notation.step_to_json``,
 ``team_custom_cycle_service.options_to_json``); this module only keeps the list.
 
+Team rows (``features/team_simulation/page.py`` ``team_json`` / ``apply_team``)::
+
+    {"character_id": 1072, "awakening_level": 3, "selected_awaken_effect_ids": ["Effect1", "Effect3", "Effect5"],
+     "fork_id": "...", "fork_refinement_level": 1, "suit_id": "..."}
+
+The awakening node set (free selection, Korean UI "돌파") was added **without a version change** (an older version
+would open a version 2 file read-only): ``awakening_level`` = the number of selected effects, so an older version
+reads Effect1..count.  A row without ``selected_awaken_effect_ids`` (saved before) means Effect1..awakening_level -
+the old result; unknown ids are dropped, a malformed value keeps the template's selection (:func:`team_row_awakening`,
+``team_awakening.from_json_row``).  Ids are plain str, never translated.
+
 * Writes go to ``<name>.tmp`` in the same folder followed by ``os.replace`` (atomic); nothing is ever deleted.
 * A file that is not valid UTF-8 JSON (a UTF-8 byte order mark is accepted) is moved aside as
   ``team_custom_cycles.corrupt-<timestamp>.json`` and an empty list is used.
@@ -51,6 +62,13 @@ class CycleFile:
 
 def path_for(config_dir) -> Path:
     return Path(config_dir) / FILE_NAME
+
+
+def team_row_awakening(row, valid_ids=None, template=None):
+    """The awakening node set of a stored team row (team_awakening.AwakeningSel; see the module docstring)."""
+    from src.services import team_awakening
+
+    return team_awakening.from_json_row(row, valid_ids, template)
 
 
 def clean_name(name) -> str:

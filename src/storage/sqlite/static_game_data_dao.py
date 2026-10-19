@@ -48,6 +48,17 @@ def _is_temp_path(path: Path) -> bool:
         return False
 
 
+def _overlay_row_patcher(dao):
+    """Global live overlay (src.services.global_live_overlay): the row post-processing of this DAO's DB, False when
+    the overlay is off for it (release texts / classification of characters the 9-24 DB has as pre-release)."""
+    try:
+        from src.services import global_live_overlay
+
+        return global_live_overlay.dao_patcher(dao.database_path, dao._connection) or False
+    except Exception:
+        return False
+
+
 def _configure_static_connection(connection: sqlite3.Connection) -> None:
     """Apply standard PRAGMAs for high-performance read-only static access."""
     connection.row_factory = sqlite3.Row
@@ -282,7 +293,11 @@ class StaticGameDataDao(
     def _rows(self, sql: str, parameters: Iterable[Any] = ()) -> list[dict[str, Any]]:
         if self._connection is None:
             raise StaticGameDataError(_L('静态数据库 DAO 已关闭'))
-        return [dict(row) for row in self._connection.execute(sql, tuple(parameters))]
+        rows = [dict(row) for row in self._connection.execute(sql, tuple(parameters))]
+        patcher = self.__dict__.get("_overlay_rows")
+        if patcher is None:
+            patcher = self.__dict__["_overlay_rows"] = _overlay_row_patcher(self)
+        return patcher(rows) if patcher else rows
 
     def _one(self, sql: str, parameters: Iterable[Any] = ()) -> dict[str, Any] | None:
         rows = self._rows(sql, parameters)

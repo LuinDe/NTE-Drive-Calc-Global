@@ -8,6 +8,7 @@ import math
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QGroupBox,
     QHBoxLayout,
@@ -26,6 +27,11 @@ from src.services.advancement_stage_service import (
 from src.services.official_role_graduation_service import (
     graduation_rate,
     graduation_tooltip as _graduation_tooltip,
+)
+from src.services.puka_training_settings_service import (
+    MAX_LEVEL as _PUKA_MAX_LEVEL,
+    PukaTrainingSettingsService,
+    graduation_template_level,
 )
 from src.services.official_role_page_service import (
     calculate_official_role_final_weights,
@@ -234,6 +240,9 @@ def _build_margin_group(
     graduation_label.setStyleSheet("font-weight:bold;color:#ffaa00;font-size:14px;")
     graduation_label.setToolTip(_graduation_tooltip(detail))
     header.addWidget(graduation_label)
+    template_check = _graduation_template_checkbox(window, detail)
+    if template_check is not None:
+        header.addWidget(template_check)
     damage_label = QLabel(_L('直伤评分 : --'))
     damage_label.setObjectName("officialRoleDamageScore")
     damage_label.setStyleSheet("font-weight:bold;color:#ffaa00;font-size:14px;")
@@ -313,9 +322,51 @@ def _build_margin_group(
         state["initialized"] = True
 
     _register_calculation_refresh(editor, refresh)
+    if template_check is not None:
+        def template_toggled(checked: bool) -> None:
+            if not _save_graduation_template(window, bool(checked)):
+                template_check.blockSignals(True)
+                template_check.setChecked(not checked)
+                template_check.blockSignals(False)
+                return
+            detail["puka_template_level"] = _PUKA_MAX_LEVEL if checked else 0
+            graduation_label.setToolTip(_graduation_tooltip(detail))
+            refresh()
+
+        template_check.toggled.connect(template_toggled)
     refresh()
     layout.addStretch()
     return group
+
+
+def _account_database_path(window):
+    account = getattr(getattr(window, "app_context", None), "account", None)
+    return getattr(account, "user_database_path", None)
+
+
+def _graduation_template_checkbox(window, detail: dict):
+    """Decision U1: one account checkbox for the graduation template's Puka Boot Camp level (0 / max)."""
+    if _account_database_path(window) is None:
+        return None             # battle-report editors: the account switch lives on the role page
+    check = QCheckBox(_L('按噗卡特训满级（Lv.20）查看'))
+    check.setObjectName("officialRoleGraduationPukaMax")
+    check.setToolTip(_L('毕业模板（弧盘效率表、空幕直伤毕业率）计算噗卡特训的等级：不勾选为 Lv.0（不计特训），勾选为满级 Lv.20。只影响模板，不影响你的角色面板；按账号保存，两页共用。'))
+    check.setChecked(graduation_template_level(detail) > 0)
+    return check
+
+
+def _save_graduation_template(window, checked: bool) -> bool:
+    from dataclasses import replace
+
+    from src.utils.logger import logger
+
+    try:
+        service = PukaTrainingSettingsService(_account_database_path(window))
+        service.save_options(replace(service.load_options(), template_max=bool(checked)))
+        return True
+    except Exception as error:  # noqa: BLE001 - the checkbox goes back; the page keeps working
+        logger.warning("graduation template switch not saved: {}", error)
+        return False
 
 
 def _populate_damage_formula_layout(layout, detail: dict) -> None:

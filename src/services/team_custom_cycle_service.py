@@ -20,6 +20,12 @@ calls ``CycleGauge.on_swap`` (which would consume the gauge on every adjacent sw
 
 Options (``CustomOptions``): repeat count, gauge mode and starting gauge, cooldown / energy numbers and check
 mode, inferred buffs switched off, manual buffs, enemy numbers, swap time.
+
+Awakening (A9-A11, Global): the cards' node sets (``team_awakening.AwakeningSel``; an int is a legacy level =
+Effect1..level, None = the template's ``TEMPLATE_SELECTION``) unlock the cooldown rules of team_resource_data (the rule
+field is the node number n = Effect n) in the preview, the strict walk and the engine run.  Awakening node rules
+(``awakening_node_rules``) add their resource rows to those rules, run their gate / placed hooks through the shared
+``_AxisWriter``, may make a typed support entry free of the gauge (``free_support``) and write explanation items.
 """
 from __future__ import annotations
 
@@ -29,11 +35,17 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
+from src.services import team_awakening
 from src.services import team_custom_notation as notation
 from src.services.team_custom_notation import ENTRY_ACTIONS, RAW_ACTION, SLOT_ACTIONS, CustomStep
 
 GAUGE_MODES = ("as_typed", "check")
-RESOURCE_CHECKS = ("off", "warn", "wait")
+# strict = the reviewed mode's policy (team_resources): a short ultimate-energy pool skips the ultimate, a cooldown
+# that is not ready is waited for (cd_wait_max_s / 60 s guard: skipped beyond it) - except in a team (user decision D3,
+# 2026-10-14): a press that is not ready swaps the member out at once when another member is typed after it (the
+# member's remaining inputs up to that step are not run); with nobody typed after it the old wait / skip applies
+RESOURCE_CHECKS = ("off", "warn", "wait", "strict")
+CD_WAIT_GUARD_S = 60.0
 MANUAL_BUFF_KINDS = ("atk_pct", "atk_flat", "crit_rate", "crit_dmg", "dmg_all", "dmg_element", "def_ignore",
                      "res_down", "mag")
 PERCENT_BUFF_KINDS = frozenset(("atk_pct", "crit_rate", "crit_dmg", "dmg_all", "dmg_element", "def_ignore",
@@ -46,6 +58,10 @@ MAX_REPEAT, MAX_STEPS, MAX_ACTIONS = 10, notation.MAX_STEPS, notation.MAX_ACTION
 MAX_SWAP_TIME_S = 2.0
 STATE_TOLERANCE_US = 1000          # the approved mode's overrun tolerance (1 ms)
 CD_TOLERANCE_US = 1000
+MAX_ENEMIES = 10                   # TargetOptions.enemy_count range (node rules only)
+TEMPLATE_AWAKENING = 6             # every graduation template is awakening 6 (preview without the cards' levels)
+# A10: the node set used without the cards' selection (the graduation templates: level 6, Effect1..Effect6)
+TEMPLATE_SELECTION = team_awakening.TEMPLATE
 
 _BUFF_PROPERTY = {"atk_pct": "AtkUp", "atk_flat": "AtkAdd", "crit_rate": "CritBase", "crit_dmg": "CritDamageBase",
                   "dmg_all": "DamageUpGeneralBase", "def_ignore": "DefIgnore", "mag": "MagBase"}
@@ -82,6 +98,8 @@ class TargetOptions:
     resistance: float = 0.2
     defense_reduction: float = 0.0
     vulnerability: float = 0.0
+    boss: bool = False                     # a boss enemy (awakening node rules: Sagiri ⑤ / 共鸣6, Hathor ③ ...)
+    enemy_count: int = 1                   # enemies hit (node rules with a 'single enemy' condition: Mint ④)
 
 
 @dataclass(frozen=True)
@@ -96,6 +114,10 @@ class CustomOptions:
     manual_buffs: tuple = ()
     target: TargetOptions = TargetOptions()
     swap_time_s: float = 0.0
+    # resource level the defaults come from (team_resources.RESOURCE_MODELS; None = DEFAULT_RESOURCE_MODEL) and the
+    # longest cooldown wait the "wait" / "strict" checks insert (None = up to the 60 s guard); optional saved keys
+    resource_model: str | None = None
+    cd_wait_max_s: float | None = None
 
 
 @dataclass(frozen=True)
@@ -150,25 +172,55 @@ def _clean_manual(buffs) -> tuple:
     return tuple(out)
 
 
-def default_resources(character_id: int) -> MemberResource:
-    """E / Q cooldown and Q cost the static data has for the member (blank otherwise)."""
-    from src.services import team_custom_actions as data
+def resource_model_of(options: CustomOptions | None) -> str:
+    from src.services.team_resources import DEFAULT_RESOURCE_MODEL, RESOURCE_MODELS
 
-    row = data.RESOURCES.get(int(character_id)) or {}
-    return MemberResource(**{k: float(v[0]) for k, v in row.items() if k in ("e_cd_s", "q_cd_s", "q_cost")})
+    model = getattr(options, "resource_model", None) if options is not None else None
+    return model if model in RESOURCE_MODELS else DEFAULT_RESOURCE_MODEL
 
 
-def default_options(team_ids: Sequence[int]) -> CustomOptions:
-    """Start gauge 100, data-backed E / Q numbers, everything else default."""
+def default_resources(character_id: int, model: str | None = None) -> MemberResource:
+    """E / Q cooldown and Q cost of the member at a resource level (blank = unknown / not enforced there).
+
+    ``legacy`` keeps the shipped custom-mode table (team_custom_actions.RESOURCES); ``data`` / ``community`` read
+    team_resource_data: the cooldown cells that level enforces and a Q cost from game data only (members with an
+    own resource - Hotori's clock, Shinku's meter - have no ultimate-energy cost)."""
+    from src.services import team_resources as tr
+
+    model = model if model in tr.RESOURCE_MODELS else tr.DEFAULT_RESOURCE_MODEL
+    cid = int(character_id)
+    if model == "legacy":
+        from src.services import team_custom_actions as data
+
+        row = data.RESOURCES.get(cid) or {}
+        return MemberResource(**{k: float(v[0]) for k, v in row.items() if k in ("e_cd_s", "q_cd_s", "q_cost")})
+    policy = tr.policy_for(model)
+    values = {}
+    for key, kind in (("e_cd_s", "E"), ("q_cd_s", "Q")):
+        cell = tr.cd_cell(cid, kind, policy)
+        if cell is not None and float(cell[0]) > 0:
+            values[key] = float(cell[0])
+    rec = tr.record(cid)
+    if (rec.get("energy") or {}).get("kind", "ultimate") == "ultimate":
+        cost = tr.cost_cell(cid, policy)
+        if cost is not None:
+            values["q_cost"] = float(cost[0])
+    return MemberResource(**values)
+
+
+def default_options(team_ids: Sequence[int], model: str | None = None) -> CustomOptions:
+    """Start gauge 100, data-backed E / Q numbers of the resource level, everything else default."""
     team = [int(c) for c in team_ids]
+    model = resource_model_of(CustomOptions(resource_model=model))
     return CustomOptions(start_gauge={cid: 100.0 for cid in team},
-                         resources={cid: default_resources(cid) for cid in team})
+                         resources={cid: default_resources(cid, model) for cid in team}, resource_model=model)
 
 
 def normalise_options(options: CustomOptions | None, team_ids: Sequence[int]) -> CustomOptions:
     """Clamp every number to its range; members without a value get the defaults."""
     team = [int(c) for c in team_ids]
-    base = default_options(team)
+    model = resource_model_of(options)          # a saved cycle without the key follows the default level
+    base = default_options(team, model)
     if options is None:
         return base
     start = {cid: _clamp((options.start_gauge or {}).get(cid, 100.0), 0.0, 100.0, 100.0) for cid in team}
@@ -194,12 +246,15 @@ def normalise_options(options: CustomOptions | None, team_ids: Sequence[int]) ->
         target=TargetOptions(enemy_level=int(_clamp(target.enemy_level, 1, 100, 80)),
                              resistance=_clamp(target.resistance, -1.0, 1.0, 0.2),
                              defense_reduction=_clamp(target.defense_reduction, 0.0, 1.0, 0.0),
-                             vulnerability=_clamp(target.vulnerability, 0.0, 2.0, 0.0)),
-        swap_time_s=_clamp(options.swap_time_s, 0.0, MAX_SWAP_TIME_S, 0.0))
+                             vulnerability=_clamp(target.vulnerability, 0.0, 2.0, 0.0),
+                             boss=bool(getattr(target, "boss", False)),
+                             enemy_count=int(_clamp(getattr(target, "enemy_count", 1), 1, MAX_ENEMIES, 1))),
+        swap_time_s=_clamp(options.swap_time_s, 0.0, MAX_SWAP_TIME_S, 0.0),
+        resource_model=model, cd_wait_max_s=_optional(getattr(options, "cd_wait_max_s", None), 0.0, CD_WAIT_GUARD_S))
 
 
 def options_to_json(options: CustomOptions) -> dict:
-    return {
+    out = {
         "repeat": int(options.repeat), "gauge_mode": options.gauge_mode,
         "start_gauge": {str(cid): float(v) for cid, v in (options.start_gauge or {}).items()},
         "gauge_reset_each_repeat": bool(options.gauge_reset_each_repeat),
@@ -207,9 +262,27 @@ def options_to_json(options: CustomOptions) -> dict:
         "resources": {str(cid): dataclasses.asdict(r) for cid, r in (options.resources or {}).items()},
         "disabled_buffs": sorted(options.disabled_buffs or ()),
         "manual_buffs": [dataclasses.asdict(b) for b in (options.manual_buffs or ())],
-        "target": dataclasses.asdict(options.target or TargetOptions()),
+        "target": _target_json(options.target or TargetOptions()),
         "swap_time_s": float(options.swap_time_s),
     }
+    # optional keys (store VERSION unchanged: older builds ignore them, files without them load as before)
+    if getattr(options, "resource_model", None):
+        out["resource_model"] = options.resource_model
+    if getattr(options, "cd_wait_max_s", None) is not None:
+        out["cd_wait_max_s"] = float(options.cd_wait_max_s)
+    return out
+
+
+def _target_json(target: TargetOptions) -> dict:
+    """The saved target: the four numbers always, boss / enemy_count only when not the default (store VERSION unchanged:
+    files of default options are byte-identical to older builds, older builds ignore the keys)."""
+    out = {"enemy_level": target.enemy_level, "resistance": target.resistance,
+           "defense_reduction": target.defense_reduction, "vulnerability": target.vulnerability}
+    if getattr(target, "boss", False):
+        out["boss"] = True
+    if int(getattr(target, "enemy_count", 1) or 1) != 1:
+        out["enemy_count"] = int(target.enemy_count)
+    return out
 
 
 def options_from_json(obj, team_ids: Sequence[int] = ()) -> CustomOptions:
@@ -261,13 +334,44 @@ def options_from_json(obj, team_ids: Sequence[int] = ()) -> CustomOptions:
         manual_buffs=tuple(manual),
         target=TargetOptions(enemy_level=target.get("enemy_level", 80), resistance=target.get("resistance", 0.2),
                              defense_reduction=target.get("defense_reduction", 0.0),
-                             vulnerability=target.get("vulnerability", 0.0)),
-        swap_time_s=obj.get("swap_time_s", 0.0))
+                             vulnerability=target.get("vulnerability", 0.0), boss=bool(target.get("boss", False)),
+                             enemy_count=target.get("enemy_count", 1)),
+        swap_time_s=obj.get("swap_time_s", 0.0),
+        resource_model=obj.get("resource_model") if isinstance(obj.get("resource_model"), str) else None,
+        cd_wait_max_s=obj.get("cd_wait_max_s"))
+    if "resource_model" not in obj and options.resources:
+        # saved by a build before the resource levels: its fields that still hold that build's defaults (the legacy
+        # custom table, e.g. Lacrimosa's contested 45) follow the current level's defaults, typed values stay
+        options = dataclasses.replace(options, resources=_migrate_legacy_defaults(options.resources))
     if team:
         return normalise_options(options, team)
     # no team given: clamp what does not depend on it
     members = sorted(set(options.start_gauge) | set(options.resources))
     return normalise_options(options, members)
+
+
+def _migrate_legacy_defaults(resources: Mapping) -> dict:
+    """Resource rows of a cycle saved before the resource levels: a field equal to the legacy table's default is
+    replaced by the default of the current level (review F5); anything else is the user's own number."""
+    out = {}
+    for cid, row in (resources or {}).items():
+        try:
+            key = int(cid)
+            old, new = default_resources(key, "legacy"), default_resources(key, None)
+        except Exception:
+            out[cid] = row
+            continue
+        values = {}
+        for name in ("e_cd_s", "q_cd_s", "q_cost"):
+            value = getattr(row, name)
+            try:
+                same = (value is None and getattr(old, name) is None) or (
+                    value is not None and getattr(old, name) is not None and float(value) == float(getattr(old, name)))
+            except (TypeError, ValueError):
+                same = False
+            values[name] = getattr(new, name) if same else value
+        out[cid] = dataclasses.replace(row, **values)
+    return out
 
 
 def target_condition(target: TargetOptions) -> dict:
@@ -278,6 +382,10 @@ def target_condition(target: TargetOptions) -> dict:
         out["defense_reduction"] = float(target.defense_reduction)
     if target.vulnerability:
         out["vulnerability"] = float(target.vulnerability)
+    if getattr(target, "boss", False):          # node rules only (the engine ignores the key)
+        out["boss"] = True
+    if int(getattr(target, "enemy_count", 1) or 1) != 1:
+        out["enemy_count"] = int(target.enemy_count)
     return out
 
 
@@ -288,6 +396,8 @@ class _Measured:
     hits: int = 0
     energy: float = 0.0
     status: str = "ok"                    # ok | missing_candidate
+    credit: Any = None                    # team_resource_data.HIT_CREDIT cell applied (summon hits not laid out)
+    event_energy: float = 0.0             # node-rule energy events of the action (not scaled by the efficiency)
 
 
 @dataclass
@@ -300,6 +410,8 @@ class _Member:
     off_since_us: int | None = None       # wall µs of the last swap out
     cd: dict = field(default_factory=dict)        # "E" / "Q" -> wall µs of the last use
     form: dict | None = None              # the visit's form summary this state fills (FORMS-backed states)
+    charge_ready: dict = field(default_factory=dict)   # kind -> active µs at which spent charges are back (E x3)
+    energy: float | None = None           # strict check: online ultimate-energy pool (None = cost unknown)
 
 
 @dataclass
@@ -341,7 +453,10 @@ class _Rec:
     visit_index: int = 0
     step_index: int | None = None
     energy_gain: float = 0.0
+    energy_event: float = 0.0             # awakening node-rule energy (events: not scaled by the charge efficiency)
     cd_kind: str = ""
+    energy_gained: float | None = None    # ultimate energy since the member's last ultimate (cost unknown: display)
+    clock_after: float | None = None      # own clock (Hotori) after the step (resource levels)
 
 
 @dataclass
@@ -353,16 +468,28 @@ class _Walk:
     own_resource: tuple = ()              # OWN_RESOURCE members that used their ultimate
     plain_swaps: int = 0
     unchecked_cd: tuple = ()              # ((character id, "E" | "Q"), ...) used again with a blank cooldown
+    skipped_energy: int = 0               # strict: ultimates skipped for energy
+    skipped_cd: int = 0                   # wait / strict: presses skipped beyond the longest wait
+    strict_eff: dict = field(default_factory=dict)   # strict: the charge efficiency the online pool used
+    clock_members: tuple = ()             # own-clock members (Hotori) whose clock the walk checked
+    clock_waits: int = 0                  # waits inserted for the own clock
+    rules_used: dict = field(default_factory=dict)      # cid -> sorted rule codes applied (resource levels)
+    clock_interludes: dict = field(default_factory=dict)   # cid -> (seconds credited, per-ultimate seconds)
+    hit_credited: dict = field(default_factory=dict)    # cid -> uses whose summon hits were credited
+    hit_unknown: tuple = ()               # members that used an action with summon hits of unknown count
+    early_swaps: int = 0                  # strict, team (D3): presses not ready -> the member swapped out at once
+    swap_dropped: int = 0                 # typed inputs of those members not run after their early swap
 
 
 class _PaletteMeasure:
     """Numbers from the generated palette: no database, no hit rows (preview and conversion)."""
 
-    def __init__(self, gauge, stops: list) -> None:
+    def __init__(self, gauge, stops: list, hit_credits=None) -> None:
         from src.services import team_custom_actions as data
         from src.services import team_simulation_service as svc
 
         self._data, self._svc, self.gauge, self.stops = data, svc, gauge, stops
+        self.hit_credits = hit_credits        # resource levels: team_resource_data.HIT_CREDIT
         self.rows: list = []
         self.side: dict = {}
         self.stop_owners: list = []
@@ -380,7 +507,15 @@ class _PaletteMeasure:
         elif run.slot == "ultimate":
             self.unknown_stop.add(cid)
         self.gauge.gain(cid, action["gauge"])
-        return _Measured(self._svc._us(action["length_s"]), int(action["hits"]), float(action["energy"]))
+        energy, credit = float(action["energy"]), None
+        if self.hit_credits is not None and not int(action["hits"]):
+            cell = self.hit_credits.get((int(cid), str(key[0]), str(key[1] or "")))
+            if cell is not None:
+                credit = cell
+                if cell[0] is not None:
+                    self.gauge.gain(cid, cell[1])
+                    energy += float(cell[0])
+        return _Measured(self._svc._us(action["length_s"]), int(action["hits"]), energy, credit=credit)
 
 
 class _AxisMeasure:
@@ -410,14 +545,21 @@ class _AxisMeasure:
         rows = run.rows[before:]
         energy = sum(float((self.writer.skill_damage(r["gameplay_effect_name"]) or {}).get("charge_add") or 0.0)
                      for r in rows)
-        return _Measured(int(length), len(rows), energy)
+        credit = self.writer.last_credit
+        if credit is not None:                # summon hits the animation does not lay out (writer gained the gauge)
+            energy += float(credit[0])
+        elif not rows and self.writer.hit_credits is not None:
+            credit = self.writer.hit_credits.get((int(cid), str(key[0]), str(key[1] or "")))   # unknown count: named
+        event = self.writer.take_node_energy(cid) if hasattr(self.writer, "take_node_energy") else 0.0
+        return _Measured(int(length), len(rows), energy, credit=credit, event_energy=event)
 
 
 class _Walker:
     """Executes custom steps on one timeline (see the module docstring)."""
 
     def __init__(self, team_ids, elements, rules, options: CustomOptions, measure, gauge, stops: list,
-                 sched=None) -> None:
+                 sched=None, awakening: Mapping | None = None, eff_override: Mapping | None = None,
+                 node_rules=None, layout_hooks=None) -> None:
         from src.services import team_custom_actions as data
         from src.services import team_simulation_explanation as tx
         from src.services import team_simulation_service as svc
@@ -445,6 +587,323 @@ class _Walker:
         self.unchecked_cd: set = set()
         self.used_default = self.used_gauge_set = self.used_normal = False
         self.extra_missing: dict = defaultdict(list)
+        self.skipped_energy = 0               # strict: ultimates skipped for energy
+        self.skipped_cd = 0                   # wait / strict: presses skipped beyond the longest wait
+        self._charges = {cid: self._charge_count(cid) for cid in self.team}
+        self.clock_waits = 0
+        # D3 (strict, team): the member that swapped out early (its inputs are dropped until another member's step)
+        self._swap_out: int | None = None
+        self._judge_entry = False             # the next swap follows an early swap: judged by the gauge (review F5)
+        self._resumed_left = None             # cooldown left after an all-blocked wait, under the threshold (10-18)
+        self._other_ahead = False             # a later typed step belongs to another member (someone to swap to)
+        self._seq_steps: list = []            # the typed steps and the position of the step running (run())
+        self._src, self._reps = 0, 1
+        self.early_swaps = 0
+        self.swap_dropped = 0
+        # team_resource_data rules (awakening / skill effects on cooldowns) at the resource levels (review F-A)
+        self.model = resource_model_of(options)
+        self.rules_on = self.model != "legacy"
+        # A11: {cid: team_awakening.AwakeningSel} (an int = legacy level Effect1..level)
+        self.awakening = {int(c): team_awakening.coerce(v, team_awakening.EMPTY)
+                          for c, v in dict(awakening or {}).items()}
+        self.node_rules = node_rules          # awakening_node_rules.Prepared: extra resource rows (None = none)
+        self.layout_hooks = layout_hooks      # awakening_node_rules.LayoutHooks: free_support (None = none)
+        self.rules_used: dict = defaultdict(set)
+        self._basics: dict = defaultdict(int)          # basic presses since the member's last E
+        self._extra_used: dict = defaultdict(bool)     # the extra E after the basics was used since that E
+        self.hit_credited: dict = defaultdict(int)
+        self.hit_unknown: set = set()
+        self._last_reset: dict = {}                    # (cid, reset code) -> active µs it last fired (ICD)
+        # the static DB of the run (None in the preview: the application's DB) - Global live overlay windows
+        self._static_path = getattr(getattr(getattr(measure, "ctx", None), "static", None), "database_path", None)
+        self._clock, self._clock_members = self._new_clock()
+        self._eff = {}
+        if options.resource_check == "strict":
+            for cid in self.team:
+                r = (options.resources or {}).get(cid)
+                if r is None or r.q_cost is None or cid in data.OWN_RESOURCE:
+                    continue
+                start = float(r.q_cost) if r.start_energy is None else float(r.start_energy)
+                self.members[cid].energy = max(0.0, min(float(r.q_cost), start))
+                # the build's charge efficiency once the engine has shown it (review F-C); a typed value wins
+                self._eff[cid] = float(r.charge_eff) if r.charge_eff is not None else (
+                    self._own_eff(cid) + float((eff_override or {}).get(cid, 0.0) or 0.0))
+
+    def _new_clock(self):
+        """Hotori's own clock as a team_resources state (resource levels with a check), else None."""
+        model = resource_model_of(self.options)
+        if model == "legacy" or self.options.resource_check == "off":
+            return None, ()
+        from src.services import team_resources as tr
+
+        own = tuple(c for c in self.team if (tr.record(c).get("energy") or {}).get("kind") == "own_clock")
+        if not own:
+            return None, ()
+        policy = tr.policy_for(model, cooldown="off")      # cooldowns stay the walker's own (typed values)
+        # the whole team: ResourceState treats a one-member list as solo (Hotori's interlude would then be a wait)
+        return tr.ResourceState(list(self.team), policy=policy, stops=self.stops, solo=len(self.team) < 2,
+                                awakening=self.awakening), own
+
+    def _rules(self, cid: int, code: str, kind: str | None = None) -> list:
+        """team_resource_data rules of the member unlocked at its awakening (resource levels only)."""
+        if not self.rules_on:
+            return []
+        from src.services import team_resources as tr
+
+        # A9: the rule's node (number n = Effect n) against the card's node set (template set without a card)
+        selection = self.awakening.get(int(cid), TEMPLATE_SELECTION)
+        rows = tuple(tr.record(cid).get("rules") or ())
+        if self.node_rules is not None:
+            rows += self.node_rules.resource_rules(cid)
+        return [r for r in rows
+                if r[0] == code and (kind is None or r[1] == kind) and team_awakening.unlocked(selection, r[3])]
+
+    def _cd_offset_us(self, cid: int, kind: str) -> int:
+        """The cooldown starts this long after the press (team_resource_data cd_offset_s; resource levels)."""
+        if not self.rules_on or not kind:
+            return 0
+        from src.services import team_resources as tr
+
+        offset = (tr.record(cid).get("cd_offset_s") or {}).get(kind)
+        return self.svc._us(float(offset)) if offset else 0
+
+    def _reset_cd(self, cid: int, code: str, selectors=None) -> None:
+        """A rule that refreshes a cooldown (Linko A3 Q -> E, Mint A1 counter -> E, Sagiri ⑤ held E -> Q) fired.
+        ``selectors`` = the selectors of the E press (e_resets_q); an internal cooldown (team_resources.reset_icd_s)
+        keeps a reset from firing again too soon (active clock)."""
+        from src.services import team_resources as tr
+
+        m = self.members[cid]
+        target = target_condition(self.options.target or TargetOptions())
+        now = self._active(0, self.t)
+        for rule in self._rules(cid, code):
+            if code == "e_resets_q" and not any(tr.reset_matches(rule[2], s, target) for s in (selectors or ())):
+                continue
+            icd = tr.reset_icd_s(self._rules(cid, "reset_icd", code), code, rule[2])
+            last = self._last_reset.get((cid, code))
+            if icd and last is not None and now - last < self.svc._us(icd):
+                continue                        # inside the reset's internal cooldown (Mint ① 3 s)
+            self._last_reset[(cid, code)] = now
+            m.cd.pop(rule[1], None)
+            m.charge_ready.pop(rule[1], None)
+            self.rules_used[cid].add(code)
+
+    def _swap_ok(self) -> bool:
+        """D3 (2026-10-14): the strict check swaps the member out at once when a press is not ready - if another
+        member is typed after it; alone (or at the end of the cycle) it waits / skips as before."""
+        return self.options.resource_check == "strict" and len(self.team) > 1 and self._other_ahead
+
+    def _short_wait(self, remaining_us: int) -> bool:
+        """User decision 2026-10-18: with the strict swap rule a cooldown with less than SWAP_MIN_WAIT_S (0.3 s) of
+        battle time left is waited for and the press made (no swap); alone it waits anyway."""
+        from src.services.team_resources import SWAP_MIN_WAIT_S
+
+        return self._swap_ok() and int(remaining_us) < self.svc._us(SWAP_MIN_WAIT_S)
+
+    def _upcoming(self) -> list:
+        """Typed steps after the one running: the rest of this pass, then the next pass (if any)."""
+        out = list(self._seq_steps[self._src + 1:])
+        if self.rep + 1 < self._reps:
+            out += list(self._seq_steps)
+        return out
+
+    def _press_kind(self, step: CustomStep) -> str:
+        """Cooldown kind ("E" / "Q" / "") a typed press would check now (pure; as _press resolves it)."""
+        cid, action = int(step.character_id), step.action
+        if action in ENTRY_ACTIONS or action in ("wait", "dodge"):
+            return ""
+        if action == RAW_ACTION:
+            where = self.data.ACTION_INDEX.get(tuple(step.raw or ("", "")))
+            if where and where[0] == "":
+                return "E" if where[1] in ("skill", "skill_hold") else ("Q" if where[1] == "ult" and where[2] == 1
+                                                                        else "")
+            return ""
+        resolved = self.resolve(cid, action, step.pos, self.t)
+        if resolved is None:
+            return ""
+        kind = str(resolved.table.get("cd") or "")
+        return "" if kind == "Q" and resolved.index != 0 else kind
+
+    def _next_presses(self, cid: int) -> list:
+        """[(member, kind)] in typed order: every other member typed later, with the cooldown kind of the first press
+        of its next stint that has one ("" = that stint has none: the member can act at once)."""
+        result: dict = {}
+        prev, current = cid, None
+        for step in self._upcoming():
+            c = int(step.character_id)
+            if c not in self.members:
+                continue
+            if c != prev:                       # a new stint; only the first stint of each other member counts
+                prev = c
+                current = c if (c != cid and c not in result) else None
+                if current is not None:
+                    result[c] = ""
+            if current is None or result[current]:
+                continue
+            result[current] = self._press_kind(step)
+        return list(result.items())
+
+    def _press_remaining(self, cid: int, kind: str, t_us: int) -> int | None:
+        """Active µs until a strict press of ``kind`` by the member could run at ``t_us`` (0 = ready; None = never by
+        waiting: a typed ultimate cost its pool cannot pay).  The checks of _press, without their effects."""
+        m = self.members[cid]
+        res = (self.options.resources or {}).get(cid)
+        if (kind == "Q" and m.energy is not None and res is not None and res.q_cost is not None
+                and m.energy + 1e-6 < float(res.q_cost)):
+            return None
+        remaining = 0
+        value = self._cd_value(cid, kind, note=False)
+        charges = self._charges.get(cid, 1) if kind == "E" else 1
+        if kind and value is not None:
+            if charges > 1:
+                now_pc = self._active(0, t_us)
+                pending = [r for r in m.charge_ready.get(kind, ()) if r > now_pc]
+                if len(pending) >= charges:
+                    remaining = min(pending) - now_pc
+            elif kind in m.cd:
+                remaining = self.svc._us(value) - self._active(m.cd[kind], t_us)
+        if kind == "E" and remaining > CD_TOLERANCE_US:
+            for rule in self._rules(cid, "extra_e_after_basics", "E"):
+                if not self._extra_used[cid] and self._basics[cid] >= int(rule[2] or 0):
+                    remaining = 0
+                break
+        if self._clock is not None and cid in self._clock_members and kind in ("E", "Q"):
+            from src.services.team_resources import StepClass
+
+            cls = StepClass(None, "q_cost" if kind == "Q" else "e_cost", "custom")
+            state = self._clock.members.get(cid)
+            clock = self._clock.peek_remaining(cid, cls, t_us, interlude=bool(state and state.interlude_pending))
+            if clock is None:
+                return None
+            remaining = max(remaining, int(clock))
+        return int(remaining) if remaining > CD_TOLERANCE_US else 0
+
+    def _choice(self, cid: int, own_us) -> tuple:
+        """D3 in a strict team cycle (the reviewed layout's rule): ("swap", 0, None) when a member typed later could
+        act at once; every one of them blocked too: ("run", 0, cid) this member is ready first (its own wait),
+        ("wait_swap", active µs, other) wait for ``other`` then swap out, ("keep", 0, None) nothing gets ready within
+        the longest wait (the old wait / skip)."""
+        rems = []
+        for other, kind in self._next_presses(cid):
+            r = self._press_remaining(other, kind, self.t) if kind else 0
+            if r is not None and r <= CD_TOLERANCE_US:
+                return "swap", 0, None
+            rems.append((r, other))
+        cands = [(r, i, c) for i, (r, c) in enumerate([(own_us, cid)] + rems) if r is not None]
+        if not cands:
+            return "keep", 0, None
+        r, _i, who = min(cands)
+        limit = self.options.cd_wait_max_s
+        limit = CD_WAIT_GUARD_S if limit is None else min(float(limit), CD_WAIT_GUARD_S)
+        if r > self.svc._us(limit) + CD_TOLERANCE_US:
+            return "keep", 0, None
+        if who == cid:
+            return ("keep", 0, None) if own_us is None else ("run", 0, cid)
+        return "wait_swap", int(r), who
+
+    def _not_ready(self, src: int, cid: int, action: str, slot: str, info: dict | None, notes: list, reason: str,
+                   kind: str, own_us, energy=None, cost=None) -> bool:
+        """A strict press that is not ready (D3).  True: replaced by an early swap (after waiting for the earliest
+        ready member when every typed member is blocked).  False: the old wait / skip goes on - alone, nobody typed
+        after it, or this member is the earliest ready one (``self._blocked_wait`` names it for the wait note)."""
+        self._blocked_wait = None
+        if not self._swap_ok():
+            return False
+        how, wait_us, other = self._choice(cid, own_us)
+        if how == "run":
+            self._blocked_wait = cid
+            return False
+        if how == "keep":
+            return False
+        left = own_us
+        if how == "wait_swap":               # every typed member blocked: wait for the earliest ready one, then swap
+            wall = self._advance(self.t, wait_us) - self.t
+            rec = self._time_step(-1, cid, "wait", wall)
+            rec.notes.append(self.tx.note(self.tx.NOTE_CUSTOM_ALL_BLOCKED, round(wall / 1e6, 3), other))
+            self.waited_us += wall
+            self.seq += 1
+            left = None if own_us is None else max(0, int(own_us) - int(wait_us))
+            if reason == "cd" and left is not None and self._short_wait(left):
+                self._resumed_left = left        # now under the threshold: wait it out and press (2026-10-18)
+                return False
+        self._swap_out_now(src, cid, action, slot, info, notes, reason, kind, left, energy, cost)
+        return True
+
+    def _swap_out_now(self, src: int, cid: int, action: str, slot: str, info: dict | None, notes: list, reason: str,
+                      kind: str, remaining_us, energy=None, cost=None) -> None:
+        """The press is not ready (strict, team): no time, no hits; the member's next inputs are dropped until
+        another member's step - that step's entry (as typed) is the swap."""
+        tx = self.tx
+        self._skip(src, cid, action, slot, info, notes, tx.STEP_SWAP_OUT,
+                   tx.note(tx.NOTE_CUSTOM_SWAP_OUT, reason, kind or "", round(max(0, int(remaining_us or 0)) / 1e6, 3),
+                           None if energy is None else round(float(energy), 3), cost))
+        self._swap_out = cid
+        self.early_swaps += 1
+        if kind == "Q" and reason == "clock" and cid in self.data.OWN_RESOURCE:
+            self.own_resource.add(cid)          # the ultimate was checked against the member's own clock
+
+    def _drop(self, step: CustomStep, src: int) -> None:
+        """A typed input of the member that swapped out early (D3): listed, not run."""
+        tx, cid = self.tx, int(step.character_id)
+        rec = self._new_rec(src, cid, step.action)
+        rec.slot, rec.status = _TRACE_SLOT.get(step.action, "other"), tx.STEP_SWAP_DROPPED
+        rec.notes.append(tx.note(tx.NOTE_CUSTOM_SWAP_DROPPED))
+        rec.gauge_after = rec.gauge_before
+        self.records.append(rec)
+        self.swap_dropped += 1
+
+    def _clock_gate(self, cid: int, cd_kind: str, src: int, notes: list, decide=None):
+        """Own clock before an E / Q press: (class, gate) or (None, None); inserts the wait (wait / strict).
+        ``decide(own µs) -> bool``: D3 - True when the press swapped the member out instead (gate returned, no wait)."""
+        if self._clock is None or cid not in self._clock_members or cd_kind not in ("E", "Q"):
+            return None, None
+        from src.services.team_resources import StepClass
+
+        cls = StepClass(None, "q_cost" if cd_kind == "Q" else "e_cost", "custom")
+        gate = self._clock.gate(cid, cls, self.t)
+        if gate.wait_us > CD_TOLERANCE_US:
+            seconds = round(gate.wait_us / 1e6, 3)       # the inserted (wall) seconds (review F-E)
+            if decide is not None and decide(int(gate.remaining_us)):
+                return cls, gate                         # D3: swapped out instead (the caller returns)
+            if self.options.resource_check in ("wait", "strict"):
+                self._time_step(-1, cid, "wait", int(gate.wait_us))
+                self.waited_us += int(gate.wait_us)
+                self.seq += 1
+                self.clock_waits += 1
+                notes.append(self.tx.note(self.tx.NOTE_CUSTOM_CLOCK_WAITED, seconds))
+                if getattr(self, "_blocked_wait", None) is not None:     # every member blocked, this one first
+                    notes.append(self.tx.note(self.tx.NOTE_CUSTOM_ALL_BLOCKED, seconds, cid))
+            else:
+                need = 120.0 if cd_kind == "Q" else 60.0
+                notes.append(self.tx.note(self.tx.NOTE_CUSTOM_CLOCK_SHORT, round(float(gate.energy_before or 0.0), 3),
+                                          need, seconds))
+        return cls, gate
+
+    def _charge_count(self, cid: int) -> int:
+        """E charges of the member at the options' resource level (Chiichan stores 3 uses); 1 otherwise."""
+        try:
+            from src.services import team_resources as tr
+
+            model = resource_model_of(self.options)
+            if model == "legacy":
+                return 1
+            cell = tr.record(cid).get("e_charges")
+            allowed = tr.enforced_confidences(tr.policy_for(model))
+            if cell and cell[0] is not None and cell[2] in allowed:
+                return max(1, int(cell[0]))
+        except Exception:
+            return 1
+        return 1
+
+    @staticmethod
+    def _own_eff(cid: int) -> float:
+        try:
+            from src.services import team_resources as tr
+
+            own = (tr.record(cid).get("energy") or {}).get("own_eff")
+            return float(own[0]) if own and own[0] is not None else 0.0
+        except Exception:
+            return 0.0
 
     # clocks ---------------------------------------------------------------
     def _active(self, a_us: int, b_us: int) -> int:
@@ -567,6 +1026,8 @@ class _Walker:
         if out is not None:
             mo = self.members[out]
             mo.last = mo.last_key = None
+            if self._clock is not None and out in self._clock_members:
+                self._clock.visit_end(out, t)       # the clock's drain in his ultimate ends with the visit
             st = self._state(out)
             if st is not None:
                 if st["ends_on_swap"]:
@@ -599,7 +1060,12 @@ class _Walker:
         pair = self.rules.reaction_for(eo, ei) if eo and ei and eo != ei else None
         gauge = float(self.gauge.value(out))
         full = gauge >= float(self.gauge.cap) - 1e-6
-        as_typed = self.options.gauge_mode != "check"
+        # awakening node rule (free_support): a typed support entry that needs no gauge and does not consume it
+        free = bool(tok == "support" and pair is not None and not full and self.layout_hooks is not None
+                    and self.layout_hooks.free_support(out, cid, self.t, pair, None))
+        judged, self._judge_entry = bool(getattr(self, "_judge_entry", False)), False
+        # D3 (strict): the entry after an early swap follows the gauge rule like the reviewed mode (review F5)
+        as_typed = self.options.gauge_mode != "check" and not judged
         entry, outcome = tx.ENTRY_NORMAL, tx.OUTCOME_PLAIN_SWAP
         if tok == "support":
             if pair is None:
@@ -610,10 +1076,10 @@ class _Walker:
                 else:
                     info["skipped"] = True
                     info["notes"].append(tx.note(tx.NOTE_CUSTOM_DOWNGRADED_ELEMENT))
-            elif full or as_typed:
+            elif full or as_typed or free:
                 entry, outcome = tx.ENTRY_SUPPORT_SKILL, tx.OUTCOME_REACTION
                 info["play"], info["fired"] = True, pair
-                if not full:
+                if not full and not free:
                     info["notes"].append(tx.note(tx.NOTE_CUSTOM_GAUGE_SHORT, round(gauge, 3)))
             else:
                 outcome, info["skipped"] = tx.OUTCOME_GAUGE_SHORT, True
@@ -622,7 +1088,7 @@ class _Walker:
             info["notes"].append(tx.note(tx.NOTE_CUSTOM_IMPLICIT_SWAP))
         self.swaps.append(self.svc._SwapRun(len(self.swaps), self.t, out, cid, eo, ei, gauge, outcome, None))
         info.update(entry=entry, swap_index=len(self.swaps) - 1, out_gauge=gauge)
-        if info["fired"] is not None:
+        if info["fired"] is not None and not free:
             self.gauge.set_value(out, 0.0)             # the reaction consumes the outgoing member's gauge
         self._open_visit(cid, entry)
         if not info["play"]:
@@ -708,11 +1174,19 @@ class _Walker:
         self.records.append(rec)
         return rec
 
-    def _cd_value(self, cid: int, kind: str) -> float | None:
+    def _cd_value(self, cid: int, kind: str, *, note: bool = True) -> float | None:
+        """The cooldown in use: the typed (or default) base value plus the awakening changes of team_resource_data
+        (Haniel A6 -4 s; resource levels)."""
         resource = (self.options.resources or {}).get(cid)
         if resource is None or not kind:
             return None
-        return resource.e_cd_s if kind == "E" else resource.q_cd_s
+        value = resource.e_cd_s if kind == "E" else resource.q_cd_s
+        if value is not None:
+            for rule in self._rules(cid, "e_cd_add", kind):
+                value = max(0.0, float(value) + float(rule[2]))
+                if note:
+                    self.rules_used[cid].add("e_cd_add")
+        return value
 
     def _press(self, step: CustomStep, src: int, k: int, info: dict | None) -> None:
         tx, data, svc = self.tx, self.data, self.svc
@@ -726,10 +1200,15 @@ class _Walker:
             if info is not None:
                 self._apply_info(rec, info)
             m.last = m.last_key = None
+            if action == "wait" and self._clock is not None and cid in self._clock_members:
+                # Hotori's "wait for the clock" step of the reviewed rotation (D15: credited in a team)
+                self._clock.note_interlude(cid)
+                rec.clock_after = self._clock.snapshot(cid, self.t)
             return
         notes: list = []
         resolved = None
         cd_kind = ""
+        where = None
         if action == RAW_ACTION:
             keys = (tuple(step.raw or ("", "")),)
             where = data.ACTION_INDEX.get(keys[0])
@@ -756,22 +1235,83 @@ class _Walker:
         wait_before = 0
         value = self._cd_value(cid, cd_kind)
         check = self.options.resource_check
+        if check == "strict" and cd_kind == "Q" and m.energy is not None:
+            # energy first (team_resources check order): a short pool skips the ultimate, no wait fills it
+            cost = float(self.options.resources[cid].q_cost)
+            if m.energy + 1e-6 < cost:
+                if self._not_ready(src, cid, action, trace_slot, info, notes, "energy", "Q", None, m.energy, cost):
+                    return                              # D3: swapped out instead of skipping the ultimate
+                self._skip(src, cid, action, trace_slot, info, notes, tx.STEP_ENERGY_SHORT,
+                           tx.note(tx.NOTE_CUSTOM_ENERGY_SKIPPED, round(m.energy, 3), cost))
+                self.skipped_energy += 1
+                return
+        swapped: list = []
+
+        def decide(own_us: int) -> bool:
+            if self._not_ready(src, cid, action, trace_slot, info, notes, "clock", cd_kind, own_us):
+                swapped.append(True)
+            return bool(swapped)
+
+        self._blocked_wait = None
+        clock_cls, clock_gate = self._clock_gate(cid, cd_kind, src, notes, decide)
+        if swapped:
+            return
+        if clock_gate is not None and clock_gate.wait_us > CD_TOLERANCE_US and resolved is not None \
+                and check in ("wait", "strict"):
+            resolved = self.resolve(cid, action, step.pos if k == 0 else None, self.t) or resolved
+        charges = self._charges.get(cid, 1) if cd_kind == "E" else 1
         if cd_kind and value is None and check != "off" and cd_kind in m.cd:
             self.unchecked_cd.add((cid, cd_kind))          # nothing to check against: listed under the limits
-        if cd_kind and value is not None and check != "off" and cd_kind in m.cd:
-            remaining = svc._us(value) - self._active(m.cd[cd_kind], self.t)
-            if remaining > CD_TOLERANCE_US:
-                if check == "wait":
-                    target = self._advance(self.t, remaining)
-                    wait_before = target - self.t
-                    self._time_step(-1, cid, "wait", wait_before)
-                    self.waited_us += wait_before
-                    self.seq += 1
-                    notes.append(tx.note(tx.NOTE_CUSTOM_CD_WAITED, round(remaining / 1e6, 3)))
-                    if resolved is not None:
-                        resolved = self.resolve(cid, action, step.pos if k == 0 else None, self.t) or resolved
+        remaining = 0
+        if cd_kind and value is not None and check != "off":
+            if charges > 1:             # stored uses (Chiichan): a use is back cd seconds after it was spent
+                now_pc = self._active(0, self.t)
+                pending = [r for r in m.charge_ready.get(cd_kind, ()) if r > now_pc]
+                if len(pending) >= charges:
+                    remaining = min(pending) - now_pc
+            elif cd_kind in m.cd:
+                remaining = svc._us(value) - self._active(m.cd[cd_kind], self.t)
+        free_extra = False
+        if cd_kind == "E" and remaining > CD_TOLERANCE_US:
+            for rule in self._rules(cid, "extra_e_after_basics", "E"):     # Lacrimosa: an extra E after 5 basics
+                if not self._extra_used[cid] and self._basics[cid] >= int(rule[2] or 0):
+                    remaining, free_extra = 0, True
+                    self.rules_used[cid].add("extra_e_after_basics")
+                break
+        short = remaining > CD_TOLERANCE_US and self._short_wait(remaining)   # < 0.3 s left: wait (10-18)
+        if remaining > CD_TOLERANCE_US and not short and self._not_ready(src, cid, action, trace_slot, info, notes,
+                                                                         "cd", cd_kind, remaining):
+            return                                  # D3: swapped out at once (no wait, no skip)
+        resumed, self._resumed_left = getattr(self, "_resumed_left", None), None
+        if resumed is not None:         # waited for the earliest ready member, now under the threshold (10-18)
+            remaining, short = int(resumed), True
+        if remaining > CD_TOLERANCE_US:
+            limit = self.options.cd_wait_max_s          # wait: only when set; strict: also the 60 s guard
+            if check == "strict":
+                limit = CD_WAIT_GUARD_S if limit is None else min(float(limit), CD_WAIT_GUARD_S)
+            if check in ("wait", "strict") and limit is not None and remaining > svc._us(limit) + CD_TOLERANCE_US:
+                self._skip(src, cid, action, trace_slot, info, notes, tx.STEP_CD_SKIP,
+                           tx.note(tx.NOTE_CUSTOM_CD_SKIPPED, round(remaining / 1e6, 3)))
+                self.skipped_cd += 1
+                return
+            if check in ("wait", "strict"):
+                target = self._advance(self.t, remaining)
+                wait_before = target - self.t
+                self._time_step(-1, cid, "wait", wait_before)
+                self.waited_us += wait_before
+                self.seq += 1
+                if short:                   # under the swap threshold: waited, no swap (2026-10-18)
+                    from src.services.team_resources import SWAP_MIN_WAIT_S
+
+                    notes.append(tx.note(tx.NOTE_CUSTOM_SHORT_WAIT, round(remaining / 1e6, 3), SWAP_MIN_WAIT_S))
                 else:
-                    notes.append(tx.note(tx.NOTE_CUSTOM_CD_NOT_READY, round(remaining / 1e6, 3)))
+                    notes.append(tx.note(tx.NOTE_CUSTOM_CD_WAITED, round(wait_before / 1e6, 3)))
+                if getattr(self, "_blocked_wait", None) is not None:     # every member blocked, this one first
+                    notes.append(tx.note(tx.NOTE_CUSTOM_ALL_BLOCKED, round(wait_before / 1e6, 3), cid))
+                if resolved is not None:
+                    resolved = self.resolve(cid, action, step.pos if k == 0 else None, self.t) or resolved
+            else:
+                notes.append(tx.note(tx.NOTE_CUSTOM_CD_NOT_READY, round(remaining / 1e6, 3)))
         rec = self._new_rec(src, cid, action)
         rec.wait_before_us, rec.slot, rec.cd_kind = wait_before, trace_slot, cd_kind
         if info is not None:
@@ -789,8 +1329,29 @@ class _Walker:
             entry = keys
             m.last = None
         start = self.t
-        if cd_kind:
-            m.cd[cd_kind] = start
+        if cd_kind and free_extra:
+            self._extra_used[cid] = True        # the extra E keeps the running E cooldown (no restart)
+        elif cd_kind:
+            offset = self._cd_offset_us(cid, cd_kind) if value is not None else 0
+            m.cd[cd_kind] = start + offset
+            if charges > 1 and value is not None:
+                now_pc = self._active(0, start + offset)
+                pending = sorted(r for r in m.charge_ready.get(cd_kind, ()) if r > now_pc)
+                pending.append(max([now_pc] + pending) + svc._us(value))
+                m.charge_ready[cd_kind] = pending
+            if offset:
+                self.rules_used[cid].add("cd_offset")
+            if cd_kind == "E":
+                self._basics[cid], self._extra_used[cid] = 0, False
+        if cd_kind == "Q":
+            self._reset_cd(cid, "q_resets_e")           # Linko A3: the ultimate refreshes the E cooldown
+        if self.rules_on and (action == "counter" or (action == RAW_ACTION and str((step.raw or ("",))[0]).endswith(
+                "_PerfectEvade"))):
+            self._reset_cd(cid, "counter_resets_e")     # Mint A1: a counter refreshes the E cooldown
+        if check == "strict" and cd_kind == "Q" and m.energy is not None:
+            m.energy = max(0.0, m.energy - float(self.options.resources[cid].q_cost))
+        if clock_cls is not None:                  # Hotori: spend the clock (E 60 / Q from full, drain)
+            self._clock.begin(cid, clock_cls, start, clock_gate)
         if entry and entry[0] == "@time":                  # a chain hit without animation data: time only
             _tag, seconds, label, source = entry
             run = svc._StepRun(self.seq, trace_slot, None, None, start, start + svc._us(seconds), "time_only")
@@ -825,6 +1386,16 @@ class _Walker:
                 self.t += measured.length_us
                 rec.hits += measured.hits
                 rec.energy_gain += measured.energy
+                rec.energy_event += measured.event_energy
+                if measured.credit is not None:
+                    if measured.credit[0] is None:
+                        self.hit_unknown.add(cid)
+                    else:
+                        self.hit_credited[cid] += 1
+                if m.energy is not None:           # strict: the online pool (capped at the cost)
+                    m.energy = min(float(self.options.resources[cid].q_cost),
+                                   m.energy + float(measured.energy) * (1.0 + self._eff.get(cid, 0.0))
+                                   + float(measured.event_energy))
                 if measured.status != "ok":
                     run.status = measured.status
                 gauge_set = (data.ACTIONS.get(key) or {}).get("gauge_set")
@@ -838,10 +1409,27 @@ class _Walker:
                 self.used_normal = True
             if cd_kind == "Q" and cid in data.OWN_RESOURCE:
                 self.own_resource.add(cid)
+            if self.rules_on and cd_kind == "E":         # Sagiri ⑤: the held E clears the Q cooldown (e_resets_q)
+                self._reset_cd(cid, "e_resets_q", tuple(str(k[1] or "") for k in keys))
             self._after_step(cid, tid, start, notes)
+            if self.rules_on and (action == "basic" or (action == RAW_ACTION and where and where[1] == "basic")):
+                self._basics[cid] += 1
+        if self._clock is not None and cid in self._clock_members:
+            rec.clock_after = self._clock.snapshot(cid, self.t)
         rec.end_us = self.t
         rec.gauge_after = float(self.gauge.value(cid))
         rec.notes += notes
+        self.records.append(rec)
+
+    def _skip(self, src: int, cid: int, action: str, slot: str, info: dict | None, notes: list, status: str,
+              note) -> None:
+        """A press the check skipped (strict energy / longest wait): no time, no hits, its own record."""
+        rec = self._new_rec(src, cid, action)
+        rec.slot, rec.status = slot, status
+        if info is not None:
+            self._apply_info(rec, info)
+        rec.notes += list(notes) + [note]
+        rec.gauge_after = rec.gauge_before
         self.records.append(rec)
 
     def _after_key(self, cid: int, key: tuple, t0: int, notes: list) -> None:
@@ -850,7 +1438,9 @@ class _Walker:
         st = self._state(cid)
         if st is not None and key in st["exit"]:
             elapsed = self._elapsed(cid, t0)
-            window = st["window_s"]
+            from src.services import global_live_overlay   # Akane stage 2 from 4 s (CN release)
+
+            window = global_live_overlay.form_window(cid, m.state, st["window_s"], self._static_path)
             missed = False
             if window is not None and self._state_running(cid, t0) is not None:
                 lo, hi = svc._us(window[0]), svc._us(window[1])
@@ -865,6 +1455,8 @@ class _Walker:
                     m.form["status"] = tx.FORM_WINDOW_MISSED
             self._end_state(cid)
             m.last = None
+            if self._clock is not None and cid in self._clock_members:
+                self._clock.end_drain(cid, self.t)     # the clock regenerates again once the state ends (F-B)
             return
         for code, state in self.data.PALETTE[cid]["states"].items():
             if tuple(state["start"]) != key:
@@ -914,6 +1506,8 @@ class _Walker:
         cid = int(step.character_id)
         info = self._swap(cid, None) if cid != self.on_field else None
         for k in range(max(1, int(step.repeat or 1))):
+            if self._swap_out == cid:          # D3: an earlier press of this step swapped the member out
+                break
             self._press(step, src, k, info if k == 0 else None)
 
     # driving ----------------------------------------------------------------
@@ -924,6 +1518,12 @@ class _Walker:
     def step(self, step: CustomStep, src: int) -> None:
         if int(step.character_id) not in self.members:
             return
+        if self._swap_out is not None:
+            if int(step.character_id) == self._swap_out:    # D3: swapped out early - this input is not run
+                self._drop(step, src)
+                return
+            self._swap_out = None              # another member's step: its entry is the swap, judged by
+            self._judge_entry = True           # the gauge rule (support skill only when the gauge allows, F5)
         if step.action in ENTRY_ACTIONS:
             self._entry_step(step, src)
         else:
@@ -931,11 +1531,21 @@ class _Walker:
 
     def run(self, steps: Sequence[CustomStep]) -> _Walk:
         self.reset_gauges()
-        for rep in range(max(1, int(self.options.repeat))):
+        steps = list(steps)
+        reps = max(1, int(self.options.repeat))
+        ids = [int(s.character_id) if int(s.character_id) in self.members else None for s in steps]
+        self._seq_steps, self._reps = steps, reps
+        for rep in range(reps):
             self.rep = rep
             if rep and self.options.gauge_reset_each_repeat:
                 self.reset_gauges()
             for src, step in enumerate(steps):
+                cid = ids[src]
+                # D3: somebody typed later to swap to (the rest of this pass, or any later pass)
+                self._other_ahead = cid is not None and (
+                    any(c is not None and c != cid for c in ids[src + 1:])
+                    or (rep + 1 < reps and any(c is not None and c != cid for c in ids)))
+                self._src = src
                 self.step(step, src)
         return self.finish()
 
@@ -951,34 +1561,71 @@ class _Walker:
             self.measure.rows, self.measure.side, self.visits, self.swaps, self.stops, self.measure.stop_owners,
             self.t, dict(missing), self.measure.unknown_stop, self.used_default, self.used_gauge_set,
             self.used_normal, (), {cid: dict(v) for cid, v in self.measure.form_actions.items()})
+        interludes = {}
+        for cid in self._clock_members:
+            summary = self._clock.member_summary(cid)
+            if summary.get("interlude_s"):
+                interludes[cid] = (float(summary["interlude_s"]), tuple(summary.get("interludes_s") or ()))
         return _Walk(layout, self.records, self.waited_us, self.states_entered, tuple(sorted(self.own_resource)),
-                     self.plain_swaps, tuple(sorted(self.unchecked_cd)))
+                     self.plain_swaps, tuple(sorted(self.unchecked_cd)), self.skipped_energy, self.skipped_cd,
+                     dict(self._eff), tuple(self._clock_members), self.clock_waits,
+                     {cid: tuple(sorted(codes)) for cid, codes in self.rules_used.items() if codes}, interludes,
+                     dict(self.hit_credited), tuple(sorted(self.hit_unknown)), self.early_swaps, self.swap_dropped)
 
 
-def _walk(steps, team_ids, elements, rules, options, measure, gauge, stops, stop_owners=None, sched=None) -> _Walk:
+def _walk(steps, team_ids, elements, rules, options, measure, gauge, stops, stop_owners=None, sched=None, *,
+          awakening=None, eff_override=None, node_rules=None, layout_hooks=None) -> _Walk:
     """Lay the custom steps out: returns the engine layout plus the per-step records."""
-    return _Walker(team_ids, elements, rules, options, measure, gauge, stops, sched).run(steps)
+    return _Walker(team_ids, elements, rules, options, measure, gauge, stops, sched, awakening=awakening,
+                   eff_override=eff_override, node_rules=node_rules, layout_hooks=layout_hooks).run(steps)
+
+
+def _hit_credits(options: CustomOptions):
+    """team_resource_data.HIT_CREDIT at the resource levels (None at the legacy level)."""
+    if resource_model_of(options) == "legacy":
+        return None
+    from src.services import team_resource_data
+
+    return getattr(team_resource_data, "HIT_CREDIT", None) or {}
 
 
 # ── energy (never changes the timeline: a pass over the step records) ──────
-def _energy_pass(records: list, team_ids, options: CustomOptions, auto_eff: Mapping | None = None) -> None:
+def _energy_pass(records: list, team_ids, options: CustomOptions, auto_eff: Mapping | None = None,
+                 fixed_eff: Mapping | None = None) -> None:
     from src.services import team_custom_actions as data
     from src.services import team_simulation_explanation as tx
 
     energy: dict = {}
     cost: dict = {}
     eff: dict = {}
+    gained: dict = {}                               # cost unknown: energy since the last ultimate (display)
+    resourced = resource_model_of(options) != "legacy"
     for cid in team_ids:
         resource = (options.resources or {}).get(cid)
-        if resource is None or resource.q_cost is None or cid in data.OWN_RESOURCE:
+        if cid in data.OWN_RESOURCE:
+            continue
+        if resource is None or resource.q_cost is None:
+            if resourced:
+                own = _Walker._own_eff(cid)
+                gained[cid] = (0.0, float(resource.charge_eff) if resource is not None and resource.charge_eff is not None
+                               else own + float((auto_eff or {}).get(cid, 0.0)))
             continue
         cost[cid] = float(resource.q_cost)
         start = cost[cid] if resource.start_energy is None else float(resource.start_energy)
         energy[cid] = max(0.0, min(cost[cid], start))
         eff[cid] = float(resource.charge_eff) if resource.charge_eff is not None \
-            else float((auto_eff or {}).get(cid, 0.0))
+            else (_Walker._own_eff(cid) if resourced else 0.0) + float((auto_eff or {}).get(cid, 0.0))
+        if fixed_eff and cid in fixed_eff:          # strict: the value the online check used
+            eff[cid] = float(fixed_eff[cid])
     for rec in records:
         cid = rec.character_id
+        if cid in gained:
+            total, rate = gained[cid]
+            if rec.cd_kind == "Q":
+                total = 0.0
+            total += float(rec.energy_gain or 0.0) * (1.0 + rate) + float(rec.energy_event or 0.0)
+            gained[cid] = (total, rate)
+            rec.energy_gained = total
         if cid not in energy:
             rec.energy_after = None
             continue
@@ -986,7 +1633,8 @@ def _energy_pass(records: list, team_ids, options: CustomOptions, auto_eff: Mapp
             if energy[cid] + 1e-6 < cost[cid] and options.resource_check != "off":
                 rec.notes.append(tx.note(tx.NOTE_CUSTOM_ENERGY_SHORT, round(energy[cid], 3), cost[cid]))
             energy[cid] = max(0.0, energy[cid] - cost[cid])
-        energy[cid] = min(cost[cid], energy[cid] + float(rec.energy_gain or 0.0) * (1.0 + eff[cid]))
+        energy[cid] = min(cost[cid], energy[cid] + float(rec.energy_gain or 0.0) * (1.0 + eff[cid])
+                          + float(rec.energy_event or 0.0))
         rec.energy_after = energy[cid]
 
 
@@ -1015,7 +1663,7 @@ def _traces(records: list, layout, expl=None) -> tuple:
             reaction_index=reaction_index, gauge_before=rec.gauge_before, gauge_after=rec.gauge_after,
             out_gauge=rec.out_gauge, energy_after=rec.energy_after, notes=tuple(rec.notes),
             visit_index=rec.visit_index, step_index=rec.step_index, reaction_zh=rec.reaction_zh,
-            out_character_id=rec.out_character_id))
+            out_character_id=rec.out_character_id, energy_gained=rec.energy_gained, clock_after=rec.clock_after))
     return tuple(out)
 
 
@@ -1041,7 +1689,7 @@ def _as_steps(sequence, team_ids, lang: str = "ko") -> tuple:
 
 
 # ── preview (no database, no engine) ───────────────────────────────────────
-def _palette_walker(team_ids, options: CustomOptions):
+def _palette_walker(team_ids, options: CustomOptions, awakening: Mapping | None = None):
     from src.services import team_custom_actions as data
     from src.services import team_cycle_reactions as tcr
 
@@ -1050,20 +1698,35 @@ def _palette_walker(team_ids, options: CustomOptions):
     rules = tcr.DEFAULT_RULES
     gauge = tcr.CycleGauge("game", "full", team, elements, rules=rules)
     stops: list = []
-    return _Walker(team, elements, rules, options, _PaletteMeasure(gauge, stops), gauge, stops, None)
+    node_rules = None
+    try:            # awakening node rules' resource rows (no database: no prepare hook runs in the preview)
+        from src.services import awakening_node_rules
+
+        cards = dict(awakening or {})
+        node_rules = awakening_node_rules.for_selections(
+            {cid: cards.get(cid, TEMPLATE_SELECTION) for cid in team})
+        if node_rules.empty:
+            node_rules = None
+    except Exception:
+        node_rules = None
+    return _Walker(team, elements, rules, options, _PaletteMeasure(gauge, stops, _hit_credits(options)), gauge, stops,
+                   None, awakening=awakening, node_rules=node_rules)
 
 
 def preview_custom(team_ids: Sequence[int], sequence: Sequence[CustomStep],
-                   options: CustomOptions | None = None) -> CustomPreview:
+                   options: CustomOptions | None = None, *, awakening: Mapping | None = None) -> CustomPreview:
     """No database, no engine: resolved actions, start times, the gauge track and the cooldown / energy / state
-    notes from the generated palette.  Steps of members outside the team are left out; damage and hits are 0."""
+    notes from the generated palette.  Steps of members outside the team are left out; damage and hits are 0.
+    ``awakening`` = {character id: node set} of the cards - a ``team_awakening.AwakeningSel``, a
+    {"awakening_level", "selected_awaken_effect_ids"} dict or a legacy level (Effect1..level); None = the templates'
+    selection (``TEMPLATE_SELECTION``)."""
     from src.services import team_simulation_service as svc
 
     team = [int(c) for c in team_ids]
     options = normalise_options(options, team)
-    walker = _palette_walker(team, options)
+    walker = _palette_walker(team, options, awakening)
     walk = walker.run([s for s in sequence if int(s.character_id) in team])
-    _energy_pass(walk.records, team, options, None)
+    _energy_pass(walk.records, team, options, None, walk.strict_eff)
     traces = _traces(walk.records, walk.layout, None)
     end = walk.layout.end_us
     return CustomPreview(steps=traces, wall_time_s=svc._seconds(end),
@@ -1231,20 +1894,10 @@ def _manual_entries(options: CustomOptions, team_ids, end_us: int) -> list[dict]
 def _auto_charge_eff(analysis, team_ids, start_us: int, end_us: int) -> dict:
     """ChargeGetEfficiencyBase of each member's whole-fight self buffs (fork, cartridge set).  The engine ends
     whole-fight intervals at its own battle end (the last hit), so "whole fight" = from the start to the latest
-    interval end."""
-    out = {int(cid): 0.0 for cid in team_ids}
-    intervals = list(getattr(analysis, "buff_intervals", ()) or ())
-    last = min(int(end_us), max((int(iv.end_us) for iv in intervals), default=int(end_us)))
-    for iv in intervals:
-        cid = int(iv.source_character_id or 0)
-        if iv.target_scope != "self" or cid not in out:
-            continue
-        if int(iv.start_us) > int(start_us) or int(iv.end_us) < last:
-            continue
-        for m in iv.modifiers:
-            if m.property_id == "ChargeGetEfficiencyBase" and m.magnitude_value:
-                out[cid] += float(m.magnitude_value) * max(1, int(iv.stacks or 1))
-    return out
+    interval end.  The rule lives in team_resources (the reviewed mode uses it too)."""
+    from src.services.team_resources import charge_eff_from_analysis
+
+    return charge_eff_from_analysis(analysis, team_ids, start_us, end_us)
 
 
 # ── simulate ───────────────────────────────────────────────────────────────
@@ -1270,22 +1923,37 @@ def simulate_custom(static_path, user_db_path, account_id, specs, sequence, opti
         ctx.target_condition = target_condition(options.target)
         edit = _BuffEdit(options, team_ids, holder)
         ctx.buff_edit = edit
+        awakening = team_awakening.selections_of(ctx.characters)      # A11: the cards' node sets
+        credits = _hit_credits(options)
 
         def lay(stops, gauge, sched):
-            writer = svc._AxisWriter(ctx.static, ctx.by_key, ctx.names, gauge, stops)
+            layout_hooks = svc._layout_hooks(ctx, "custom")              # awakening node rules (layout level)
+            writer = svc._AxisWriter(ctx.static, ctx.by_key, ctx.names, gauge, stops, hit_credits=credits,
+                                     node_hooks=layout_hooks)
             walk = _walk(steps, team_ids, ctx.elements, ctx.rules, options, _AxisMeasure(ctx, writer), gauge, stops,
-                         writer.stop_owners, sched)
+                         writer.stop_owners, sched, awakening=awakening, eff_override=holder.get("eff"),
+                         node_rules=ctx.node_rules, layout_hooks=layout_hooks)
             holder["walk"], holder["end_us"] = walk, walk.layout.end_us
+            walk.layout.node_hooks = layout_hooks
             return walk.layout
 
         run = svc._run_axis(ctx, lay, order)
         walk: _Walk = holder["walk"]
+        if walk.strict_eff:         # strict pools: walk again with the build's charge efficiency (review F-C)
+            build_eff = _auto_charge_eff(run.analysis, team_ids, svc.START_US, run.layout.end_us)
+            typed = {cid for cid, r in (options.resources or {}).items() if r.charge_eff is not None}
+            if any(cid not in typed and abs(_Walker._own_eff(cid) + build_eff.get(cid, 0.0) - eff) > 1e-9
+                   for cid, eff in walk.strict_eff.items()):
+                holder["eff"] = build_eff
+                run = svc._run_axis(ctx, lay, order)
+                walk = holder["walk"]
         result = svc._collect(team_ids, ctx.characters, order, options.repeat, tx.ORDER_CUSTOM, "game", "full",
                               run.layout, run.dot_rows, run.reaction_rows, run.analysis, run.replays, run.sched,
                               run.to_active, ctx.elements, ctx.ability_names, {}, None)
         result = svc._with_fork_notes(result, run.corrections)       # Global arc corrections (B2-B4)
+        result = svc._with_node_notes(result, run, ctx)              # awakening node rules
         auto_eff = _auto_charge_eff(run.analysis, team_ids, svc.START_US, run.layout.end_us)
-        _energy_pass(walk.records, team_ids, options, auto_eff)
+        _energy_pass(walk.records, team_ids, options, auto_eff, walk.strict_eff)
         result.explanation = _custom_explanation(result.explanation, walk, steps, options, team_ids, edit, tx)
         result.team_buffs = (_buff_entries(run.analysis.buff_intervals, True)
                              + _buff_entries(edit.dropped, False)
@@ -1301,7 +1969,9 @@ def _custom_explanation(expl, walk: _Walk, steps, options: CustomOptions, team_i
                      tx.ASSUME_GAUGE_GAME, tx.ASSUME_GAUGE_IDEAL, tx.ASSUME_NORMAL_ENTRY,
                      tx.ASSUME_ENERGY_NOT_GATED,
                      # form windows are not sized in this mode: the step notes and custom_form_free say so
-                     tx.ASSUME_FORM_WINDOW, tx.LIMIT_FORM_CUT, tx.LIMIT_FORM_OVERRUN, tx.LIMIT_FORM_WINDOW_MISSED}
+                     tx.ASSUME_FORM_WINDOW, tx.LIMIT_FORM_CUT, tx.LIMIT_FORM_OVERRUN, tx.LIMIT_FORM_WINDOW_MISSED,
+                     # the typed cycle is not the approved rotation (its awakening premise does not apply)
+                     tx.LIMIT_ROTATION_ASSUMES_AWAKENING}
     as_typed = options.gauge_mode != "check"
     if as_typed:
         dropped_notes.add(tx.LIMIT_GAUGE_FIT)
@@ -1313,8 +1983,18 @@ def _custom_explanation(expl, walk: _Walk, steps, options: CustomOptions, team_i
         assumptions.append(tx.note(tx.ASSUME_CUSTOM_CD_OFF))
     elif options.resource_check == "wait":
         assumptions.append(tx.note(tx.ASSUME_CUSTOM_CD_WAIT, round(walk.waited_us / 1e6, 3)))
+    elif options.resource_check == "strict" and len(team_ids) > 1:     # D3: swap out at once in a team
+        from src.services.team_resources import SWAP_MIN_WAIT_S
+
+        assumptions.append(tx.note(tx.ASSUME_CUSTOM_STRICT_SWAP, int(getattr(walk, "early_swaps", 0) or 0),
+                                   round(walk.waited_us / 1e6, 3), walk.skipped_energy, walk.skipped_cd,
+                                   SWAP_MIN_WAIT_S))
+    elif options.resource_check == "strict":
+        assumptions.append(tx.note(tx.ASSUME_CUSTOM_STRICT, round(walk.waited_us / 1e6, 3), walk.skipped_energy,
+                                   walk.skipped_cd))
     else:
         assumptions.append(tx.note(tx.ASSUME_CUSTOM_CD_WARN))
+    assumptions.append(tx.note(tx.ASSUME_CUSTOM_MODEL, resource_model_of(options)))
     disabled = sorted({_key_of(iv) for iv in edit.dropped})
     if disabled:
         assumptions.append(tx.note(tx.ASSUME_CUSTOM_BUFF_OFF, len(disabled)))
@@ -1324,6 +2004,8 @@ def _custom_explanation(expl, walk: _Walk, steps, options: CustomOptions, team_i
     if target != TargetOptions():
         assumptions.append(tx.note(tx.ASSUME_CUSTOM_TARGET, target.enemy_level, target.resistance,
                                    target.defense_reduction, target.vulnerability))
+    if getattr(target, "boss", False) or int(getattr(target, "enemy_count", 1) or 1) != 1:
+        assumptions.append(tx.note(tx.ASSUME_CUSTOM_TARGET_KIND, int(bool(target.boss)), int(target.enemy_count)))
     assumptions += [item for item in expl.assumptions if tx.split_note(item)[0] not in dropped_notes]
     limits = [item for item in expl.limits if tx.split_note(item)[0] not in dropped_notes]
     custom_limits = []
@@ -1333,10 +2015,30 @@ def _custom_explanation(expl, walk: _Walk, steps, options: CustomOptions, team_i
         if any(r.q_cost is not None for r in resources.values()):
             custom_limits.append(tx.note(tx.LIMIT_CUSTOM_ENERGY_MODEL))
         for cid in walk.own_resource:
-            custom_limits.append(tx.note(tx.LIMIT_CUSTOM_OWN_RESOURCE, cid))
+            if cid in walk.clock_members:          # Hotori's clock was checked (resource levels)
+                assumptions.append(tx.note(tx.ASSUME_OWN_RESOURCE, cid, "非闭合时计"))
+                custom_limits.append(tx.note(tx.LIMIT_OWN_RESOURCE_DRAIN, cid, "非闭合时计"))
+            else:
+                custom_limits.append(tx.note(tx.LIMIT_CUSTOM_OWN_RESOURCE, cid))
         for cid in dict.fromkeys(c for c, _kind in walk.unchecked_cd):
             custom_limits.append(tx.note(tx.LIMIT_CUSTOM_CD_BLANK, cid,
                                          "/".join(kind for c, kind in walk.unchecked_cd if c == cid)))
+        for cid in team_ids:            # awakening / skill rules applied to the cooldowns (review F-A)
+            codes = tuple(c for c in (getattr(walk, "rules_used", {}) or {}).get(cid, ()) if c != "cd_offset")
+            if codes:
+                assumptions.append(tx.note(tx.ASSUME_CUSTOM_CD_RULES, cid, *codes))
+        for cid, (seconds, per_visit) in (getattr(walk, "clock_interludes", {}) or {}).items():
+            assumptions.append(tx.note(tx.ASSUME_HOTORI_INTERLUDE, cid, "非闭合时计", round(seconds, 2),
+                                       "/".join(f"{s:.1f}" for s in per_visit)))
+    hits = _hit_credits(options) or {}
+    for cid in team_ids:                # summon hits not laid out (review F12)
+        if (getattr(walk, "hit_credited", {}) or {}).get(cid):
+            cell = next((c for (k, _a, _s), c in sorted(hits.items()) if k == cid and c[0] is not None), None)
+            if cell is not None:
+                custom_limits.append(tx.note(tx.LIMIT_HIT_CREDIT, cid, round(float(cell[0]), 3),
+                                             round(float(cell[1]), 3), int(cell[2] or 0), str(cell[4])))
+        if cid in (getattr(walk, "hit_unknown", ()) or ()):
+            custom_limits.append(tx.note(tx.LIMIT_HIT_UNKNOWN, cid))
     if as_typed:
         custom_limits.append(tx.note(tx.LIMIT_CUSTOM_SUPPORT_FREE))
     custom_limits.append(tx.note(tx.LIMIT_CUSTOM_CHAIN_RESET))
@@ -1428,7 +2130,8 @@ def layout_as_sequence(layout, team_ids) -> tuple:
 
     for visit in layout.visits:
         cid = int(visit.character_id)
-        runs = [s for s in visit.steps if s.status not in ("skipped_entry", "form_cut")]
+        runs = [s for s in visit.steps if s.status not in ("skipped_entry", "form_cut", "cd_skip", "energy_short",
+                                                           "swap_out", "swap_dropped")]
         if visit.entry == "support_skill":
             emit(CustomStep(cid, "support"))
             runs = runs[1:]                        # the support-skill step itself
@@ -1451,7 +2154,7 @@ def layout_as_sequence(layout, team_ids) -> tuple:
 
 
 def approved_as_sequence(static_path, user_db_path, account_id, specs, *, order: Sequence[int] | None = None,
-                         order_mode: str = "auto", whole_run: bool = False) -> tuple:
+                         order_mode: str = "auto", whole_run: bool = False, resource_model: str | None = None) -> tuple:
     """The reviewed rotations as a custom sequence (the page's "load approved rotation").
 
     Default: one loop, to be extended with the repeat count (repeating it is not the reviewed run: the typed
@@ -1466,6 +2169,7 @@ def approved_as_sequence(static_path, user_db_path, account_id, specs, *, order:
     loops = svc.DEFAULT_LOOPS if whole_run else 1
     with svc._open_context(static_path, user_db_path, account_id, specs, loops=loops, gauge_rule="game",
                            opening_gauge=svc._effective_opening("full")) as ctx:
+        ctx.policy = svc.resolve_policy(resource_model)    # waits / skipped ultimates of the reviewed run
         if order and sorted(int(c) for c in order) == sorted(team_ids):
             chosen = tuple(int(c) for c in order)
         else:

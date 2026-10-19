@@ -5,9 +5,14 @@
 本文介绍如何把 NTE Drive Calc 2.3.1 的原生功能（原生同步、原生战报、极速装配、插件）与 ReShade、DLSS5（神经渲染插件）一起使用。
 适用于官方 2.3.1、韩文补丁 v2.3.1-ko 和 Global 2.3.1。各构建行为不同的地方会单独注明。
 
-> [!WARNING]
-> **2.3.1 中有一部分尚未在实际游戏中确认。**
-> 从 2.3.1 开始，Loader 加载到游戏中的计算器文件也叫 `d3d12.dll`。这个文件位于计算器目录中，所以不会与游戏目录中的 ReShade 文件冲突。但是，当两个同名 DLL 同时加载到同一个游戏进程中时，ReShade 能否正常加载、两者是否会冲突，目前还没有确认。原作者也注明这个 Loader 构建没有在实际游戏中验证过。
+> [!IMPORTANT]
+> **2026-10-14 已在实际游戏中确认：一起使用时游戏可以正常启动和运行，不会崩溃退出。**
+> 确认的配置：计算器 2.3.1 的 Loader + ReShade 6.8（插件支持版，游戏目录中的 `d3d12.dll`）+ DLSS5 插件（最新版）+ RTSS（使用 Detours）。从 2.3.1 开始，Loader 加载到游戏中的计算器宿主也叫 `d3d12.dll`，但在这个配置下，即使它与 ReShade 一起加载到同一个游戏进程中，游戏也能正常运行，没有退出。在这个配置下计算器连接（原生功能）能否正常工作，尚未在画面上确认（见[第 5 步](#第-5-步确认是否正常)）。
+> 不过，下面两个条件是必需的。在作者的环境中，只要缺少其中任何一个，游戏都会在启动后立即退出。
+> 1. **DLSS5 插件要用最新版** —— 旧版 DLSS5 叠加界面插件是原因之一。→ [DLSS5 插件请更新到最新版本](#dlss5-插件请更新到最新版本)
+> 2. **如果使用 RTSS（MSI Afterburner），请在 HTGame.exe 的配置文件中开启 Detours** —— RTSS 的默认设置与计算器宿主发生了冲突。→ [与 RTSS 一起使用](#与-rtssrivatunermsi-afterburner一起使用)
+>
+> 确认范围：这是在作者的一台电脑（NVIDIA RTX 显卡、Windows 11）上确认的结果，不保证在其他环境中也一样。原作者注明这个 Loader 构建没有在实际游戏中验证过。这次确认只涉及程序之间是否冲突，与 ACE 会有什么反应无关（见[请先阅读](#请先阅读)）。
 > 开始使用后，请务必按[第 5 步](#第-5-步确认是否正常)检查。
 
 ## 适合哪些人
@@ -15,6 +20,7 @@
 - 使用 ReShade 和 DLSS5 插件，同时也想使用计算器原生功能的用户
 - 因为计算器的 D3D 方式和 ReShade 都要用 `d3d12.dll` 这个文件名，所以无法同时放置两者的用户
 - 从 2.3.0 升级到 2.3.1 后看到“发现旧版组件”窗口的用户
+- 开着 RTSS（MSI Afterburner）使用 Loader 时，游戏启动后立即退出的用户
 
 ## 概览
 
@@ -25,7 +31,7 @@
 |---|---|---|
 | 计算器文件的位置 | 游戏目录 `Win64` | 计算器目录 `config\native-loader` |
 | 游戏目录中的 `d3d12.dll` | 由计算器使用 | 由 ReShade 使用 |
-| 与 ReShade（`d3d12.dll`）一起使用 | 不可以 | 文件不冲突。2.3.1 中能否实际一起运行尚未确认（待确认） |
+| 与 ReShade（`d3d12.dll`）一起使用 | 不可以 | 游戏不会崩溃退出（2026-10-14 已在实际游戏中确认，一台电脑；计算器连接尚未在画面上确认）。但需要[最新版 DLSS5 插件](#dlss5-插件请更新到最新版本)，使用 RTSS 时还需要 [Detours 设置](#与-rtssrivatunermsi-afterburner一起使用) |
 | 启动顺序 | 在游戏关闭时提前部署 | 每次 计算器（Loader）→ 启动器 → 游戏 |
 
 ## 请先阅读
@@ -45,12 +51,13 @@
 
 | 项目 | 内容 |
 |---|---|
-| 计算器 | 官方 2.3.1、[韩文补丁 v2.3.1-ko](https://github.com/LuinDe/NTE-Drive-Calc-KO/releases/tag/v2.3.1-ko)（韩语界面）、[Global 2.3.1](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/tag/v2.3.1-global.1) 三者之一。**如果使用 ReShade，推荐韩文补丁或 Global。** 原因见[各构建的差异](#各构建的差异)。计算器以管理员权限运行（会弹出 UAC 提示）。 |
+| 计算器 | 官方 2.3.1、[韩文补丁 v2.3.1-ko](https://github.com/LuinDe/NTE-Drive-Calc-KO/releases/tag/v2.3.1-ko)（韩语界面）、[Global 2.3.1](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/latest) 三者之一。**如果使用 ReShade，推荐韩文补丁或 Global。** 原因见[各构建的差异](#各构建的差异)。计算器以管理员权限运行（会弹出 UAC 提示）。 |
 | 工作模式 | **中风险**（或开发），并且必须完成风险确认。 |
 | 运行库 | Microsoft Visual C++ 2015–2022 可再发行组件包（x64）。启动 Loader 前计算器会检查。 |
 | 游戏路径 | 计算器中必须设置好 `HTGame.exe` 的路径。游戏必须保持官方目录结构（`游戏安装目录\Client\WindowsNoEditor\HT\Binaries\Win64\HTGame.exe`）。另外，安装根目录（包含 `Client` 文件夹的目录）中必须有官方启动器 `NTELauncher.exe` 或 `NTEGlobalLauncher.exe`（放在 `NTELauncher\` 文件夹内也可以）。 |
 | 启动游戏 | **通过官方启动器**启动。Loader 经由启动器接入游戏。 |
-| 画面模组 | ReShade（插件支持版）和 DLSS5 插件。安装方法请参考[第 3 步](#第-3-步安装-reshade-与-dlss5)中的外部指南。 |
+| 画面模组 | ReShade（插件支持版）和 DLSS5 插件。DLSS5 插件必须是**最新版**（[原因](#dlss5-插件请更新到最新版本)）。安装方法请参考[第 3 步](#第-3-步安装-reshade-与-dlss5)中的外部指南。 |
+| RTSS | 如果使用 RivaTuner Statistics Server（随 MSI Afterburner 一起安装），必须在 HTGame.exe 的配置文件中开启 **Use Microsoft Detours API hooking**。请参阅[与 RTSS 一起使用](#与-rtssrivatunermsi-afterburner一起使用)。不使用则不需要。 |
 
 ## 开始之前：备份
 
@@ -144,6 +151,17 @@
 - 本文以 ReShade 为 `Win64\d3d12.dll` 的配置为前提。如果安装工具生成的是 `dxgi.dll`，请改名为 `d3d12.dll`。
 - 如果已经以 `d3d12.dll` 使用 ReShade，保持不变即可。Loader 方式不会动这个文件（官方版仅限完成第 0、2 步之后）。
 - 用 ReShade 安装程序卸载或重新安装时，请先备份插件。
+- DLSS5 插件请使用最新版，见下面的[DLSS5 插件请更新到最新版本](#dlss5-插件请更新到最新版本)。
+- 如果使用 RTSS（MSI Afterburner），请在启动游戏前先按[与 RTSS 一起使用](#与-rtssrivatunermsi-afterburner一起使用)完成设置。
+
+### DLSS5 插件请更新到最新版本
+
+在作者的环境中，**旧版 DLSS5 叠加界面插件**也会导致游戏启动后立即退出。崩溃报告器中的错误与 [RTSS 冲突](#与-rtssrivatunermsi-afterburner一起使用)时相同（`D3D12Viewport.cpp` … `80004004` `E_ABORT`）。把 DLSS5 插件更新到最新版后问题解决。
+
+- 作者更新过的插件：DLSS5 叠加界面插件（`dlss5-lab-overlay`，新构建）、`renodx-dlss5.addon64`、`renodx-neural-interposer`。名称可能因获取来源而不同。
+- 请从最初获取插件的地方（例如[社区指南](https://arca.live/b/nevernesstoeverness/181463229)、[RenoDX](https://github.com/clshortfuse/renodx)）下载最新版。本仓库不分发、也不验证插件文件。
+- 替换前，请先[备份](#开始之前备份)当前使用的 `*.addon64`。
+- 替换后，请按[第 5 步](#第-5-步确认是否正常)确认 `ReShade.log` 中每个插件都有一行 `Registered add-on "…"`。
 
 ## 第 4 步：每次的启动顺序
 
@@ -172,7 +190,45 @@
 | ReShade 日志 | `Win64\ReShade.log`（确认修改时间是刚才启动的时间） | 有 `Initializing crosire's ReShade version '…' (64-bit) loaded from '…\d3d12.dll' into '…\HTGame.exe'` 这一行，并且每个插件都有一行 `Registered add-on "…"`。 |
 | DLSS5 | ReShade 叠加界面中的 DLSS5（神经渲染）面板 | 状态显示为启用（ACTIVE）。 |
 
-只要有一项异常，请查看下面的[故障排除](#故障排除)。特别是**只有在使用 Loader 时 ReShade 才不出现或游戏不稳定**的情况，请一定告诉我们。这可能与上面 WARNING 中所写的、尚未确认的部分有关。
+只要有一项异常，请查看下面的[故障排除](#故障排除)。如果游戏启动后立即退出，请先检查 [RTSS 设置](#与-rtssrivatunermsi-afterburner一起使用)和 [DLSS5 插件版本](#dlss5-插件请更新到最新版本)。如果仍然**只有在使用 Loader 时 ReShade 才不出现或游戏不稳定**，请一定告诉我们。在作者的环境（一台电脑）中游戏没有崩溃退出，但在其他环境中或与其他工具一起使用时可能不同。
+
+## 与 RTSS（RivaTuner/MSI Afterburner）一起使用
+
+RTSS（RivaTuner Statistics Server）是在游戏画面上显示 FPS 等信息的程序。它常常随 MSI Afterburner 一起安装，打开 Afterburner 时也可能在后台一起运行。如果安装了 RTSS，或通知区域（任务栏右端，可能收在 ^ 里）有 RTSS 图标，请阅读本节。
+
+**症状**
+
+- 用 Loader 接入计算器后启动游戏，游戏启动后立即退出。
+- 出现虚幻引擎（Unreal Engine）崩溃报告器窗口，错误内容中有 `D3D12Util.cpp:1019`、`D3D12Viewport.cpp:554` 和错误代码 `80004004`（`E_ABORT`）。这表示游戏在创建画面输出（交换链）时失败。行号可能因游戏版本而不同。
+- 在作者的环境中，每次计算器的 Loader 与 RTSS（默认设置）同时运行时都会出现。
+
+**原因**
+
+RTSS 为了绘制叠加界面，会把自己的 DLL（`RTSSHooks64.dll`）加载到游戏中并拦截图形函数（挂钩，hook）。在作者的环境中，RTSS 默认的挂钩引擎与 2.3.1 的计算器宿主发生冲突；把 RTSS 的挂钩引擎改为 Microsoft Detours 后，游戏不再退出。
+
+**解决：在 HTGame.exe 的配置文件中开启 Detours**
+
+这个设置只作用于 HTGame.exe，其他游戏的 RTSS 设置不会改变。计算器不会修改 RTSS 设置，请自行操作。
+
+1. 关闭游戏。
+2. 从通知区域中的 RTSS 图标打开 RTSS 窗口（图标可能收在 ^ 里）。
+3. 点击 **Add**，选择 `HTGame.exe`（`游戏安装目录\Client\WindowsNoEditor\HT\Binaries\Win64\HTGame.exe`）。列表中会添加并选中 **HTGame.exe**。如果已经有了，直接选中即可。
+4. 在列表中选中 **HTGame.exe** 后点击 **Setup**。如果在选中 **Global** 的状态下修改，其他游戏也会受影响，请注意。
+5. 在 **General** 选项卡中勾选 **Use Microsoft Detours API hooking**，然后点击 **OK** 保存并关闭设置窗口（用 × 关闭窗口可能不会保存更改）。
+6. 按[第 4 步](#第-4-步每次的启动顺序)的顺序（计算器 → Loader → 官方启动器 → 游戏）重新启动。
+
+根据 RTSS 自带的帮助说明，这个选项会把 RTSS 的挂钩方式从其自有的 hook-chaining 引擎切换为 Microsoft Detours，以提高与其他挂钩工具的兼容性。在作者的环境中，HTGame.exe 配置文件里只改了这一个选项。已在 RTSS 7.3.7 中确认。如果看不到这个选项，请更新 RTSS，或使用下面的另一种方法（把 Application detection level 设为 None）。
+
+**确认设置（可选）**：用记事本打开 RTSS 安装目录（默认为 `C:\Program Files (x86)\RivaTuner Statistics Server`）中的 `Profiles\HTGame.exe.cfg`，`[Hooking]` 下会有 `UseDetours=1` 这一行。只查看即可，请不要直接编辑这个文件（设置请在 RTSS 窗口中修改）。
+
+**还原**：在列表中选中 **HTGame.exe**，点击 **Setup**，在 **General** 选项卡中取消勾选 **Use Microsoft Detours API hooking**，然后点击 **OK**。如果 HTGame.exe 配置文件只是为此新建的，也可以改为在选中 **HTGame.exe** 的状态下点击 **Remove**（该配置文件中的所有设置都会被删除，这个游戏会重新使用 Global 设置）。之后使用 Loader 时，游戏可能再次退出。
+
+**另一种方法：对 HTGame.exe 关闭 RTSS**：在 RTSS 窗口中选中 **HTGame.exe**（不要选 **Global**），把 **Application detection level** 设为 **None**，也可以避免冲突。如果在选中 **Global** 时修改，所有游戏的 RTSS 都会关闭。但这样在这个游戏中不会显示 RTSS 叠加界面（FPS 显示等）。
+
+**计算器中的提示**：Global 2.3.1-global.2 及以后的版本会在你亲自点击 **启动原生 Loader** 时检查这个设置并弹出提醒，同时在 **检测详情** 中显示为黄色项目。由自动同步自动启动 Loader 时不会弹出提醒窗口，只在 **检测详情** 中显示。计算器只读取 RTSS 设置，不会修改。这个 RTSS 解决办法同样适用于官方版、韩文补丁和 Global（三个构建的 Loader 组件相同）。
+
+> [!NOTE]
+> 旧版 DLSS5 叠加界面插件也会导致同样的错误。如果没有使用 RTSS 也会退出，或者修改 RTSS 设置后仍然退出，请参阅[DLSS5 插件请更新到最新版本](#dlss5-插件请更新到最新版本)。
 
 ## 还原
 
@@ -214,9 +270,11 @@
 | 出现“功能受限”窗口 | 工作模式是离线或低风险。 | 按[第 1 步](#第-1-步把计算器切换为-loader-方式)改为**中风险**。 |
 | 手动启动时出现“功能暂不可用 —— 组件处理未完成……” | 可能有多种原因，例如缺少 Visual C++ x64 运行库或安装损坏（这个窗口不显示具体原因）。 | 从 [Microsoft 官方页面](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist)安装 x64 版本后再试。 |
 | **检测详情** 中显示“自动 Loader 启动失败：……；已停止自动重试” | 自动启动失败后，在原因解决之前会停止自动重试（重启计算器后依然如此）。例如：“缺少 Microsoft Visual C++ 2015–2022 Redistributable x64：……”。在韩文补丁、Global 中，曾用 D3D 方式的用户如果因保护 ReShade 文件而停止了自动部署（“自动原生组件部署失败：游戏目录中的 d3d12.dll 无法确认是本程序部署的组件……”），也会出现这种情况。 | 解决原因后（包括把加载方式改为 Loader），点击 **🔧 设置** → **工作模式** 卡片中的 **检测并处理**。 |
-| Loader 已启动，但“检测详情”中没有连接 | 可能没有通过官方启动器启动游戏，或者还没登录（黄色的“等待登录”），或者（2.3.1 待确认）计算器 DLL 没有加载到游戏中。 | 关闭游戏和启动器，按[第 4 步](#第-4-步每次的启动顺序)的顺序重新操作。 |
-| 游戏启动后立即退出、卡死或黑屏 | （2.3.1 待确认）ReShade 与计算器 DLL 一起加载时可能发生冲突。 | 关闭计算器，只用启动器启动游戏试试。如果不用 Loader 时正常，请告诉仓库，在此期间请以低风险或离线模式使用计算器。 |
-| ReShade 叠加界面不出现 | ① `d3d12.dll` 不是 ReShade ② （2.3.1 待确认）与 Loader 一起使用时 ReShade 没有加载 | ① 查看 `d3d12.dll` 属性中的产品名称，如果不是 `ReShade`，请按下面“`d3d12.dll` 被换成计算器文件或消失”的顺序还原。② 如果 `ReShade.log` 没有按本次启动的时间更新，请关闭计算器，只用启动器启动游戏试试。如果不用 Loader 时出现、与 Loader 一起时不出现，请告诉仓库。在此期间以低风险或离线模式使用计算器即可。 |
+| Loader 已启动，但“检测详情”中没有连接 | 可能没有通过官方启动器启动游戏，或者还没登录（黄色的“等待登录”），或者计算器 DLL 没有加载到游戏中。 | 关闭游戏和启动器，按[第 4 步](#第-4-步每次的启动顺序)的顺序重新操作。 |
+| 开着 RTSS（MSI Afterburner）时游戏启动后立即退出，崩溃报告器中显示 `D3D12Viewport.cpp` … `80004004`（`E_ABORT`） | 很可能是 RTSS 默认的挂钩引擎与 2.3.1 的计算器宿主冲突（在作者的环境中确认）。 | 在 RTSS 中为 HTGame.exe 创建配置文件，开启 **Setup** → **General** → **Use Microsoft Detours API hooking**。详细步骤见[与 RTSS 一起使用](#与-rtssrivatunermsi-afterburner一起使用)。 |
+| 没有 RTSS，或开启 Detours 后仍因同样的错误（`80004004`）退出 | 旧版 DLSS5 叠加界面插件 | 从获取来源把 DLSS5 插件更新到最新版。见[DLSS5 插件请更新到最新版本](#dlss5-插件请更新到最新版本)。 |
+| 其他情况下游戏启动后立即退出、卡死或黑屏 | 如果不属于上面两种情况，可能是计算器 DLL 与 ReShade 或其他叠加界面、挂钩工具、模组发生冲突（在作者的环境中，已确认 Loader + ReShade + DLSS5 + RTSS（Detours）一起使用时游戏不会崩溃退出）。 | 关闭计算器，只用启动器启动游戏试试。如果不用 Loader 时正常，请附上你正在使用的工具告诉仓库，在此期间请以低风险或离线模式使用计算器。 |
+| ReShade 叠加界面不出现 | ① `d3d12.dll` 不是 ReShade ② 与 Loader 一起使用时 ReShade 没有加载（在作者的环境中已确认一起使用时游戏不会崩溃退出） | ① 查看 `d3d12.dll` 属性中的产品名称，如果不是 `ReShade`，请按下面“`d3d12.dll` 被换成计算器文件或消失”的顺序还原。② 如果 `ReShade.log` 没有按本次启动的时间更新，请关闭计算器，只用启动器启动游戏试试。如果不用 Loader 时出现、与 Loader 一起时不出现，请告诉仓库。在此期间以低风险或离线模式使用计算器即可。 |
 | 每次启动计算器都出现“发现旧版组件”窗口 | （官方版）在 D3D 方式下，如果游戏目录中有 ReShade 的 `d3d12.dll`，计算器会把它判断为旧版计算器文件。游戏目录中有 `dwmapi.dll`（即使是其他模组的文件）时也会出现。或者 Loader 文件还没有为 2.3.1 准备好。 | 点击**稍后处理**，把加载方式改为 **原生 Loader（备用）**，然后点击一次 **启动原生 Loader**（官方版此时会删除 `dwmapi.dll`，如果它属于其他模组，请先备份）。韩文补丁和 Global 不会因为 ReShade 或其他模组的文件弹出这个窗口。 |
 | `d3d12.dll` 被换成计算器文件或消失 | 官方版执行了 D3D 部署、自动部署或清理。 | ① 把加载方式改为 **原生 Loader（备用）**。② 在关闭游戏和启动器的状态下点击一次 **启动原生 Loader**，清理旧的 D3D 记录（官方版此时会只按文件名删除 `Win64\d3d12.dll`）。③ 确认 `Win64` 中没有残留计算器的 `d3d12.dll` **之后**，再放回备份的 ReShade `d3d12.dll`。官方版之后请不要点击**清理游戏目录**。韩文补丁和 Global 不会覆盖或删除不属于计算器的 `d3d12.dll`。 |
 | 插件（`*.addon64`）消失 | 在 ReShade 安装程序中执行卸载就会这样。 | 从备份中还原。 |
@@ -245,6 +303,9 @@ Loader 先进入官方启动器，再接入启动器所启动的游戏。这一�
 
 **能和 OptiScaler 一起用吗？**
 没有确认。作者关闭了 OptiScaler，只使用 ReShade。另外，官方版会只按文件名删除 `d3d12.dll`（清理时）和 `dwmapi.dll`（清理时、手动启动 Loader 时、D3D 手动部署时）。如果其他模组使用这些文件名，也需要同样注意。
+
+**RTSS 的 Detours 设置会影响其他游戏吗？**
+如果只在 HTGame.exe 的配置文件中开启，就只作用于这个游戏。如果在 **Global** 配置文件中修改，其他游戏也会受影响，请注意。计算器不会修改 RTSS 设置（较新的 Global 版本只读取设置并显示提醒）。
 
 ## 各构建的差异
 
@@ -304,4 +365,4 @@ Loader 先进入官方启动器，再接入启动器所启动的游戏。这一�
 
 ---
 
-本文为非官方文档，与原作者、游戏厂商、ReShade、RenoDX、NVIDIA 均无关联。2026-10-11 依据计算器 2.3.1 编写。
+本文为非官方文档，与原作者、游戏厂商、ReShade、RenoDX、NVIDIA、RTSS（RivaTuner Statistics Server）、MSI 均无关联。2026-10-11 依据计算器 2.3.1 编写，2026-10-14 补充了实际游戏中的确认结果和 RTSS 说明。2026-10-19：计算器内的 RTSS 提醒已随 Global 2.3.1-global.2 发布。

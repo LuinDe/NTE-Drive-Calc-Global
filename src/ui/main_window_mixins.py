@@ -18,7 +18,7 @@ from src.ui.controllers.configuration_controller import ConfigurationControllerM
 from src.ui.controllers.environment_controller import EnvironmentControllerMixin
 from src.ui.controllers.hotkey_controller import HotkeyControllerMixin
 from src.ui.controllers.inventory_sync_controller import InventorySyncControllerMixin
-from src.ui.controllers.update_controller import UpdateControllerMixin
+from src.ui.controllers.about_links_controller import AboutLinksMixin
 
 
 class WeightedAllocationMixin:
@@ -44,7 +44,7 @@ class FeatureMainWindowMixin(
     EnvironmentControllerMixin,
     HotkeyControllerMixin,
     InventorySyncControllerMixin,
-    UpdateControllerMixin,
+    AboutLinksMixin,
     WarehouseControllerMixin,
     EquipmentAssemblyControllerMixin,
     EquipmentDisplayControllerMixin,

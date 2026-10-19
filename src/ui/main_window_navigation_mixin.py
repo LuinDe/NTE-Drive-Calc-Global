@@ -42,7 +42,7 @@ class MainWindowNavigationMixin:
         tl = QHBoxLayout(tb)
         tl.setContentsMargins(14, 0, 4, 0)
         tl.setSpacing(0)
-        tl.addWidget(QLabel("  NTE Drive Calc"))
+        tl.addWidget(QLabel("  NTE Drive Calc Global"))
         tl.addStretch()
         for text, oid, slot in [
             ("—", "", self.showMinimized),

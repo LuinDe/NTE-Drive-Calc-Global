@@ -31,7 +31,14 @@ from src.services.damage_calculation_service import (
 )
 from src.storage.sqlite.user_data_dao import UserDataDao
 from src.services.official_role_labels import _property_label
+from src.services.puka_training_settings_service import (
+    account_bonus_property_stats,
+    puka_training_property_stats,
+)
 from src.services.world_bonus_settings_service import world_bonus_property_stats
+
+# 冻结的噗卡特训专有行（防御力/生命值/暴击率/环合/倾陷）的 display_name 前缀：持久化数据，保持原文（K3）。
+_PUKA_TRAINING_LABEL_PREFIX = "噗卡特训·"
 
 
 def _asset_root(value: str | Path | None) -> Path:
@@ -232,7 +239,8 @@ def _likeability_property_stats(detail: Mapping[str, Any]) -> dict[str, float]:
 
 
 def _world_bonus_property_stats(detail: Mapping[str, Any]) -> dict[str, float]:
-    return world_bonus_property_stats(detail.get("world_bonus"))
+    # 账号级固定属性层 = 家具加成 + 噗卡特训；Lv 0 时与单独的家具加成完全一致。
+    return account_bonus_property_stats(detail)
 
 
 def _add_property_stats(
@@ -240,6 +248,39 @@ def _add_property_stats(
 ) -> None:
     for property_id, value in values.items():
         totals[property_id] = totals.get(property_id, 0.0) + float(value)
+
+
+def _account_bonus_rows(detail: Mapping[str, Any], rows) -> tuple[OfficialAttributeSummaryValue, ...]:
+    """Frozen ``world_bonus`` rows of one build.
+
+    The two furniture keys keep their row shape (zero included, ordinal 0/1, label unchanged) and carry the
+    furniture value plus the training share; the training-only keys follow, labelled ``噗卡特训·…``.  At level 0
+    the result is exactly the two furniture rows, byte for byte.  ``round(…, 9)`` only tidies the stored value
+    (0.052000000000000005 -> 0.052); the restore side still rounds (battle_build_stat_reconstruction_service).
+    """
+
+    furniture = world_bonus_property_stats(detail.get("world_bonus"))
+    training = puka_training_property_stats(detail.get("puka_training"))
+    merged = dict(furniture)
+    if training:   # level 0 leaves the furniture values untouched (no rounding either)
+        _add_property_stats(merged, training)
+        merged = {property_id: round(value, 9) for property_id, value in merged.items()}
+    out = list(rows({property_id: merged[property_id] for property_id in furniture}, include_zero=True))
+    extra = rows(
+        {property_id: value for property_id, value in merged.items() if property_id not in furniture},
+        include_zero=False,
+    )
+    out.extend(
+        OfficialAttributeSummaryValue(
+            key=stat.key,
+            label=_PUKA_TRAINING_LABEL_PREFIX + str(stat.label),
+            value=stat.value,
+            percent=stat.percent,
+            weight_property_ids=stat.weight_property_ids,
+        )
+        for stat in extra
+    )
+    return tuple(out)
 
 
 def calculate_official_role_attribute_summaries(
@@ -519,10 +560,7 @@ def calculate_official_role_combat_stat_sources(
         "character": rows(character),
         "fork": rows(_fork_property_stats(detail)),
         "likeability": rows(_likeability_property_stats(detail)),
-        "world_bonus": rows(
-            _world_bonus_property_stats(detail),
-            include_zero=True,
-        ),
+        "world_bonus": _account_bonus_rows(detail, rows),
         "equipment": rows(_equipment_property_stats(detail, list(items))),
     }
 
@@ -694,7 +732,8 @@ def _role_panel_damage_inputs(
             defense_add=stats.get("DefAdd", 0.0),
             character_level=float(profile.get("character_level") or 80),
             enemy_level=80.0,
-            crit_rate=0.05 + stats.get("CritBase", 0.0) + stats.get("CritAdd", 0.0),
+            # 暴击率不超过 100%（逐击重放与旧伤害模型同样封顶）；面板格子仍显示未封顶的合计。
+            crit_rate=min(1.0, 0.05 + stats.get("CritBase", 0.0) + stats.get("CritAdd", 0.0)),
             crit_damage=0.50 + stats.get("CritDamageBase", 0.0) + stats.get("CritDamageAdd", 0.0),
             defense_penetration=stats.get("DefIgnore", 0.0),
             defense_reduction=0.0,

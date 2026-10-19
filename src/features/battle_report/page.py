@@ -77,6 +77,7 @@ class BattleReportPage(QWidget):
     target_condition_save_requested = Signal(object)
     build_edit_requested = Signal()
     build_edit_activation_requested = Signal(bool)
+    puka_overrides_requested = Signal(bool)
     marginal_requested = Signal()
     my_build_comparison_requested = Signal()
     marginal_baseline_requested = Signal()
@@ -117,6 +118,8 @@ class BattleReportPage(QWidget):
         self.build_edit_activation_requested.connect(
             self._invalidate_marginal_baselines
         )
+        # 噗卡特训第二阶段开关会改写修改副本的手工调整值：已缓存的边际基线作废。
+        self.puka_overrides_requested.connect(self._invalidate_marginal_baselines)
 
     def _build_report(self, game_ui_asset_root) -> None:
         content = QWidget()
@@ -241,6 +244,9 @@ class BattleReportPage(QWidget):
         self.long_analysis_view.build_edit_control.edit_requested.connect(
             self.build_edit_requested
         )
+        self.long_analysis_view.build_edit_control.puka_overrides_toggled.connect(
+            self.puka_overrides_requested
+        )
         root.addWidget(self.long_analysis_view)
         self.quality_label = QLabel(_L('数据质量：等待采集'))
         self.quality_label.hide()
@@ -258,6 +264,7 @@ class BattleReportPage(QWidget):
         self.marginal_page.reset_requested.connect(self.marginal_reset_requested)
         self.marginal_page.draft_changed.connect(self.marginal_draft_changed)
         self.marginal_page.role_changed.connect(self._marginal_role_changed)
+        self.marginal_page.puka_overrides_toggled.connect(self.puka_overrides_requested)
         self._stack.addWidget(self.marginal_page)
 
     def show_marginal(
@@ -592,11 +599,17 @@ class BattleReportPage(QWidget):
         has_edit: bool,
         active: bool,
         available: bool = True,
+        puka_training_level: int = 0,
+        puka_training_source: str = "",
+        puka_native_overrides: bool = True,
     ) -> None:
         self.long_analysis_view.build_edit_control.set_state(
             has_edit=has_edit,
             active=active,
             available=available,
+            puka_training_level=puka_training_level,
+            puka_training_source=puka_training_source,
+            puka_native_overrides=puka_native_overrides,
         )
         self.long_analysis_view.audit_buttons["marginal"].setEnabled(available)
 

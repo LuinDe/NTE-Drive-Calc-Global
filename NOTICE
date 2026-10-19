@@ -39,7 +39,8 @@ authors. As required by section 5(a) of the GNU Affero General Public License
 version 3, the work carries this notice that it was modified:
 
   Modified by:    LuinDe (https://github.com/LuinDe)
-  Date:           2026-10-11 (this version, Global 2.3.1)
+  Date:           2026-10-19 (this version, Global 2.3.1-global.2)
+                  2026-10-11 (Global 2.3.1, v2.3.1-global.1)
                   2026-10-05 (first version, Global 2.3.0)
   Based on:       NTE Drive Calc 2.3.1 (upstream commit 0e7a6b4; the upstream
                   tag "2.3.1" points to an older commit and is not the base)
@@ -51,7 +52,7 @@ Modifications in this build (details and file pointers: CHANGES.md):
   English) with in-app switching: src/i18n_runtime.py, src/i18n_data_ko.py,
   src/i18n_data_en.py, src/i18n_data_ja.py, src/i18n_display.py,
   src/i18n_desc.py; user-visible Chinese string literals of the original
-  sources are wrapped in _L() / _LF() calls (594 source files changed in this
+  sources are wrapped in _L() / _LF() calls (557 source files changed in this
   way only).
 - New page "Team Simulation (Beta)": src/features/team_simulation/ and
   src/services/team_*.py (reviewed rotations, Esper Cycle reactions,
@@ -83,12 +84,54 @@ Modifications in this build (details and file pointers: CHANGES.md):
 - Adjustments needed by the localisation (fonts, search, button and label
   widths, text comparisons that accept the original and the translated text,
   a cultivation-history check that accepts translated text). Counting the
-  items above, 51 original source files contain code changes beyond the
-  string wrapping.
+  items above and below, 89 original source files contain code changes
+  beyond the string wrapping, and 2 original source files are removed.
 - The seven "how to use" tutorial images are replaced by Korean versions:
   config/templates/guide/1.png - 7.png.
 - An installer for the modified build and the scripts that produce the
   executable, the installer and the source zip: build_tools/.
+- Since 2.3.1-global.2 (2026-10-19; the Global version numbers are this build's
+  own, v<major>.<minor>.<patch>-global.<n>):
+  - The original's update function is removed: src/features/settings/updates.py
+    and src/ui/controllers/update_controller.py (version check against the
+    original project and Mirror酱, download and opening of the official
+    installer, update dialogs). A Global-only updater checks only the GitHub
+    Releases of LuinDe/NTE-Drive-Calc-Global, verifies an Ed25519-signed
+    release manifest and the installer's size and SHA-256, and runs the
+    installer silently: src/app/global_release.py, src/services/global_update/,
+    src/features/settings/global_update_card.py, global_update_dialog.py,
+    global_update_texts.py, src/features/home/global_update_banner.py,
+    src/ui/controllers/global_update_controller.py,
+    src/ui/controllers/about_links_controller.py, src/utils/atomic_json.py.
+    In-app update, download and release links lead to this repository; the
+    original's GitHub, group chat and support links are kept as credit.
+  - Puka Boot Camp (account training of game version 1.4) in character
+    panels, marginal gains, team simulation, battle reports and graduation
+    templates: src/services/puka_training_data.py,
+    puka_training_settings_service.py, puka_training_override_service.py and
+    changes in battle-report, official-role and arc-efficiency modules.
+  - RTSS (RivaTuner) compatibility notice before the native loader starts
+    (read-only detection): src/services/rtss_compat.py,
+    rtss_compat_guidance.py, src/ui/controllers/rtss_compat_notice.py.
+  - Team Simulation: ultimate energy, Esper-Cycle gauge and cooldown checks
+    (resource model) and the swap rule (a character whose skill is still
+    on cooldown for 0.3 s or more hands over to the next one):
+    src/services/team_resources.py, team_resource_data.py and changes in the
+    team-simulation modules.
+  - Awakening nodes (觉醒) chosen freely instead of in order 1..N, with node
+    rules for the team simulation: src/services/team_awakening.py,
+    src/services/awakening_node_rules/, src/features/team_simulation/
+    awakening_text.py; an awakening efficiency table under the Arc
+    Efficiency table: src/services/awakening_efficiency_service.py,
+    awakening_efficiency_notes.py, the generated rows
+    awakening_efficiency_data.py and src/features/arc_efficiency/
+    awakening_section.py; src/ui/rich_tooltip.py.
+  - Akane Rin: values of the CN release (2026-10-15) that two independent
+    sources agree on replace the pre-release values of the bundled game
+    database at run time (the database file is not changed):
+    src/services/global_live_overlay.py, global_live_overlay_data.py and
+    changes in src/storage/sqlite/static_game_data_dao.py and
+    static_catalog_character_queries.py.
 
 Files of the original project outside src/ (main.py, assets, data, native
 components, third_party, ...) are not modified and are not part of this

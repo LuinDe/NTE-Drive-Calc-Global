@@ -427,6 +427,10 @@ def _deploy_equipment_plugin(self):
             _L('检测到游戏正在运行。\n请完全退出游戏后再部署插件。'),
         )
         return
+    # Global: non-blocking RTSS reminder (read-only check; the user may continue, fix RTSS, or cancel).
+    from src.ui.controllers.rtss_compat_notice import METHOD_D3D, confirm_rtss_before_injection
+    if not confirm_rtss_before_injection(self, method=METHOD_D3D):
+        return
     deploy_native_plugin_from_settings(self)
 
 

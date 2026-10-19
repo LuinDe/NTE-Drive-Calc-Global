@@ -296,7 +296,7 @@ class RoleSelectorPreferencesMixin:
                 if resolved in weapon_names else None
             )
             cap = (
-                round(max(0.0, fork_cap - self._likeability_crit_rate(name) * 100.0), 4)
+                round(max(0.0, fork_cap - (self._likeability_crit_rate(name) + self._account_crit_rate(name)) * 100.0), 4)
                 if fork_cap is not None
                 else None
             )

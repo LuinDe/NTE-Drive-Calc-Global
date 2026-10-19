@@ -482,11 +482,15 @@ class CustomCyclePanel(QFrame):
         check_row.setSpacing(8)
         check_row.addWidget(_caption(_L('检查方式')))
         self.resource_combo = QComboBox()
-        for code in ("off", "warn", "wait"):
+        for code in ("off", "warn", "wait", "strict"):
             self.resource_combo.addItem(view.resource_check_text(code), code)
         self.resource_combo.setCurrentIndex(1)
         self.resource_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         check_row.addWidget(self.resource_combo)
+        check_row.addWidget(_caption(_L('最长等待（秒）')))
+        self.cd_wait_max_spin = _optional_spin(60.0)
+        self.cd_wait_max_spin.setToolTip(_L('留空：插入等待不限时，严格最多 60 秒；仅对插入等待/严格有效'))
+        check_row.addWidget(self.cd_wait_max_spin)
         self.resource_defaults_btn = _button(_L('恢复默认值'))
         check_row.addWidget(self.resource_defaults_btn)
         check_row.addStretch()
@@ -512,6 +516,10 @@ class CustomCyclePanel(QFrame):
         res_grid.setColumnStretch(6, 1)
         res.addLayout(res_grid)
         res.addWidget(_caption(_L('留空则不检查')))
+        self.own_resource_caption = _caption("")       # own resources of the team (Hotori / Shinku)
+        self.own_resource_caption.setWordWrap(True)
+        self.own_resource_caption.setVisible(False)
+        res.addWidget(self.own_resource_caption)
         self.resource_defaults_btn.clicked.connect(lambda: self._reset_resources(range(len(self._page.cards))))
 
         # 3. team buffs
@@ -559,9 +567,17 @@ class CustomCyclePanel(QFrame):
         self.swap_time_spin.setRange(0.0, cycle.MAX_SWAP_TIME_S)
         self.swap_time_spin.setDecimals(2)
         self.swap_time_spin.setSingleStep(0.1)
+        # awakening node rules with a boss / single-enemy condition (Sagiri ⑤ / 共鸣6, Hathor ③, Mint ④)
+        self.boss_box = QCheckBox(_L('首领（Boss）'))
+        self.boss_box.setToolTip(_L('觉醒效果的首领条件按此判断（例如浮空、压制对首领无效）'))
+        self.enemy_count_spin = QSpinBox()
+        self.enemy_count_spin.setRange(1, cycle.MAX_ENEMIES)
+        self.enemy_count_spin.setValue(1)
+        self.enemy_count_spin.setToolTip(_L('觉醒效果的「单个敌人」条件按此判断；伤害仍按一个目标计算'))
         fields = ((_L('重复次数'), self.repeat_count_spin), (_L('敌人等级'), self.enemy_level_spin),
                   (_L('敌人抗性 %'), self.resistance_spin), (_L('敌人防御降低 %'), self.defense_spin),
-                  (_L('易伤 %'), self.vulnerability_spin), (_L('切换耗时（秒）'), self.swap_time_spin))
+                  (_L('易伤 %'), self.vulnerability_spin), (_L('切换耗时（秒）'), self.swap_time_spin),
+                  (_L('敌人数量'), self.enemy_count_spin), (_L('敌人类型'), self.boss_box))
         for i, (text, widget) in enumerate(fields):
             widget.setMinimumWidth(84)
             num_grid.addWidget(_caption(text), i // 3 * 2, i % 3)
@@ -572,8 +588,12 @@ class CustomCyclePanel(QFrame):
         # options that change the preview (gauge, cooldown, repeat, swap time) refresh it
         for signal in (self.gauge_as_typed.toggled, self.gauge_reset_box.toggled,
                        self.resource_combo.currentIndexChanged, self.repeat_count_spin.valueChanged,
-                       self.swap_time_spin.valueChanged):
+                       self.swap_time_spin.valueChanged, self.cd_wait_max_spin.valueChanged,
+                       self.boss_box.toggled):
             signal.connect(lambda *_a: self._options_changed())
+        # the longest wait acts only where waits are inserted (review F-UX8)
+        self.resource_combo.currentIndexChanged.connect(lambda *_a: self._sync_wait_max())
+        self._sync_wait_max()
         for spin in self.gauge_spins:
             spin.valueChanged.connect(lambda *_a: self._options_changed())
         for row in self.resource_spins:
@@ -602,6 +622,36 @@ class CustomCyclePanel(QFrame):
                 label.setStyleSheet(f"color:{theme_color(color)};font-size:12px;font-weight:700")
         for row in self._manual_rows:
             row.refresh_targets()
+        self._refresh_own_resources(team, names)
+
+    def _refresh_own_resources(self, team, names) -> None:
+        """One line per team member with an own resource instead of ultimate energy (team_resource_data)."""
+        caption = getattr(self, "own_resource_caption", None)
+        if caption is None:
+            return
+        from src.services import team_resources as tr
+        from src.services import team_simulation_explanation as tx
+
+        text = None
+        for cid in team:
+            energy = tr.record(cid).get("energy") or {}
+            name = names.get(cid, str(cid))
+            line = None
+            if energy.get("kind") == "own_clock":
+                clock = energy.get("clock") or {}
+                value = {k: float(v[0]) for k, v in clock.items() if isinstance(v, tuple) and v and v[0] is not None}
+                line = _LF('{0}：「{1}」上限 {2:g}，每秒 +{3:g}，变轨技能消耗 {4:g}，极轨终结需蓄满（游戏数据；插入等待时等待蓄满；严格时与冷却相同：队伍中立即切换，单人时等待）').format(
+                    name, tx.own_resource_text(clock.get("name_zh") or ""), value.get("cap", 120.0),
+                    value.get("regen_per_s", 6.0), value.get("e_cost", 60.0))
+            elif energy.get("kind") == "own_meter":
+                meter = energy.get("meter") or {}
+                cap = (meter.get("cap") or (60.0,))[0]
+                line = _LF('{0}：「{1}」上限 {2:g}（每次获得量的单位未确认，只显示不检查）').format(
+                    name, tx.own_resource_text(meter.get("name_zh") or ""), float(cap or 60.0))
+            if line:
+                text = line if text is None else text + "\n" + line
+        caption.setText(text or "")
+        caption.setVisible(bool(text))
 
     def _on_member(self, slot: int) -> None:
         self._member_slot = int(slot)
@@ -634,17 +684,24 @@ class CustomCyclePanel(QFrame):
         """[(position, "token#N  game name / name in a state")] of a slot over every table of the member."""
         from src.services import team_custom_actions as data
 
+        from src.i18n_display import tr
+
+        def game(name: str) -> str:
+            # each game name on its own: the ja display layer leaves a whole line alone once it holds kana, so
+            # "E長押し  律动音浪" kept the Chinese name (2.3.1-global.2)
+            return str(tr(name)) if name else name
+
         token = view.token_text(action, self._lang)
         by_pos: dict = {}
         for code, table in notation.slot_tables(cid, action):
             state = data.PALETTE[cid]["states"].get(code) if code else None
             for i, entry in enumerate(table["entries"], 1):
                 if entry and entry[0] == "@time":
-                    name = "" if str(entry[2]).startswith("Melee") else str(entry[2])
+                    name = "" if str(entry[2]).startswith("Melee") else game(str(entry[2]))
                 else:
-                    name = " + ".join((data.ACTIONS.get(tuple(k)) or {}).get("name_zh") or k[1] for k in entry)
+                    name = " + ".join(game((data.ACTIONS.get(tuple(k)) or {}).get("name_zh") or k[1]) for k in entry)
                 if state is not None:
-                    name = tx.form_name_text(code, state["name_zh"]) + ": " + name
+                    name = game(str(tx.form_name_text(code, state["name_zh"]))) + ": " + name
                 by_pos.setdefault(i, [])
                 if name:
                     by_pos[i].append(name)
@@ -671,7 +728,11 @@ class CustomCyclePanel(QFrame):
                 text += " ▾"
             tip = view.action_tip(action)
             if most:
-                lines = [label for _pos, label in self._entry_names(cid, action)]
+                from src.i18n_display import tr
+
+                # each game-name line on its own: the joined string (its first line already translated) is left
+                # alone by the ja display layer
+                lines = [str(tr(label)) for _pos, label in self._entry_names(cid, action)]
                 tip = "\n".join(([tip] if tip else []) + lines)
             button = _button(text, tip)
             if action == "wait":
@@ -833,12 +894,33 @@ class CustomCyclePanel(QFrame):
         self._refresh_messages()
         self.changed.emit()
 
+    def _sync_wait_max(self) -> None:
+        self.cd_wait_max_spin.setEnabled((self.resource_combo.currentData() or "warn") in ("wait", "strict"))
+
+    def _awakening(self) -> dict:
+        """{character id: team_awakening.AwakeningSel} of the member cards (cooldown rules unlocked by an awakening
+        effect; review F-A, A12)."""
+        out = {}
+        for card in getattr(self._page, "cards", ()):
+            try:
+                out[int(card.character_combo.currentData())] = card.selection()
+            except Exception:
+                continue
+        return out
+
+    def on_awakening_changed(self) -> None:
+        """A card's awakening changed: the preview's cooldown rules follow it."""
+        self._refresh_preview()
+        self._render_chips()
+        self._refresh_messages()
+
     def _refresh_preview(self) -> None:
         if any(issue.code == "too_long" for issue in self._model_errors):
             self._preview = None            # not worth walking: the cycle cannot be calculated anyway
             return
         try:
-            self._preview = cycle.preview_custom(self.team(), self._steps, self.options())
+            self._preview = cycle.preview_custom(self.team(), self._steps, self.options(),
+                                                 awakening=self._awakening())
         except Exception:
             self._preview = None
 
@@ -1050,9 +1132,39 @@ class CustomCyclePanel(QFrame):
             target=cycle.TargetOptions(enemy_level=self.enemy_level_spin.value(),
                                        resistance=self.resistance_spin.value() / 100.0,
                                        defense_reduction=self.defense_spin.value() / 100.0,
-                                       vulnerability=self.vulnerability_spin.value() / 100.0),
-            swap_time_s=self.swap_time_spin.value())
+                                       vulnerability=self.vulnerability_spin.value() / 100.0,
+                                       boss=self.boss_box.isChecked(),
+                                       enemy_count=self.enemy_count_spin.value()),
+            swap_time_s=self.swap_time_spin.value(), resource_model=self._model(),
+            cd_wait_max_s=_optional_value(self.cd_wait_max_spin))
         return cycle.normalise_options(options, team)
+
+    def _model(self) -> str:
+        """The page's resource model (team_resources): it decides the default cooldowns / costs."""
+        getter = getattr(self._page, "resource_model", None)
+        try:
+            return getter() if callable(getter) else cycle.resource_model_of(None)
+        except Exception:
+            return cycle.resource_model_of(None)
+
+    def on_resource_model_changed(self, model: str) -> None:
+        """The page's model changed: fields still holding the old defaults follow the new ones."""
+        team = self.team()
+        old_model = getattr(self, "_defaults_model", None) or cycle.resource_model_of(None)
+        was, self._loading = self._loading, True
+        try:
+            for slot, cid in enumerate(team):
+                old = cycle.default_resources(cid, old_model)
+                new = cycle.default_resources(cid, model)
+                row = self.resource_spins[slot]
+                for name in ("e_cd_s", "q_cd_s", "q_cost"):
+                    if _optional_value(row[name]) == getattr(old, name):
+                        _set_optional(row[name], getattr(new, name))
+                self._set_resource_tips(slot)
+        finally:
+            self._loading = was
+        self._defaults_model = model
+        self._options_changed()
 
     def set_options(self, options: cycle.CustomOptions) -> None:
         team = self.team()
@@ -1063,9 +1175,10 @@ class CustomCyclePanel(QFrame):
             (self.gauge_check if options.gauge_mode == "check" else self.gauge_as_typed).setChecked(True)
             self.gauge_reset_box.setChecked(bool(options.gauge_reset_each_repeat))
             self.resource_combo.setCurrentIndex(max(0, self.resource_combo.findData(options.resource_check)))
+            _set_optional(self.cd_wait_max_spin, getattr(options, "cd_wait_max_s", None))
             for slot, cid in enumerate(team):
                 self.gauge_spins[slot].setValue(int(round(float(options.start_gauge.get(cid, 100.0)))))
-                self._set_resource(slot, options.resources.get(cid) or cycle.default_resources(cid))
+                self._set_resource(slot, options.resources.get(cid) or cycle.default_resources(cid, self._model()))
             self._disabled_buffs = set(options.disabled_buffs)
             for row in list(self._manual_rows):
                 self._remove_manual(row)
@@ -1075,6 +1188,8 @@ class CustomCyclePanel(QFrame):
             self.resistance_spin.setValue(options.target.resistance * 100.0)
             self.defense_spin.setValue(options.target.defense_reduction * 100.0)
             self.vulnerability_spin.setValue(options.target.vulnerability * 100.0)
+            self.boss_box.setChecked(bool(getattr(options.target, "boss", False)))
+            self.enemy_count_spin.setValue(int(getattr(options.target, "enemy_count", 1) or 1))
             self.swap_time_spin.setValue(float(options.swap_time_s))
         finally:
             self._loading = False
@@ -1091,26 +1206,82 @@ class CustomCyclePanel(QFrame):
         self._set_resource_tips(slot)
 
     def _set_resource_tips(self, slot: int) -> None:
-        """Tooltips of a member's cooldown / energy fields: where the number comes from."""
-        from src.services import team_custom_actions as data
+        """Tooltips of a member's cooldown / energy fields: where the number comes from (team_resource_data cell:
+        confidence + source, tooltip-only community values, measured bounds)."""
+        from src.services import team_resources as tr
+        from src.services import team_simulation_explanation as tx
 
         cid = self.team()[slot]
-        from_data = data.RESOURCES.get(cid) or {}
-        hints = data.RESOURCE_HINTS.get(cid) or {}
+        model = self._model()
+        if model == "legacy":
+            from src.services import team_custom_actions as data
+
+            from_data = data.RESOURCES.get(cid) or {}
+            hints = data.RESOURCE_HINTS.get(cid) or {}
+            for name, spin in self.resource_spins[slot].items():
+                if name in from_data:
+                    spin.setToolTip(_L('游戏数据'))
+                elif name in hints:
+                    spin.setToolTip(_LF('社区资料：{0}').format(f"{hints[name]:g}"))
+                else:
+                    spin.setToolTip(_L('留空则不检查'))
+            return
+        rec = tr.record(cid)
+        policy = tr.policy_for(model)
         for name, spin in self.resource_spins[slot].items():
-            if name in from_data:
-                spin.setToolTip(_L('游戏数据'))
-            elif name in hints:
-                spin.setToolTip(_LF('社区资料：{0}').format(f"{hints[name]:g}"))
-            else:
-                spin.setToolTip(_L('留空则不检查'))
+            lines = []
+            if name in ("e_cd_s", "q_cd_s"):
+                kind = "E" if name == "e_cd_s" else "Q"
+                enforced = tr.cd_cell(cid, kind, policy)
+                best = tr.best_cd_cell(cid, kind)
+                cell = enforced or best
+                tag = ""
+                if cell is not None and cell[0] is not None:
+                    tag = tr.source_tag(cell)
+                    no_cd = float(cell[0]) == 0.0 and cell[2] in ("db_struct_none", "db_text")
+                    shown = _L('无') if no_cd else f"{float(cell[0]):g}s"
+                    lines.append(_LF('{0}：{1}').format(tx.confidence_label(cell[2]), shown) + (f" · {tag}" if tag else ""))
+                for value, label, conf in (rec.get("cd_alt") or {}).get(kind, ()):
+                    if cell is not None and label.split(" ")[0] == tag.split(" ")[0] and cell[0] == value:
+                        continue                # the cell itself
+                    lines.append(_LF('社区资料（可信度低）：{0}').format(f"{float(value):g}s · {label}"))
+                bound = (rec.get("cd_bound") or {}).get(kind)
+                if bound:
+                    lines.append(_LF('实测上限 ≤ {0} 秒（不作为数值）').format(f"{float(bound[0]):g}"))
+                rule_rows = list(rec.get("rules") or ())
+                try:                        # awakening node rules' rows of the member (awakening_node_rules)
+                    from src.services.awakening_node_rules import owner_of
+
+                    owner = owner_of(cid)
+                    rule_rows += list((owner.rules.get(int(cid)) or ()) if owner is not None else ())
+                except Exception:
+                    pass
+                for code, rkind, _amount, level, _conf, _src in rule_rows:
+                    if rkind == kind:       # applied when the card selects the node (review F-A; A12: the node)
+                        from src.features.team_simulation.awakening_text import node_caption
+
+                        lines.append(tx.cd_rule_text(code) + (f" ({node_caption(level)})" if level is not None else ""))
+            elif name == "q_cost":
+                energy = rec.get("energy") or {}
+                cost = energy.get("cost")
+                if cost and cost[0] is not None:
+                    tag = tr.source_tag(cost)
+                    lines.append(_LF('{0}：{1}').format(tx.confidence_label(cost[2]), f"{float(cost[0]):g}")
+                                 + (f" · {tag}" if tag else ""))
+                for value, label in energy.get("cost_display") or ():
+                    lines.append(_LF('社区资料（可信度低）：{0}').format(f"{float(value):g} · {label}"))
+            text = None
+            for line in lines:
+                text = line if text is None else text + "\n" + line
+            spin.setToolTip(text or _L('留空则不检查'))
 
     def _reset_resources(self, slots) -> None:
         team = self.team()
         was, self._loading = self._loading, True
         try:
             for slot in slots:
-                self._set_resource(slot, cycle.default_resources(team[slot]))
+                self._set_resource(slot, cycle.default_resources(team[slot], self._model()))
+            self._defaults_model = self._model()
         finally:
             self._loading = was
         self._options_changed()
@@ -1220,6 +1391,10 @@ class CustomCyclePanel(QFrame):
         self.repeat_spin.setToolTip(_L('重复执行'))
         self.gauge_as_typed.setToolTip(_L('援护始终按输入以援护技登场；环合值不足 100 时在该步骤显示警告。'))
         self.gauge_check.setToolTip(_L('环合值不足 100 或属性不相邻时，援护改为普通切换。'))
+        self.cd_wait_max_spin.setToolTip(_L('留空：插入等待不限时，严格最多 60 秒；仅对插入等待/严格有效'))
+        # boss / enemy count (awakening node rules): tooltips set again on a language switch
+        self.boss_box.setToolTip(_L('觉醒效果的首领条件按此判断（例如浮空、压制对首领无效）'))
+        self.enemy_count_spin.setToolTip(_L('觉醒效果的「单个敌人」条件按此判断；伤害仍按一个目标计算'))
         for slot in range(len(self.resource_spins)):
             self._set_resource_tips(slot)
         for row in self._manual_rows:

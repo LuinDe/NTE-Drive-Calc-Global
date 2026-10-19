@@ -68,6 +68,7 @@ from src.services.skill_name_rendering_service import (
 from src.services.battle_report_history_evidence_projection import (
     BattleReportHistoryEvidenceProjectionMixin,
 )
+from src.services.puka_training_settings_service import frozen_puka_training_detail, load_account_puka_options
 from src.services.battle_report_persistence_service import (
     BattleReportContextGuard,
     BattleReportPersistenceDependencies,
@@ -699,6 +700,8 @@ class BattleReportHistoryService(
                 static_database_path=static_path,
                 request_cache=detail_request_cache,
             )
+            # 面板预览、边际与公式分组按本场冻结的噗卡特训等级（不是当前账号等级）；与重建一致。
+            detail["puka_training"] = frozen_puka_training_detail(build.get("puka_training"))
             edited = edited_by_character.get(character_id)
             edited_profile = dict((edited or {}).get("profile") or {})
             if seed_from_role_page:
@@ -792,5 +795,11 @@ class BattleReportHistoryService(
             "equipment_editable": equipment_editable,
             "report_origin": "local_capture" if import_origin is None else "imported_v2",
             "equipment_assumed": assumed_equipment,
+            # 本场冻结的噗卡特训等级（边际页公告用；加载器总会填入，功能上线前的记录为 pre_feature Lv 0）
+            "puka_training": dict(build.get("puka_training") or {"level": 0, "source": "pre_feature"}),
+            # 账号开关（决定 U2）：原生重算是否经「边际手工调整」通道补回五项特训加成。
+            "puka_native_overrides": load_account_puka_options(
+                self._dependencies.user_database_path
+            ).native_overrides,
             "details": details,
         }

@@ -117,6 +117,12 @@ class StaticCatalogCharacterQueries(
             row["evidence_keys"] = tuple(dict.fromkeys(
                 evidence_by_character.get(character_id, ())
             ))
+        try:        # Global live overlay: release facts the 9-24 DB does not have yet (Akane Rin, CN 10-15)
+            from src.services import global_live_overlay
+
+            rows = global_live_overlay.release_annotation_rows(rows, self.database_path)
+        except Exception:
+            pass
         return rows
 
     def count_catalog_characters(self, query: str = "") -> int:

@@ -30,18 +30,10 @@ from PySide6.QtWidgets import (
 
 from src.features.settings.work_mode_card import build_work_mode_card
 from src.features.settings.performance_card import PerformanceCard
-from src.app.constants import NETDISK_DOWNLOAD_LINKS
+from src.features.settings.global_update_card import build_about_card, build_global_update_card
 from src.app.context import AppContext
 from src.app.theme import THEME_LABELS, themed_style
 from src.ui.widgets import NoWheelComboBox
-
-
-def _normalize_netdisk_links(netdisk_links=None):
-    if netdisk_links is None:
-        return tuple(NETDISK_DOWNLOAD_LINKS)
-    if isinstance(netdisk_links, str):
-        return ((_L('夸克网盘'), netdisk_links),) if netdisk_links else tuple()
-    return tuple((str(name), str(url)) for name, url in netdisk_links if name and url)
 
 
 def refresh_account_scoped_settings(window) -> None:
@@ -306,7 +298,6 @@ def build_settings_page(
     app_version,
     app_context: AppContext,
     iter_image_files,
-    netdisk_links=None,
 ):
     page = QWidget()
     page.setObjectName("settingsPage")
@@ -476,65 +467,9 @@ def build_settings_page(
     hotkey_card.layout().addLayout(form)
     layout.addWidget(hotkey_card)
 
-    update_card = window._card(_L('软件更新'))
-    window._update_status = QLabel(_LF('当前版本: {0}').format((app_version)))
-    update_card.layout().addWidget(window._update_status)
-    update_row = QHBoxLayout()
-    update_row.setSpacing(10)
-    window._check_update_btn = QPushButton(_L('检查更新'))
-    window._check_update_btn.setObjectName("btnPrimary")
-    window._check_update_btn.clicked.connect(lambda: window._check_updates(manual=True))
-    window._mirror_download_btn = QPushButton(_L('Mirror 下载'))
-    window._mirror_download_btn.setObjectName("btnPrimary")
-    window._mirror_download_btn.clicked.connect(window._start_mirror_download)
-    home_btn = QPushButton(_L('GitHub 下载'))
-    home_btn.clicked.connect(window._open_update_homepage)
-    netdisk_btn = QPushButton(_L('网盘下载'))
-    netdisk_options = _normalize_netdisk_links(netdisk_links)
-    netdisk_btn.clicked.connect(
-        lambda: window._show_netdisk_download_dialog(netdisk_options)
-        if hasattr(window, "_show_netdisk_download_dialog") and netdisk_options
-        else None
-    )
-    update_row.addWidget(window._check_update_btn)
-    update_row.addWidget(window._mirror_download_btn)
-    update_row.addWidget(netdisk_btn)
-    update_row.addWidget(home_btn)
-    update_row.addStretch()
-    update_card.layout().addLayout(update_row)
-    mirror_cdk_row = QHBoxLayout()
-    mirror_cdk_row.setSpacing(10)
-    mirror_cdk_label = QLabel("Mirror CDK")
-    window._mirror_cdk_edit = QLineEdit()
-    window._mirror_cdk_edit.setPlaceholderText(_L('填写 Mirror CDK（仅用于请求下载地址）'))
-    window._mirror_cdk_edit.setEchoMode(QLineEdit.Password)
-    window._mirror_cdk_edit.setFixedWidth(360)
-    window._mirror_cdk_edit.setText(str(window._update_config.get("mirror_cdk") or ""))
-    window._mirror_cdk_edit.editingFinished.connect(window._save_mirror_cdk)
-    mirror_cdk_row.addWidget(mirror_cdk_label)
-    mirror_cdk_row.addWidget(window._mirror_cdk_edit)
-    mirror_cdk_row.addStretch()
-    update_card.layout().addLayout(mirror_cdk_row)
-    layout.addWidget(update_card)
-
-    about_card = window._card(_L('关于我们'))
-    about_row = QHBoxLayout()
-    about_row.setSpacing(10)
-    author_bilibili_btn = QPushButton(_L('作者B站'))
-    author_bilibili_btn.clicked.connect(window._open_bilibili_homepage)
-    project_btn = QPushButton(_L('项目页面'))
-    project_btn.clicked.connect(window._open_project_homepage)
-    support_btn = QPushButton(_L('支持我们'))
-    support_btn.clicked.connect(window._open_support_homepage)
-    group_chat_btn = QPushButton(_L('加入群聊'))
-    group_chat_btn.clicked.connect(window._show_group_chat_notice)
-    about_row.addWidget(author_bilibili_btn)
-    about_row.addWidget(project_btn)
-    about_row.addWidget(support_btn)
-    about_row.addWidget(group_chat_btn)
-    about_row.addStretch()
-    about_card.layout().addLayout(about_row)
-    layout.addWidget(about_card)
+    # Global 인앱 업데이트 카드 (이 저장소의 GitHub Releases만 확인) + 관련 링크 카드 (원본 프로젝트 출처 링크는 크레딧으로 유지)
+    layout.addWidget(build_global_update_card(window, window.global_update_controller))
+    layout.addWidget(build_about_card(window))
 
     layout.addWidget(plugin_card)
     performance_card = window._card(_L('性能监控'))

@@ -31,6 +31,7 @@ from src.app.constants import (
     APP_VERSION,
     CORE_CONFIG_FILES,
 )
+from src.app.global_release import default_update_settings
 
 _BUNDLED_CONFIG_DIR = _PACKAGE_ROOT / "config"
 _ASSET_DIR = _PACKAGE_ROOT / "assets"
@@ -405,11 +406,13 @@ class MainWindow(MainWindowThemeMixin, MainWindowNavigationMixin, MainWindowData
             parent=self,
             on_help=self._show_group_chat_notice,
         )
-        self._update_config = self._load_update_config()
         self._ui_preferences = self._load_ui_preferences()
         migrate_legacy_component_facts(self)
         self._apply_theme_preference()
-        self._update_check_manual = True
+        # Global 인앱 업데이트: 이 저장소(LuinDe/NTE-Drive-Calc-Global)의 GitHub Releases만 확인 (design_final §8)
+        from src.ui.controllers.global_update_controller import GlobalUpdateController
+        self._global_update_launch = None
+        self.global_update_controller = GlobalUpdateController(window=self, settings=default_update_settings())
 
         self.log_signal.connect(self._on_log)
         self.inventory_sync_state_signal.connect(self._on_inventory_sync_state)
@@ -444,7 +447,7 @@ class MainWindow(MainWindowThemeMixin, MainWindowNavigationMixin, MainWindowData
         self._on_log(_L('系统就绪'))
         self.onboarding_guide.maybe_show()
         self.work_mode_controller.start_upgrade_guidance()
-        self._maybe_check_updates_on_startup()
+        self.global_update_controller.start()
 
     def _load_static_catalog_inventory(self):
         """Freeze the current account projection for the equipment archive."""
@@ -528,6 +531,11 @@ class MainWindow(MainWindowThemeMixin, MainWindowNavigationMixin, MainWindowData
         if defer_page_transition(self, self.close):
             e.ignore()
             return
+        # Global 업데이트: 다운로드 중이면 취소 여부, 설치 준비 상태면 종료 시 설치 여부를 묻는다 (design_final §8.5).
+        # 아무것도 멈추기 전에 묻는다: [취소]를 고르면 창이 그대로 정상 동작해야 하므로.
+        if self.global_update_controller.close_decision() == "cancel":
+            e.ignore()
+            return
         from src.app.page_tasks import close_page_tasks
         self._ui_latency_timer.stop()
         self.dashboard_controller.close()
@@ -539,6 +547,7 @@ class MainWindow(MainWindowThemeMixin, MainWindowNavigationMixin, MainWindowData
             e.ignore()
             QTimer.singleShot(25, self.close)
             return
+        self.global_update_controller.close()
         if hasattr(self.scanning_controller, "role_selector"):
             try:
                 self.scanning_controller.role_selector.save_temporary_priority_config()
@@ -580,6 +589,14 @@ class MainWindow(MainWindowThemeMixin, MainWindowNavigationMixin, MainWindowData
             _L('应用正在停止后台服务并退出'),
             self._application_log_context,
         )
+        # Global 업데이트 설치 프로그램은 모든 서비스가 멈춘 뒤, 로그 싱크를 내리기 전에 시작한다 (design_final §8.4)
+        launch = getattr(self, "_global_update_launch", None)
+        if launch is not None:
+            self._global_update_launch = None
+            try:
+                launch()
+            except Exception as exc:
+                logger.error(_LF('启动更新安装程序失败: {0}').format((exc)))
         if self._log_enabled:
             disable_session_log(
                 reason="application_exit",
@@ -746,7 +763,6 @@ class MainWindow(MainWindowThemeMixin, MainWindowNavigationMixin, MainWindowData
             stop_hotkey=self._hk_stop,
             battle_rerecord_hotkey=self._hk_battle_rerecord,
         )
-        self._update_config = self._load_update_config()
         self._ui_preferences = self._load_ui_preferences()
         self._toggle_log(
             bool(self._ui_preferences["log_enabled"]),

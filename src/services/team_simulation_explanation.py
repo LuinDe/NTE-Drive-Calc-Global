@@ -86,6 +86,35 @@ STEP_TIME_DEFAULT = "time_default"     # time-only step without est_s: 1.0 s ass
 STEP_MISSING = "missing_candidate"     # runnable step with no exact animation match (missing_actions)
 STEP_SKIPPED = "skipped_entry"         # entry-only support-skill step dropped on a normal entry
 STEP_FORM_CUT = "form_cut"             # form step that did not fit the form's remaining time: not run, no time
+# resource levels (team_resources): StepTrace.slot "wait" rows and skipped steps
+STEP_CD_WAIT = "cd_wait"               # wait inserted before a step whose cooldown was not ready (slot "wait")
+STEP_RES_WAIT = "res_wait"             # wait for an own resource (Hotori's clock) (slot "wait")
+STEP_CD_SKIP = "cd_skip"               # the wait would exceed the guard / the custom maximum: step skipped
+STEP_ENERGY_SHORT = "energy_short"     # the ultimate's energy pool was short: skipped (no time, no hits)
+# user decision D3 (2026-10-14): in a team a step that is not ready makes the member swap out at once
+STEP_SWAP_OUT = "swap_out"             # not ready (cooldown / known energy cost / own clock): swapped out, no time, no hits
+STEP_SWAP_DROPPED = "swap_dropped"     # custom cycle: a typed input of the member after its early swap, not run
+SLOT_WAIT = "wait"
+# StepTrace.note
+STEP_NOTE_FORM_NOT_ENTERED = "form_not_entered"   # form_cut because the form-starting step was skipped
+STEP_NOTE_EXTRA_E = "extra_e"                      # Lacrimosa: the extra E after 5 basics (no cooldown)
+STEP_NOTE_CD_NOT_READY = "cd_not_ready"            # warn policy: ran although the cooldown was not ready
+STEP_NOTE_ENERGY_SHORT = "energy_short"            # warn policy: ran although the energy was short
+STEP_NOTE_ALL_BLOCKED = "all_blocked"              # wait row: every member was blocked, the earliest ready one waited for
+STEP_NOTE_SHORT_WAIT = "short_wait"                # wait row: less than the swap threshold (0.3 s) left, no swap (10-18)
+# StepTrace.note of a swap_out row (why the step was not ready)
+SWAP_REASON_CD = "cd"
+SWAP_REASON_ENERGY = "energy"
+SWAP_REASON_CLOCK = "clock"
+# TeamExplanation.not_ready
+NOT_READY_SWAP = "swap"
+NOT_READY_WAIT = "wait"
+
+# ── resource levels (TeamExplanation.resource_model) ──
+RESOURCE_LEGACY = "legacy"             # the old rule: gauge 100 at loops 1 and 3, nothing checked
+RESOURCE_DATA = "data"                 # game data only
+RESOURCE_COMMUNITY = "community"       # game data + community (prydwen) cooldowns
+RESOURCE_MODELS = (RESOURCE_LEGACY, RESOURCE_DATA, RESOURCE_COMMUNITY)
 
 # ── StepTrace.form_role (team_rotation_data step field, plus "fill" for extra rounds inside the window) ──
 FORM_ROLE_BODY = "body"                # attack run inside the form window
@@ -137,6 +166,8 @@ NOTE_CUSTOM_DOWNGRADED_ELEMENT = "custom_downgraded_element"
 NOTE_CUSTOM_ENTRY_SKIPPED = "custom_entry_skipped"           # args: (character_id,)
 NOTE_CUSTOM_CD_NOT_READY = "custom_cd_not_ready"             # args: (seconds left,)
 NOTE_CUSTOM_CD_WAITED = "custom_cd_waited"                   # args: (seconds waited,)
+NOTE_CUSTOM_CLOCK_WAITED = "custom_clock_waited"             # args: (seconds waited,) own clock (Hotori)
+NOTE_CUSTOM_CLOCK_SHORT = "custom_clock_short"               # args: (clock, needed, seconds left)
 NOTE_CUSTOM_ENERGY_SHORT = "custom_energy_short"             # args: (energy, cost)
 NOTE_CUSTOM_NO_ANIMATION = "custom_no_animation"
 NOTE_CUSTOM_STATE_ENTERED = "custom_state_entered"           # args: (state code, name_zh)
@@ -144,6 +175,14 @@ NOTE_CUSTOM_STATE_EXPIRED = "custom_state_expired"           # args: (state code
 NOTE_CUSTOM_STATE_INACTIVE = "custom_state_inactive"         # args: (state code, name_zh)
 NOTE_CUSTOM_STATE_OVERRUN = "custom_state_overrun"           # args: (state code, name_zh, seconds)
 NOTE_CUSTOM_STATE_WINDOW = "custom_state_window"             # args: (state code, name_zh, elapsed, lo, hi)
+NOTE_CUSTOM_ENERGY_SKIPPED = "custom_energy_skipped"         # args: (energy, cost) strict: ultimate skipped
+NOTE_CUSTOM_CD_SKIPPED = "custom_cd_skipped"                 # args: (seconds left,) beyond the longest wait
+NOTE_CUSTOM_SWAP_OUT = "custom_swap_out"                     # args: (reason, kind, seconds left, energy, cost) strict
+NOTE_CUSTOM_SWAP_DROPPED = "custom_swap_dropped"             # strict: input after the member's early swap, not run
+NOTE_CUSTOM_ALL_BLOCKED = "custom_all_blocked"               # args: (seconds waited, member waited for) strict, team
+NOTE_CUSTOM_SHORT_WAIT = "custom_short_wait"                 # args: (seconds left, threshold) strict, team (10-18)
+ASSUME_CUSTOM_STRICT_SWAP = "custom_strict_swap"             # args: (early swaps, seconds waited, cooldown skips)
+ASSUME_CUSTOM_STRICT = "custom_strict"                       # args: (seconds waited, energy skips, cooldown skips)
 ASSUME_CUSTOM_SEQUENCE = "custom_sequence"                   # args: (repeat,)
 ASSUME_CUSTOM_AS_TYPED = "custom_as_typed"
 ASSUME_CUSTOM_CHECK = "custom_check"
@@ -154,6 +193,7 @@ ASSUME_CUSTOM_CD_OFF = "custom_cd_off"
 ASSUME_CUSTOM_BUFF_OFF = "custom_buff_off"                   # args: (count,)
 ASSUME_CUSTOM_MANUAL_BUFF = "custom_manual_buff"             # args: (count,)
 ASSUME_CUSTOM_TARGET = "custom_target"                       # args: (level, resistance, defense reduction, vulnerability)
+ASSUME_CUSTOM_TARGET_KIND = "custom_target_kind"             # args: (boss 0/1, enemy count)
 LIMIT_CUSTOM_CD_DATA = "custom_cd_data"
 LIMIT_CUSTOM_ENERGY_MODEL = "custom_energy_model"
 LIMIT_CUSTOM_CHAIN_RESET = "custom_chain_reset"
@@ -166,7 +206,9 @@ LIMIT_CUSTOM_CD_BLANK = "custom_cd_blank"                    # args: (character_
 WARNING_NOTES = frozenset((
     NOTE_CUSTOM_GAUGE_SHORT, NOTE_CUSTOM_DOWNGRADED_GAUGE, NOTE_CUSTOM_DOWNGRADED_ELEMENT,
     NOTE_CUSTOM_SUPPORT_NO_REACTION, NOTE_CUSTOM_CD_NOT_READY, NOTE_CUSTOM_ENERGY_SHORT, NOTE_CUSTOM_NO_ANIMATION,
+    NOTE_CUSTOM_CLOCK_SHORT,
     NOTE_CUSTOM_STATE_EXPIRED, NOTE_CUSTOM_STATE_INACTIVE, NOTE_CUSTOM_STATE_OVERRUN, NOTE_CUSTOM_STATE_WINDOW,
+    NOTE_CUSTOM_ENERGY_SKIPPED, NOTE_CUSTOM_CD_SKIPPED, NOTE_CUSTOM_SWAP_OUT, NOTE_CUSTOM_SWAP_DROPPED,
 ))
 
 # ── assumption codes ───────────────────────────────────────────────────────
@@ -192,6 +234,24 @@ ASSUME_FORM_WINDOW = "form_window"               # args: (character_id, form nam
 # Global arc corrections (team_fork_corrections): args = character ids whose arcs they touched
 ASSUME_FORK_SUPPLEMENT = "fork_global_supplement"   # B3 「罪与罚」 / B4 「月的对跖点」 priced by Global rules
 ASSUME_FORK_DEDUP = "fork_permanent_dedup"          # B2 always-on arc bonus counted once (panel), not twice
+# resources (team_resources; only at the data / community levels)
+ASSUME_RESOURCE_MODEL = "resource_model"            # args: (model code,)
+ASSUME_GAUGE_ACCUMULATED = "gauge_accumulated"      # gauge 100 at loop 1, then accumulated per hit
+ASSUME_GAUGE_FALLBACK = "gauge_fallback"            # args: (loop, character_id, ...) fixed refill for missing data
+ASSUME_ENERGY_GATED = "energy_gated"                # args: (character_id, cost)
+ASSUME_START_ENERGY_FULL = "start_energy_full"
+ASSUME_CHARGE_EFF = "charge_eff_rule"
+ASSUME_CD_WAIT = "cd_wait_inserted"                 # args: (seconds waited in total,)
+ASSUME_RESOURCE_CLOCK = "resource_clock"            # args: ("active" | "wall",)
+ASSUME_OWN_RESOURCE = "own_resource"                # args: (character_id, resource name_zh)
+ASSUME_HOTORI_INTERLUDE = "own_clock_interlude"     # args: (character_id, resource name_zh, seconds)
+ASSUME_CUSTOM_MODEL = "custom_resource_model"       # args: (model code,)
+ASSUME_ENERGY_TRACKED = "energy_tracked"            # per-hit energy gain tracked for every member (display)
+ASSUME_CHARGE_ENERGY_SHOWN = "charge_energy_shown"  # args: (energy credited, grants) 盈蓄 energy in the energy shown
+ASSUME_CUSTOM_CD_RULES = "custom_cd_rules"          # args: (character_id, rule code, ...) awakening / skill rules applied
+ASSUME_NOT_READY_SWAP = "not_ready_swap"            # D3: a team member whose step is not ready swaps out at once
+ASSUME_NOT_READY_SOLO = "not_ready_solo_wait"       # D3: alone there is nobody to swap to - the member waits
+ASSUME_SHORT_WAIT = "short_cd_wait"                 # args: (character_id, waits, seconds left in total, threshold)
 
 # ── limit codes (the reaction ones exactly as ReactionScheduler.limits() writes them) ──
 LIMIT_SCORCH_ONE_LAYER = "scorch_zankou_one_layer"
@@ -206,7 +266,12 @@ LIMIT_DISCORD_TOPPLE = "discord_topple_not_counted"
 LIMIT_ROWS_AFTER_END = "reaction_rows_after_end"         # args: (reaction hits past the end,)
 LIMIT_GAUGE_FIT = "gauge_fit_one_battle"
 LIMIT_LINKO_COATTACK = "linko_coattack"
-LIMIT_LACRIMOSA_A6 = "lacrimosa_a6_support"
+LIMIT_LACRIMOSA_A6 = "lacrimosa_a6_support"          # Lacrimosa's awakening effect ⑥ selected (the node, A5)
+LIMIT_ROTATION_ASSUMES_AWAKENING = "rotation_assumes_awakening"   # args: (character_id, node id) not selected
+# awakening node rules (awakening_node_rules): framework codes "awakening_*", group codes "awakening_<group>_*"
+ASSUME_AWAKENING_RULES = "awakening_rules"           # args: (character_id, node id, ...) rules applied
+ASSUME_AWAKENING_EXPECTED = "awakening_expected"     # args: (character_id, node id, ...) priced as expected value
+LIMIT_AWAKENING_UNPRICED = "awakening_unpriced"      # args: (character_id, node id, ...) selected, not priced
 LIMIT_SUMMONS_DOT = "summons_dot"
 LIMIT_MISSING_ACTIONS = "missing_actions"
 LIMIT_DEFAULT_STEP_TIME = "default_step_time"
@@ -218,6 +283,33 @@ LIMIT_FORM_WINDOW_MISSED = "form_window_missed"          # args: (character_id, 
 LIMIT_FORM_TIMING_ASSUMED = "form_timing_assumed"        # args: (character_id,) spawned-actor hit timing inferred
 LIMIT_RAVEN_MALICE = "raven_malice"
 LIMIT_FIGHT_END = "fight_end_cutoff"
+# resources (args: character id first where a member is named)
+LIMIT_ENERGY_UNKNOWN = "energy_cost_unknown"        # args: (character_id, ...) ultimate cost unknown: not checked
+LIMIT_COST_CONTESTED = "energy_cost_contested"      # args: (character_id, value) legacy-table cost not used
+LIMIT_ENERGY_SCALE = "energy_scale_open"            # community 100 / 120 vs charge_add units unconfirmed
+LIMIT_CD_UNKNOWN = "cd_unknown"                     # args: (character_id, kinds text) used, value unknown
+LIMIT_CD_COMMUNITY = "cd_community"                 # args: (character_id, "E 16s · Q 20s")
+LIMIT_CD_NONE_STRUCT = "cd_none_struct"             # args: (character_id, ...) support skill / counter
+LIMIT_ENERGY_SHORT = "energy_short_skipped"         # args: (character_id, count)
+LIMIT_CD_WAITED = "cd_waited"                       # args: (character_id, seconds)
+LIMIT_CD_WAIT_TOO_LONG = "cd_wait_too_long"         # args: (character_id, kind, seconds)
+LIMIT_FORM_NOT_ENTERED = "form_not_entered"         # args: (character_id, loop)
+LIMIT_OWN_RESOURCE_UNIT = "own_resource_unit"       # args: (character_id, name_zh)
+LIMIT_OWN_RESOURCE_DRAIN = "own_resource_drain"     # args: (character_id, name_zh)
+LIMIT_MIDVISIT_SWAP = "midvisit_swap"               # args: (character_id,)
+LIMIT_TIME_ONLY_CREDIT = "time_only_credit"         # args: (character_id,)
+LIMIT_GAUGE_PARTIAL = "gauge_partial"               # args: (character_id, count)
+LIMIT_ENERGY_EVENT_UNMODELLED = "energy_event_unmodelled"   # args: (character_id, code, ...)
+LIMIT_CHARGE_ENERGY_GATED = "charge_energy_gated"
+LIMIT_GAUGE_EFFICIENCY = "gauge_efficiency"
+LIMIT_CD_UNCLASSIFIED = "cd_unclassified"           # args: (character_id, seq)
+LIMIT_CD_CHARGES = "cd_charges"                     # args: (character_id, charges, seconds)
+LIMIT_CD_CLOCK_CONFLICT = "cd_clock_conflict"       # args: (character_id, kind, seconds, recorded active s)
+LIMIT_RESOURCE_DATA_MISSING = "resource_data_missing"   # args: (character_id,) no team_resource_data record
+LIMIT_HIT_CREDIT = "hit_credit"                     # args: (character_id, energy, gauge, hits, confidence) per use
+LIMIT_HIT_UNKNOWN = "hit_unknown"                   # args: (character_id, ability, selector) hits not laid out, count ?
+LIMIT_EARLY_SWAP = "early_swap"                     # args: (character_id, early swaps, approved steps not run)
+LIMIT_ALL_BLOCKED = "all_blocked_wait"              # args: (character_id, seconds waited, member waited for)
 # brief §1.5 known exclusions (args: (character_id,); per-character codes name that member)
 LIMIT_ADLER_SCORCH = "scorch_adler_variant"
 LIMIT_CANG_SCORCH = "scorch_cang_reapply"
@@ -275,6 +367,7 @@ PLAN_COVERAGE = "plan_coverage"                 # args: (covered seconds of the 
 PLAN_CARRY_FIRST_DPS = "plan_carry_first_dps"   # args: (character_id,) first without damage over time to keep
 PLAN_CARRY_LAST_DPS = "plan_carry_last_dps"     # args: (character_id,) last, but not the best buff cover
 PLAN_COVER_TRADE = "plan_cover_trade"           # args: (chosen cover seconds, best cover of a simulated candidate)
+PLAN_Q_CASTS = "plan_q_casts"                   # args: (ultimates cast by the chosen order,)
 CARRY_FORM = "form"                             # the carry is a form (transformation) damage dealer
 CARRY_MAIN = "main"                             # no form member: the main damage dealer with the longest field time
 CARRY_FIELD_TIME = "field_time"                 # no main role: longest approved field time
@@ -307,6 +400,71 @@ class StepTrace:
     status: str = STEP_OK           # STEP_*
     ability_name_zh: str = ""       # gameplay_ability_catalog.name_zh when known (display only)
     form_role: str = ""             # FORM_ROLE_* for steps inside a form, "" otherwise
+    # resource levels (team_resources); defaults = legacy level / older results
+    energy_before: float | None = None   # pool energy (or Hotori's clock) before the step; None = not modelled
+    energy_after: float | None = None
+    cd_kind: str = ""               # E | E_alt | Q | QTE | counter | "" (cooldown kind checked for the step)
+    remaining_s: float = 0.0        # cooldown / resource time left when reached (wait rows, skips, warn notes)
+    note: str = ""                  # STEP_NOTE_*
+    events: tuple = ()              # ((code, amount), ...) energy events after the step
+    credit: float = 0.0             # gauge credited to a time-only step
+    cost: float | None = None       # cost the step was checked against
+    energy_gain: float = 0.0        # ultimate energy the step gained (hits x (1 + efficiency) + events)
+    gauge_after: float | None = None    # the member's cycle gauge after the step (None = not traced)
+    gauge_gain: float = 0.0         # gauge the step built
+    cd_s: float | None = None       # the step's cooldown as checked (None = unknown / not enforced)
+    cd_conf: str = ""               # confidence of that cooldown (team_resource_data vocabulary)
+    cd_source: str = ""             # short source tag of that cooldown
+    dropped: int = 0                # STEP_SWAP_OUT: approved steps of the visit not run after it
+    wait_for: int | None = None     # wait row STEP_NOTE_ALL_BLOCKED: the member whose readiness was waited for
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "events", _tuple(self.events))
+
+
+@dataclass(frozen=True)
+class MemberResourceTrace:
+    """Ultimate energy, cooldowns and gauge rule of one member as the run used them (resource levels)."""
+
+    character_id: int
+    energy_kind: str = "ultimate"   # ultimate | own_clock | own_meter
+    cost: tuple = ()                # (value | None, source, confidence) of the ultimate cost (best known)
+    cost_enforced: bool = False     # the cost gated the ultimate
+    cost_display: tuple = ()        # ((value, "site date"), ...) community display values (not enforced)
+    cost_bound: float | None = None  # measured upper bound (never a value)
+    gauge_fallback: bool = False    # refilled by the fixed rule (missing gauge data)
+    fallback_reason: str = ""       # data | missing
+    cd: tuple = ()                  # ((kind, value used | None, best value | None, source, confidence), ...)
+    cd_alt: tuple = ()              # ((kind, value, "site date", confidence), ...) tooltip-only alternatives
+    q_planned: int = 0
+    q_cast: int = 0
+    q_skipped: tuple = ()           # 0-based loops whose ultimate was skipped for energy
+    waited_s: float = 0.0
+    cd_waits: int = 0
+    res_waits: int = 0
+    cd_skips: int = 0
+    interlude_s: float = 0.0        # Hotori: clock deficit credited at the "swap out and wait" step
+    interludes_s: tuple = ()        # the same per credited visit (seconds)
+    energy_gained: float = 0.0      # ultimate energy gained over the run (display; also for unknown costs)
+    charge_eff: float = 0.0
+    events: tuple = ()              # ((code, amount), ...)
+    unmodelled: tuple = ()          # codes of energy / cooldown effects not simulated
+    unchecked: tuple = ()           # cooldown kinds used again without a value
+    credited_gauge: float = 0.0     # gauge credited to time-only steps
+    own_name_zh: str = ""           # own resource name (非闭合时计 / 桀骜斗志)
+    charges: int = 1                # E charges (Chiichan 3)
+    meter_short: int = 0            # Shinku: ultimates pressed with the meter below its cap (tracked only)
+    # D3: ((1-based loop, seq, kind, reason, seconds left | None, steps not run), ...) early swaps;
+    # ((1-based loop, seq, seconds waited, member waited for), ...) waits while every member was blocked
+    early_swaps: tuple = ()
+    all_blocked: tuple = ()
+    # ((1-based loop, seq, kind, wall seconds waited, seconds left), ...) cooldowns under the swap threshold (10-18)
+    short_waits: tuple = ()
+
+    def __post_init__(self) -> None:
+        for name in ("cost", "cost_display", "cd", "cd_alt", "q_skipped", "events", "unmodelled", "unchecked",
+                     "interludes_s", "early_swaps", "all_blocked", "short_waits"):
+            object.__setattr__(self, name, _tuple(getattr(self, name)))
 
 
 @dataclass(frozen=True)
@@ -353,11 +511,18 @@ class VisitTrace:
     # until the member's next visit; they keep ticking after the swap and are not part of any step
     dot_damage: float = 0.0
     dot_hits: int = 0
-    refilled: bool = False          # every gauge was set to 100 at the start of this visit's loop
+    refilled: bool = False          # the member's gauge was set to 100 at the start of this visit's loop (legacy:
+    #                                 every gauge at FULL_GAUGE_LOOPS; resource levels: loop 1, or the fallback)
     form: Any = None                # FormTrace when the member entered its form in this visit
+    energy_in: float | None = None  # pool energy / own clock when entering (None = not modelled)
+    energy_out: float | None = None
+    waited_s: float = 0.0           # cooldown / resource waits inserted in this visit
+    energy_gain: float = 0.0        # ultimate energy gained in this visit (display; also for unknown costs)
+    early_swap: tuple = ()          # D3: (seq, kind, seconds left | None, reason, steps not run) when it ended early
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "steps", _tuple(self.steps))
+        object.__setattr__(self, "early_swap", _tuple(self.early_swap))
 
     @property
     def total_damage(self) -> float:
@@ -446,6 +611,8 @@ class PlanCandidate:
     chosen: bool = False
     rank: int = 0                   # stage-1 rank (0 = best)
     form_s: float = 0.0             # total seconds of the carry's form windows (coverage_s is part of it)
+    q_casts: int | None = None      # ultimates cast (resource levels; None = legacy level)
+    waited_s: float = 0.0           # cooldown / resource waits inserted
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "order", _tuple(self.order))
@@ -501,6 +668,8 @@ class CustomStepTrace:
     step_index: int | None = None   # index in VisitTrace.steps; None for a plain swap
     reaction_zh: str = ""           # reaction the entry fired ("" = none); set by the preview too
     out_character_id: int | None = None
+    energy_gained: float | None = None  # cost unknown: ultimate energy since the member's last ultimate (display)
+    clock_after: float | None = None    # own clock (Hotori) after the step (resource levels)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "keys", _tuple(self.keys))
@@ -552,11 +721,24 @@ class TeamExplanation:
     full_gauge_loops: tuple = ()    # 1-based loops that started with every gauge at 100 (FULL_GAUGE_LOOPS)
     plan: Any = None                # PlanTrace when order_mode == "plan"
     custom: Any = None              # CustomCycleTrace when order_mode == "custom"
+    # resource levels (team_resources); defaults = legacy level / results from before the resource model
+    resource_model: str = RESOURCE_LEGACY
+    gauge_refills: tuple = ()       # ((1-based loop, character_id), ...) fixed refills of fallback members
+    resources: tuple = ()           # tuple[MemberResourceTrace, ...] in slot order
+    waited_s: float = 0.0           # cooldown / resource waits inserted in total
+    resource_clock: str = ""        # active | wall ("" = legacy)
+    not_ready: str = ""             # NOT_READY_SWAP (team, D3) | NOT_READY_WAIT (solo / wait policy) | "" legacy
 
     def __post_init__(self) -> None:
         for name in ("order", "time_stops", "visits", "swaps", "reactions", "members", "assumptions", "limits",
-                     "full_gauge_loops"):
+                     "full_gauge_loops", "gauge_refills", "resources"):
             object.__setattr__(self, name, _tuple(getattr(self, name)))
+
+    def resource(self, character_id) -> MemberResourceTrace | None:
+        for r in self.resources or ():
+            if r.character_id == character_id:
+                return r
+        return None
 
     # ── convenience for the view / tests ──
     @property
@@ -755,7 +937,15 @@ _NOTES = {
     LIMIT_BLOSSOM_SCHEDULE: lambda a, n: _L('创生花的开花时间为推断（每 2 秒一朵，共 5 朵）'),
     LIMIT_GAUGE_FIT: lambda a, n: _L('环合值规则只用一场实战拟合（26 次切换中 24 次一致）'),
     LIMIT_LINKO_COATTACK: lambda a, n: _L('灵可协同攻击触发的援护技未模拟'),
-    LIMIT_LACRIMOSA_A6: lambda a, n: _L('安魂曲 6 觉醒的自动援护技未模拟'),
+    LIMIT_LACRIMOSA_A6: lambda a, n: _L('安魂曲觉醒效果 ⑥ 的自动援护技未模拟'),
+    LIMIT_ROTATION_ASSUMES_AWAKENING: lambda a, n: _LF('{0} 的已审核循环以 {1} 为前提；未选择该效果时实际循环不同，结果可能偏高').format(
+        _name(a[0] if a else "?", n), node_labels(a[1:2])),
+    ASSUME_AWAKENING_RULES: lambda a, n: _LF('{0} 的 {1} 按 Global 补充规则计算（说明文与游戏数据数值）').format(
+        _name(a[0] if a else "?", n), node_labels(a[1:])),
+    ASSUME_AWAKENING_EXPECTED: lambda a, n: _LF('{0} 的 {1} 的条件无法在模拟中再现，按期望值计算').format(
+        _name(a[0] if a else "?", n), node_labels(a[1:])),
+    LIMIT_AWAKENING_UNPRICED: lambda a, n: _LF('{0} 已选择的 {1} 未计入伤害（需要实测，或木桩上无法计算）').format(
+        _name(a[0] if a else "?", n), node_labels(a[1:])),
     LIMIT_CHARGE_ENERGY: lambda a, n: _L('盈蓄的终结能量未计入'),
     LIMIT_DISCORD_TOPPLE: lambda a, n: _L('失谐的倾陷削减不计伤害（木桩不倾陷）'),
     LIMIT_SUMMONS_DOT: lambda a, n: _L('召唤物与残虹、安魂曲以外的持续伤害未计入'),
@@ -814,7 +1004,362 @@ _NOTES = {
     PLAN_CARRY_LAST_DPS: lambda a, n: _LF('{0} 最后登场：模拟 DPS 最高').format(_name(a[0] if a else "?", n)),
     PLAN_COVER_TRADE: lambda a, n: _LF('所选顺序的形态增益覆盖 {0} 秒，少于其他候选的 {1} 秒；按模拟 DPS 选择').format(
         f"{_num(a, 0):.1f}", f"{_num(a, 1):.1f}"),
+    PLAN_Q_CASTS: lambda a, n: _LF('该顺序可释放更多极轨终结（{0} 次）').format(int(_num(a, 0))),
+    # resources (team_resources, 2026-10-14)
+    ASSUME_RESOURCE_MODEL: lambda a, n: _LF('资源模型：{0}').format(resource_model_text(a[0] if a else "")),
+    ASSUME_GAUGE_ACCUMULATED: lambda a, n: _L('环合值按每次命中累积，第 1 轮开始时为 100，之后不再自动补满'),
+    ASSUME_GAUGE_FALLBACK: lambda a, n: _LF('第 {0} 轮开始时 {1} 的环合值补满 100（缺少数据时的固定规则）').format(
+        int(_num(a, 0)), _members_text(a[1:], n)),
+    ASSUME_ENERGY_GATED: lambda a, n: _LF('{0} 的极轨终结按终结能量检查（消耗 {1}）；能量不足时跳过').format(
+        _name(a[0] if a else "?", n), f"{_num(a, 1):g}"),
+    ASSUME_START_ENERGY_FULL: lambda a, n: _L('开场时极轨终结能量已满（实测：首次释放均在战斗初期）'),
+    ASSUME_CHARGE_EFF: lambda a, n: _L('终结能量获取 = 每次命中的充能量 ×（1 + 充能效率）'),
+    ASSUME_CD_WAIT: lambda a, n: _LF('冷却未结束时插入等待后再使用（共 {0:.1f} 秒）').format(_num(a, 0)),
+    ASSUME_RESOURCE_CLOCK: lambda a, n: (_L('冷却与时计按包含时停的实际时间计算') if (a and a[0] == "wall")
+                                         else _L('冷却与时计按扣除时停后的战斗时间计算')),
+    ASSUME_OWN_RESOURCE: lambda a, n: _LF('{0} 使用自身资源「{1}」，按游戏数据计算').format(
+        _name(a[0] if a else "?", n), own_resource_text(a[1] if len(a) > 1 else "")),
+    ASSUME_HOTORI_INTERLUDE: lambda a, n: (
+        _LF('{0} 等待「{1}」蓄满共约 {2:.1f} 秒（每次出场 {3} 秒；视为队友行动的时间，未计入时间轴）').format(
+            _name(a[0] if a else "?", n), own_resource_text(a[1] if len(a) > 1 else ""), _num(a, 2), str(a[3]))
+        if len(a) > 3 and a[3] else
+        _LF('{0} 等待「{1}」蓄满约 {2:.1f} 秒（视为队友行动的时间，未计入时间轴）').format(
+            _name(a[0] if a else "?", n), own_resource_text(a[1] if len(a) > 1 else ""), _num(a, 2))),
+    ASSUME_CUSTOM_MODEL: lambda a, n: _LF('冷却与能量的默认数值来自：{0}').format(custom_model_text(a[0] if a else "")),
+    ASSUME_CHARGE_ENERGY_SHOWN: lambda a, n: _LF('盈蓄给场上队员的终结能量已计入显示的能量（共 +{0}，{1} 次；不参与能量检查）').format(
+        f"{_num(a, 0):g}", int(_num(a, 1))),
+    ASSUME_CUSTOM_CD_RULES: lambda a, n: _LF('{0} 的冷却规则按觉醒与技能数据计算：{1}').format(
+        _name(a[0] if a else "?", n), _join_texts(cd_rule_text(code) for code in a[1:])),
+    ASSUME_ENERGY_TRACKED: lambda a, n: _L('每次命中的终结能量都会累计并显示；消耗量未知的队员不检查能量'),
+    LIMIT_ENERGY_UNKNOWN: lambda a, n: _LF('{0} 的终结能量消耗未知，不检查能量（照常释放）').format(_members_text(a, n)),
+    LIMIT_COST_CONTESTED: lambda a, n: _LF('{0} 的终结能量消耗 {1} 来自游戏已不引用的旧数据表，未用于检查').format(
+        _name(a[0] if a else "?", n), f"{_num(a, 1):g}"),
+    LIMIT_ENERGY_SCALE: lambda a, n: _L('社区资料的终结能量消耗（100/120）与每次命中的充能量是否同一单位尚未确认，只作显示'),
+    LIMIT_CD_UNKNOWN: lambda a, n: _LF('{0} 的 {1} 冷却时间未知，不检查').format(
+        _name(a[0] if a else "?", n), _join_texts(cd_kind_text(k) for k in str(a[1] if len(a) > 1 else "").split("/"))),
+    LIMIT_CD_COMMUNITY: lambda a, n: _LF('{0} 的冷却时间：{1}（社区资料，可信度低）').format(
+        _name(a[0] if a else "?", n), str(a[1]) if len(a) > 1 else ""),
+    LIMIT_CD_NONE_STRUCT: lambda a, n: _LF('{0} 的援护技与极限反击在游戏数据中没有冷却设定，仅受环合值与闪避冷却限制').format(
+        _members_text(a, n)),
+    LIMIT_ENERGY_SHORT: lambda a, n: _LF('{0} 因终结能量不足跳过了 {1} 次极轨终结').format(
+        _name(a[0] if a else "?", n), int(_num(a, 1))),
+    LIMIT_CD_WAITED: lambda a, n: _LF('{0} 等待冷却共 {1:.1f} 秒').format(_name(a[0] if a else "?", n), _num(a, 1)),
+    LIMIT_CD_WAIT_TOO_LONG: lambda a, n: _LF('{0} 的 {1} 冷却超过 {2} 秒，已跳过（请检查数据）').format(
+        _name(a[0] if a else "?", n), cd_kind_text(a[1]) if len(a) > 1 else "", f"{_num(a, 2):g}"),
+    LIMIT_FORM_NOT_ENTERED: lambda a, n: _LF('{0} 第 {1} 轮未进入形态（极轨终结被跳过），形态内动作未执行').format(
+        _name(a[0] if a else "?", n), int(_num(a, 1))),
+    LIMIT_OWN_RESOURCE_UNIT: lambda a, n: _LF('{0} 的自身资源「{1}」每次获得量的单位未确认，只显示不检查').format(
+        _name(a[0] if a else "?", n), own_resource_text(a[1] if len(a) > 1 else "")),
+    LIMIT_OWN_RESOURCE_DRAIN: lambda a, n: _LF('{0} 的「{1}」在时停中的消耗起点与终结后的剩余量未确认，按较严格的读法计算').format(
+        _name(a[0] if a else "?", n), own_resource_text(a[1] if len(a) > 1 else "")),
+    LIMIT_MIDVISIT_SWAP: lambda a, n: _LF('{0} 的“离场再入场”步骤无法在一次出场中模拟，按原地等待计算').format(
+        _name(a[0] if a else "?", n)),
+    LIMIT_TIME_ONLY_CREDIT: lambda a, n: _LF('{0} 的仅计时步骤按技能数据计入环合值（近似）').format(
+        _name(a[0] if a else "?", n)),
+    LIMIT_GAUGE_PARTIAL: lambda a, n: _LF('{0} 有 {1} 个仅计时的步骤在游戏中会累积环合值（结果偏低）').format(
+        _name(a[0] if a else "?", n), int(_num(a, 1))),
+    LIMIT_ENERGY_EVENT_UNMODELLED: lambda a, n: _LF('{0} 的能量与冷却相关效果未模拟：{1}').format(
+        _name(a[0] if a else "?", n), _join_texts(unmodelled_text(code) for code in a[1:])),
+    LIMIT_CHARGE_ENERGY_GATED: lambda a, n: _L('盈蓄的终结能量未计入能量检查（偏保守）'),
+    LIMIT_GAUGE_EFFICIENCY: lambda a, n: _L('环合效率修正（覆纹 −50% 等）未计入'),
+    LIMIT_CD_UNCLASSIFIED: lambda a, n: _LF('{0} 的第 {1} 步冷却类型未建模，未检查冷却').format(
+        _name(a[0] if a else "?", n), int(_num(a, 1))),
+    LIMIT_CD_CLOCK_CONFLICT: lambda a, n: _LF('{0} 的 {1} 冷却 {2} 秒长于录像中两次使用之间扣除时停后的 {3} 秒（冷却是否在时停中计时、或被效果重置，尚未确认）').format(
+        _name(a[0] if a else "?", n), cd_kind_text(a[1]) if len(a) > 1 else "", f"{_num(a, 2):g}", f"{_num(a, 3):g}"),
+    LIMIT_CD_CHARGES: lambda a, n: _LF('{0} 的变轨技能可储存 {1} 次，每次 {2} 秒恢复（按依次恢复计算，含义未确认）').format(
+        _name(a[0] if a else "?", n), int(_num(a, 1)), f"{_num(a, 2):g}"),
+    LIMIT_RESOURCE_DATA_MISSING: lambda a, n: _LF('{0} 没有终结能量与冷却数据：不检查冷却与能量，环合值按固定规则补满').format(
+        _name(a[0] if a else "?", n)),
+    LIMIT_HIT_CREDIT: lambda a, n: _LF('{0} 的变轨技能有 {3} 次命中（召唤物等）未排入时间轴：每次使用补计终结能量 {1} 与环合值 {2}（{4}；伤害未计入）').format(
+        _name(a[0] if a else "?", n), f"{_num(a, 1):g}", f"{_num(a, 2):g}", int(_num(a, 3)),
+        confidence_label(a[4] if len(a) > 4 else "")),
+    LIMIT_HIT_UNKNOWN: lambda a, n: _LF('{0} 的变轨技能有一段命中未排入时间轴且次数未知：其终结能量与环合值未计入（结果偏低）').format(
+        _name(a[0] if a else "?", n)),
+    # D3 (2026-10-14): not ready -> swap out at once (team) / wait (alone)
+    ASSUME_NOT_READY_SWAP: lambda a, n: _LF('技能未就绪（冷却未结束，或已知消耗的终结能量不足）时立即切换到下一名队员：本次出场剩余步骤不执行，援护技登场按通常规则判定；冷却还差不到 {0:.1f} 秒（战斗时间）时原地等待后使用；所有队员都未就绪时等待最早就绪的队员').format(
+        _num(a, 0, _swap_min_wait_s())),
+    ASSUME_SHORT_WAIT: lambda a, n: _LF('{0} 冷却还差不到 {3:.1f} 秒时原地等待后使用：{1} 次，共 {2:.2f} 秒').format(
+        _name(a[0] if a else "?", n), int(_num(a, 1)), _num(a, 2), _num(a, 3, _swap_min_wait_s())),
+    ASSUME_NOT_READY_SOLO: lambda a, n: _L('单人没有可切换的队员：技能未就绪时原地等待（等待期间不攻击）'),
+    LIMIT_EARLY_SWAP: lambda a, n: (
+        _LF('{0} 因技能未就绪提前切换 {1} 次（共 {2} 个步骤未执行）').format(
+            _name(a[0] if a else "?", n), int(_num(a, 1)), int(_num(a, 2))) if int(_num(a, 2)) else
+        _LF('{0} 因技能未就绪提前切换 {1} 次').format(_name(a[0] if a else "?", n), int(_num(a, 1)))),
+    LIMIT_ALL_BLOCKED: lambda a, n: _LF('所有队员的技能都未就绪：{0} 原地等待 {1:.1f} 秒（{2} 最早就绪）').format(
+        _name(a[0] if a else "?", n), _num(a, 1), _name(a[2] if len(a) > 2 else "?", n)),
 }
+
+
+def swap_out_text(reason: str, kind: str = "", remaining_s=None, energy=None, cost=None) -> str:
+    """Step text of an early swap (D3): why the step was not ready, then "swap out at once"."""
+    if reason == SWAP_REASON_ENERGY:
+        return _LF('终结能量不足（{0:.0f}/{1:.0f}）→ 立即切换').format(float(energy or 0.0), float(cost or 0.0))
+    left = max(0.1, float(remaining_s or 0.0))     # a few ms left reads "0.1 s", never "0.0 s" (review F4)
+    if reason == SWAP_REASON_CLOCK:
+        return _LF('时计不足（还差 {0:.1f} 秒）→ 立即切换').format(left)
+    return _LF('冷却未就绪（{0}，还差 {1:.1f} 秒）→ 立即切换').format(cd_kind_text(kind), left)
+
+
+def _swap_min_wait_s() -> float:
+    from src.services.team_resources import SWAP_MIN_WAIT_S
+
+    return float(SWAP_MIN_WAIT_S)
+
+
+def short_wait_text(remaining_s, kind: str = "", threshold_s=None) -> str:
+    """Step text of a cooldown wait under the swap threshold (user decision 2026-10-18): waited, no swap."""
+    return _LF('等待冷却 {0:.2f} 秒（< {1:.1f} 秒，不切换；{2}）').format(
+        float(remaining_s or 0.0), float(_swap_min_wait_s() if threshold_s is None else threshold_s), cd_kind_text(kind))
+
+
+def swap_dropped_text(count) -> str:
+    """Approved steps of the visit that were not run after the early swap."""
+    return _LF('本次出场其余 {0} 个步骤未执行').format(int(count or 0))
+
+
+def _join_texts(items) -> str:
+    """A list in running text: the separator is a template, so ko / en read ", " and zh / ja "、" (review F-UX2)."""
+    out = None
+    for item in items:
+        if not item:
+            continue
+        out = item if out is None else _LF('{0}、{1}').format(out, item)
+    return out or ""
+
+
+def join_list(items) -> str:
+    """Public form of the list join (the view lists member names with it)."""
+    return _join_texts(items)
+
+
+def custom_model_text(code: str) -> str:
+    """Where a custom cycle's default cooldown / energy numbers come from (the resource level; review F9)."""
+    return {RESOURCE_LEGACY: _L('旧版直接输入数值表'), RESOURCE_DATA: _L('游戏数据'),
+            RESOURCE_COMMUNITY: _L('游戏数据 + 社区冷却')}.get(str(code), str(code))
+
+
+def step_event_text(code, amount) -> str:
+    """Tooltip line of one step event (ResourceState.after / layout credits): energy gains read "+n"; the reset rules
+    name what they did; a node-rule group code (``awakening_<group>_...``) uses its group's text."""
+    code = str(code or "")
+    if code in ("q_resets_e", "counter_resets_e", "e_resets_q"):
+        return cd_rule_text(code)
+    if code.startswith("awakening_"):
+        rules = _node_rules()
+        try:
+            text = rules.note_text(code, (amount,), None) if rules is not None else None
+        except Exception:
+            text = None
+        if text:
+            return text
+    return _LF('额外获得 +{0:g}').format(float(amount or 0.0))
+
+
+def cd_rule_text(code: str) -> str:
+    """Cooldown rules of team_resource_data (awakening / skill effects) applied in both modes."""
+    return {"q_resets_e": _L('极轨终结刷新变轨技能冷却'), "counter_resets_e": _L('极限反击刷新变轨技能冷却'),
+            "e_resets_q": _L('变轨技能刷新极轨终结冷却'),
+            "extra_e_after_basics": _L('5 次普通攻击后可额外使用一次变轨技能'),
+            "e_cd_add": _L('觉醒缩短变轨技能冷却'), "cd_offset": _L('冷却从技能生效时开始计算')}.get(str(code), str(code))
+
+
+def resource_model_text(code: str) -> str:
+    return {RESOURCE_LEGACY: _L('旧规则（第 1、3 轮补满，不检查能量与冷却）'), RESOURCE_DATA: _L('游戏数据'),
+            RESOURCE_COMMUNITY: _L('游戏数据 + 社区冷却')}.get(str(code), str(code))
+
+
+def own_resource_text(name_zh: str) -> str:
+    """Own resource names (game terms, built with _L: no display-layer entry)."""
+    return {"非闭合时计": _L('非闭合时计'), "桀骜斗志": _L('桀骜斗志')}.get(str(name_zh), str(name_zh))
+
+
+def cd_kind_text(kind: str) -> str:
+    return {"E": _L('变轨技能'), "E_alt": _L('变轨技能（噤念/如此罪状）'), "E_short": _L('变轨技能（短按）'),
+            "Q": _L('极轨终结'), "QTE": _L('援护技'), "counter": _L('极限反击'), "evade": _L('闪避')}.get(
+        str(kind), str(kind))
+
+
+def confidence_label(conf: str) -> str:
+    """Short pill text of a data confidence."""
+    return {"db_value": _L('游戏数据'), "db_struct_none": _L('游戏数据'), "db_text": _L('说明文'),
+            "measured_value": _L('实测'), "db_legacy": _L('旧数据表'), "inference": _L('推断'),
+            "community_low": _L('社区·低'), "community_very_low": _L('社区·极低'), "user": _L('用户填写'),
+            "measured_bound": _L('未知'), "unknown": _L('未知')}.get(str(conf), str(conf))
+
+
+_UNMODELLED = {
+    "lacrimosa_a6_support": lambda: _L('觉醒效果 ⑥ 自动援护技'),
+    "lacrimosa_e_steal_variant": lambda: _L('「恶魔的礼物」的能量'),
+    "linko_a6_coattack_charge": lambda: _L('觉醒效果 ⑥ 协同攻击充能'),
+    "linko_a5_coattack_reaction": lambda: _L('觉醒效果 ⑤ 协同攻击触发的环合反应'),
+    "hotori_a3_refund": lambda: _L('觉醒效果 ③ 返还时计'),
+    "hotori_a4_per_kill": lambda: _L('觉醒效果 ④ 击败目标恢复时计'),
+    "hotori_e_extra_drain": lambda: _L('变轨技能记录期间额外消耗的时计'),
+    "edgar_e_channel_extension": lambda: _L('持续施放延长冷却'),
+    "edgar_passive_charge_120": lambda: _L('盈蓄时获得 120 点终结能量'),
+    "cang_a1_cd_cut": lambda: _L('觉醒效果 ① 缩短冷却'),
+    "nanally_a1_follow_up_energy": lambda: _L('觉醒效果 ① 追加攻击 +2.5'),
+    "hathor_speed_stack_energy": lambda: _L('每层闪送之力 +5'),
+    "kuhara_bud_boom_energy": lambda: _L('致约清算 +40'),
+    "iloi_a6_energy": lambda: _L('觉醒效果 ⑥ +50'),
+    "sagiri_a5_float_refill": lambda: _L('觉醒效果 ⑤ 浮空时回满能量'),
+    "daffodill_a2_refill": lambda: _L('觉醒效果 ② 反击失败时回满能量'),
+    "fadia_threshold_refill": lambda: _L('达到破灭阈值时回满能量'),
+    "chiichan_charge_passive": lambda: _L('盈蓄强化 +4'),
+    "akane_release_pending": lambda: _L('角色未上线，数据待确认'),
+    "akane_values_unverified": lambda: _L('国服 10-15 已上线；冷却与终结能量未确认'),
+    "skia_shadow_exit_variant": lambda: _L('潜影结束动作的两种版本'),
+    "chaos_e_short_binding": lambda: _L('短按变轨技能的 2 秒冷却'),
+    "raven_witch_q_row": lambda: _L('魔女形态极轨终结的冷却'),
+    "zankou_a4_magic_q": lambda: _L('觉醒效果 ④「梦魇生花」'),
+}
+
+
+def unmodelled_text(code: str) -> str:
+    build = _UNMODELLED.get(str(code))
+    return build() if build else str(code)
+
+
+# ── awakening nodes (free selection, team_awakening; Korean UI "돌파") ─────────
+# A6: team_resource_data ``unmodelled`` codes bound to an awakening node -> (character_id, node): shown only when the
+# member selected the node (codes not listed here, e.g. akane_release_pending / *_variant, are always shown).  Groups
+# add more through awakening_node_rules NodeInfo.unmodelled_codes.
+UNMODELLED_NODE = {
+    "sagiri_a5_float_refill": (1003, "Effect5"),
+    "lacrimosa_a6_support": (1004, "Effect6"),
+    "nanally_a1_follow_up_energy": (1010, "Effect1"),
+    "cang_a1_cd_cut": (1023, "Effect1"),
+    "zankou_a4_magic_q": (1036, "Effect4"),
+    "hotori_a3_refund": (1052, "Effect3"),
+    "hotori_a4_per_kill": (1052, "Effect4"),
+    "daffodill_a2_refill": (1054, "Effect2"),
+    "linko_a6_coattack_charge": (1072, "Effect6"),
+    "linko_a5_coattack_reaction": (1072, "Effect5"),
+    "iloi_a6_energy": (1075, "Effect6"),
+}
+# The approved rotation assumes these nodes (design §2.2; a limit is shown when the member did not select one).  Empty
+# since the 10-18 integration (group_1.md §7.1): Zankou's reviewed rotation reaches 血宴入梦时 through 灭 without
+# 「梦魇生花」 (Effect4), and {④}@1 equals A0; nodes may still declare it (NodeInfo.rotation_assumed).
+ROTATION_ASSUMES = frozenset()
+
+
+def _node_rules():
+    """The awakening_node_rules package (None when it cannot be imported)."""
+    try:
+        from src.services import awakening_node_rules
+    except Exception:
+        return None
+    return awakening_node_rules
+
+
+def node_label(node) -> str:
+    """①..⑥ for an ordinary effect (language-neutral), 共鸣3 / 共鸣6 (translated) for a resonance."""
+    from src.services import team_awakening
+
+    text = str(node)
+    canonical = team_awakening.node_id(text)
+    if canonical in team_awakening.NODE_IDS:
+        return team_awakening.circled(canonical)
+    if canonical in team_awakening.RESONANCE_LEVEL:
+        return _LF('共鸣{0}').format(team_awakening.RESONANCE_LEVEL[canonical])
+    return text
+
+
+def node_labels(nodes) -> str:
+    """Circles run together under one 觉醒效果 caption ("돌파 효과 ①③⑤"); resonances ("공명3") joined with the list
+    separator (review UX F9: the templates no longer put the caption in front of a resonance)."""
+    from src.services import team_awakening
+
+    circles = "".join(node_label(n) for n in nodes if team_awakening.node_id(n) in team_awakening.NODE_IDS)
+    if circles:
+        circles = _LF('觉醒效果 {0}').format(circles)     # keeps its provenance (re-rendered on a language switch)
+    others = [node_label(n) for n in nodes if team_awakening.node_id(n) not in team_awakening.NODE_IDS]
+    items = ([circles] if circles else []) + others
+    return join_list(items) if len(items) > 1 else (items[0] if items else "")
+
+
+def unmodelled_for(character_id, codes, selection=None) -> tuple:
+    """A6: the member's unmodelled codes to show - a node-bound code only when the node is selected, a code a
+    selected node's rules make obsolete (NodeInfo.resolves_codes) never.  ``selection`` None keeps every code."""
+    codes = tuple(codes or ())
+    if selection is None:
+        return codes
+    from src.services import team_awakening
+
+    cid = int(character_id)
+    bound = dict(UNMODELLED_NODE)
+    resolved: set = set()
+    rules = _node_rules()
+    if rules is not None:
+        for (owner, node), info in rules.all_node_info().items():
+            for code in info.unmodelled_codes:
+                bound[str(code)] = (owner, node)
+            if owner == cid and rules.group_enabled(info.group) and team_awakening.unlocked(selection, node):
+                resolved.update(info.resolves_codes)
+    out = []
+    for code in codes:
+        owner = bound.get(str(code))
+        if owner is not None and int(owner[0]) == cid and not team_awakening.unlocked(selection, owner[1]):
+            continue
+        if code in resolved:
+            continue
+        out.append(code)
+    return tuple(out)
+
+
+def rotation_assumed_nodes(character_id) -> tuple:
+    """Nodes the member's approved rotation assumes (ROTATION_ASSUMES + NodeInfo.rotation_assumed)."""
+    cid = int(character_id)
+    nodes = [node for owner, node in sorted(ROTATION_ASSUMES) if owner == cid]
+    rules = _node_rules()
+    if rules is not None:
+        for node, info in sorted(rules.nodes_of(cid).items()):
+            if info.rotation_assumed and node not in nodes:
+                nodes.append(node)
+    return tuple(nodes)
+
+
+def node_rule_notes(prepared, run=None) -> tuple[list, list, set]:
+    """(assumptions, limits, limit codes to drop) of the awakening node rules of a run (team_simulation_service
+    ._with_node_notes): rules applied, expected-value nodes, selected nodes not priced, hook notes, obsolete codes."""
+    assume: list = []
+    limits: list = []
+    drop: set = set()
+    if prepared is None:
+        return assume, limits, drop
+    rules = _node_rules()
+    order = {n: i for i, n in enumerate(("Effect1", "Effect2", "Effect3", "Effect4", "Effect5", "Effect6",
+                                         "resonance_3", "resonance_6"))}
+    for cid, nodes in sorted(prepared.applied().items()):
+        assume.append(note(ASSUME_AWAKENING_RULES, cid, *nodes))
+    if rules is not None:
+        for cid, member in sorted(prepared.members.items()):
+            expected, unpriced = [], []
+            for node, info in sorted(rules.nodes_of(cid).items(), key=lambda kv: order.get(kv[0], 99)):
+                if not rules.group_enabled(info.group) or not member.has(node):
+                    continue
+                if info.expected_value:
+                    expected.append(node)
+                if info.bucket != "now" and info.category != "none":
+                    unpriced.append(node)
+                drop.update(info.resolves_codes)
+            if expected:
+                assume.append(note(ASSUME_AWAKENING_EXPECTED, cid, *expected))
+            if unpriced:
+                limits.append(note(LIMIT_AWAKENING_UNPRICED, cid, *unpriced))
+    sinks = [getattr(prepared, "notes", None)]
+    if run is not None:
+        sinks.append(getattr(getattr(run, "node_hooks", None), "notes", None))
+        layout = getattr(run, "layout", None)
+        sinks.append(getattr(getattr(layout, "node_hooks", None), "notes", None))
+        sinks.append(getattr(getattr(getattr(layout, "resources", None), "hooks", None), "notes", None))
+    for sink in sinks:
+        for kind, code, args in sink or ():
+            item = note(code, *args)
+            target = assume if kind == "assume" else limits
+            if item not in target:
+                target.append(item)
+    return assume, limits, drop
 
 _EFFECTS = {
     EFFECT_SCORCH_TICKS: lambda a: _LF('浊燃 {0} 跳').format(int(_num(a, 0))),
@@ -864,6 +1409,14 @@ def note_text(item, names: Mapping | None = None) -> str:
             build = custom_notes.get(code)
         except Exception:
             build = None
+    if build is None and code.startswith("awakening_"):    # awakening node-rule group codes: their group module
+        rules = _node_rules()
+        try:
+            text = rules.note_text(code, args, names) if rules is not None else None
+        except Exception:
+            text = None
+        if text is not None:
+            return text
     if build is None:
         return ":".join((code, *map(str, args))) if args else code
     try:

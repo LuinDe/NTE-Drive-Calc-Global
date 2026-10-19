@@ -22,10 +22,12 @@ from PySide6.QtWidgets import (
 )
 
 from src.app.constants import APP_VERSION
+from src.app.global_release import GLOBAL_VERSION
 from src.app.theme import themed_style
 from src.app.window_geometry import fit_dialog_to_available_screen
 from src.services.game_ui_asset_catalog import GameUiAssetCatalog
 from src.features.home.feature_guide import add_feature_guides
+from src.features.home.global_update_banner import build_home_update_banner
 from src.ui.dashboard_widgets import metric_card, set_status_badge
 from src.ui.image_scaling import asset_pixmap
 
@@ -236,8 +238,13 @@ def build_home_page(window) -> QScrollArea:
     title.setStyleSheet(themed_style("color:#f0f6fc;font-size:21px;font-weight:700"))
     window.home_account_label = QLabel(_L('正在读取账号数据…'))
     window.home_account_label.setStyleSheet(themed_style("color:#8b949e;font-size:12px"))
+    # Global 빌드 버전 (업스트림 기반 버전은 작업대 제목이 그대로 보여 준다)
+    window.home_global_version_label = QLabel(_LF('Global {0}').format((GLOBAL_VERSION)))
+    window.home_global_version_label.setObjectName("homeGlobalVersion")
+    window.home_global_version_label.setStyleSheet(themed_style("color:#8b949e;font-size:12px"))
     title_column.addWidget(title)
     title_column.addWidget(window.home_account_label)
+    title_column.addWidget(window.home_global_version_label)
     hero_layout.addLayout(title_column)
     hero_layout.addStretch()
     # 工作台头像取已核验角色目录中的黑羽 256px 图片，不替换战报数据集。
@@ -275,6 +282,10 @@ def build_home_page(window) -> QScrollArea:
     upgrade_row.addWidget(upgrade_button)
     window.home_upgrade_banner.hide()
     root.addWidget(window.home_upgrade_banner)
+
+    # Global 업데이트 배너 (비차단; 상태는 global_update_controller.state_changed가 그린다)
+    window.home_update_banner = build_home_update_banner(page, window.global_update_controller)
+    root.addWidget(window.home_update_banner)
 
     metrics = QGridLayout()
     metrics.setHorizontalSpacing(12)

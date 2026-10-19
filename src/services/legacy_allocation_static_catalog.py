@@ -19,6 +19,11 @@ from src.services.advancement_stage_service import fork_active_panel_stats
 from src.services.sqlite_allocation_inventory import legacy_shape_id
 from src.services.character_shape_bonus_service import get_effective_character_shape_bonus
 from src.services.official_role_page_service import load_official_role_detail
+from src.services.puka_training_settings_service import (
+    PUKA_TRAINING_SETTING_KEY,
+    account_puka_training,
+    puka_training_property_stats,
+)
 from src.storage.sqlite.static_game_data_dao import StaticGameDataDao
 from src.storage.sqlite.user_data_dao import UserDataDao
 
@@ -103,6 +108,17 @@ def _likeability_crit_rate_bonus(
         for row in bonus.get("properties") or ()
         if str(row.get("property_id") or "") == "CritBase"
     )
+
+
+def _account_crit_rate_bonus(user_dao: UserDataDao | None) -> float:
+    """This account's Puka Boot Camp CritBase (fraction; account-wide, every deployed character; 0.0 at Lv 0)."""
+
+    if user_dao is None:
+        return 0.0
+    settings = account_puka_training(
+        user_dao.list_application_setting_copies().get(PUKA_TRAINING_SETTING_KEY)
+    )
+    return float(puka_training_property_stats(settings).get("CritBase", 0.0))
 
 
 def _current_role_calculation_projection(
@@ -222,6 +238,8 @@ def build_legacy_allocation_static_catalog(
         )
         try:
             detail_cache: dict[object, Any] = {}
+            # 噗卡特训暴击率（账号级，每个出战角色）：自动暴击率上限与下限检查都要计入。
+            account_crit_rate_bonus = _account_crit_rate_bonus(user_dao)
             for character in characters:
                 character_id = int(character["character_id"])
                 role_name = str(character.get("name_zh") or character_id)
@@ -310,6 +328,7 @@ def build_legacy_allocation_static_catalog(
                         else None
                     ),
                     "active_fork_crit_source_resolved": calculation_projection is not None,
+                    "account_crit_rate_bonus": account_crit_rate_bonus,
                     "extra_shape_label": extra_shape_label,
                     "extra_shape_buffs": extra_shape_buffs,
                     "weights": dict(scoring_role.get("weights") or {}),
@@ -350,6 +369,7 @@ def build_legacy_allocation_static_catalog(
                             weights, attributes, "main_property_weights"
                         ),
                         "is_custom": True,
+                        "account_crit_rate_bonus": account_crit_rate_bonus,
                     }
                     board_matrices[role_name] = _custom_board_matrix(
                         list(custom.get("board_cells") or ())

@@ -35,7 +35,11 @@ def request_equipment_graduation_rate(
         for widget in tooltip_widgets:
             widget.setToolTip(tooltip)
 
-    if state.get("_graduation_rate_loaded"):
+    from src.services.puka_training_settings_service import load_account_puka_options
+
+    # 决定 U1：毕业模板的噗卡特训等级改变后（角色页/效率表勾选框），缓存的毕业率作废。
+    template_level = load_account_puka_options(database_path).template_level()
+    if state.get("_graduation_rate_loaded") and state.get("_graduation_template_level", 0) == template_level:
         value = state.get("_graduation_rate")
         value_label.setText(f"{float(value):.1f}%" if value is not None else "--")
         tooltip = str(state.get("_graduation_tooltip") or "")
@@ -96,6 +100,7 @@ def request_equipment_graduation_rate(
         state["_graduation_rate"] = float(value) if value is not None else None
         state["_graduation_tooltip"] = tooltip
         state["_graduation_rate_loaded"] = True
+        state["_graduation_template_level"] = template_level
         try:
             value_label.setText(
                 f"{float(value):.1f}%" if value is not None else "--"
@@ -109,6 +114,7 @@ def request_equipment_graduation_rate(
             state["_graduation_rate"] = None
             state["_graduation_tooltip"] = ""
             state["_graduation_rate_loaded"] = True
+            state["_graduation_template_level"] = template_level
             logger.warning(_LF('配装毕业率计算失败 role={0}: {1}').format((role_name), (error)))
             try:
                 value_label.setText("--")

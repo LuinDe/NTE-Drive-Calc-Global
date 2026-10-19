@@ -38,7 +38,7 @@ from src.services.damage_calculation_service import skill_tier_for_effective_lev
 from src.services.official_role_awakening_service import (
     awaken_skill_level_delta,
 )
-from src.services.world_bonus_settings_service import world_bonus_property_stats
+from src.services.puka_training_settings_service import account_bonus_property_stats, frozen_puka_training_level
 from src.services.official_role_page_service import (
     calculate_official_role_margins,
 )
@@ -212,6 +212,11 @@ def _build_base_group(window, character_id: int, detail: dict, editor: dict) -> 
         spin.setButtonSymbols(QDoubleSpinBox.NoButtons)
         spin.setMinimumWidth(110)
         stat_values[key] = spin
+        # 面板值已含账号级加成（家具 + 噗卡特训）：来源拆分见公式说明。
+        panel_tip = _LF('面板已含家具加成与噗卡特训 Lv.{0}').format(
+            frozen_puka_training_level(detail.get("puka_training")))
+        label.setToolTip(panel_tip)
+        spin.setToolTip(panel_tip)
         stats_grid.addWidget(label, grid_row, grid_column)
         stats_grid.addWidget(spin, grid_row, grid_column + 1)
     stats_grid.setColumnStretch(1, 1)
@@ -263,7 +268,7 @@ def _build_base_group(window, character_id: int, detail: dict, editor: dict) -> 
             ),
             {},
         )
-        bonus = world_bonus_property_stats(detail.get("world_bonus"))
+        bonus = account_bonus_property_stats(detail)   # 家具加成 + 噗卡特训
         if likeability.isChecked():
             for property_id, value in likeability_properties.items():
                 bonus[property_id] = bonus.get(property_id, 0.0) + value

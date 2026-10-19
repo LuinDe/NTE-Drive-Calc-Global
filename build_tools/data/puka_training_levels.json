@@ -1,0 +1,1002 @@
+{
+  "system": {
+    "names": {
+      "ko": {
+        "system": "푸카 특훈",
+        "program": "푸카 멤버십 플랜",
+        "plan_level": "단꿈 레벨",
+        "currency": "폰즈",
+        "source": "S9"
+      },
+      "en": {
+        "system": "Puka Boot Camp",
+        "program": "Puka Membership Program",
+        "plan_level": "Sweetdream Level",
+        "currency": "Fons",
+        "source": "S10"
+      },
+      "ja": {
+        "system": "プカ特訓",
+        "program": "シティ名声「プカプラン」",
+        "plan_level": "スイートドリームレベル",
+        "currency": "ファンス",
+        "source": "S11"
+      },
+      "zh": {
+        "system": "噗卡特训",
+        "program": "噗卡计划",
+        "plan_level": "甜梦等级",
+        "currency": "方斯",
+        "source": "S12",
+        "note": "官方写法是 噗卡 (not 普卡). CN server has it since 1.4 (2026-09-24)."
+      }
+    },
+    "version": "1.4 (CN 2026-09-24; KR/global/JP 2026-09-30)",
+    "program_unlock": "Puka Membership Program opens once City Tycoon (타이쿤 프로젝트) reaches Lv.16 (community; official text only says 'once the program opens')",
+    "training_unlock": "Puka plan (Sweetdream) level 7; cumulative 2,790,600 Fons earned since 1.4 + plan task (2,000 Puka stars) per S8",
+    "cap_rule": "training level N requires plan level 2N+5 (7,9,...,45); max training level 20 at plan level 45",
+    "max_level": 20,
+    "total_cost_fons": 11000000,
+    "value_type": "flat additive values; crit rate / crit damage are percentage points added to the panel (not multipliers)",
+    "scope": {
+      "statement": "account-wide, one shared level; bonus applies to characters currently deployed in the party",
+      "evidence": [
+        "namu (S4) §1 item 5: '푸카 특훈의 속성 보너스는 출전 중인 캐릭터에게만 적용됩니다' (reads like the in-game description)",
+        "kamigame (S1): '強化内容は出撃中のキャラ全てに反映'",
+        "game8 (S3): 'permanent, account-wide stat-sink'; GameFAQs (S2): 'They are account wide buffs'; X (S13): 'PERMANENT STATS TO YOUR ENTIRE NTE ROSTER'",
+        "no source describes a per-character training level; UI lives in the City Tycoon window (top-left) per arca 184652010"
+      ],
+      "confidence": "high (account-wide), medium (exact 'deployed-only' mechanics)"
+    },
+    "panel_display": {
+      "known": false,
+      "statement": "No source states whether the character stat screen includes the Boot Camp bonus. The 'deployed characters only' wording suggests a party-scoped buff, which may or may not be reflected on the out-of-combat character panel.",
+      "calculator_relevance": "The calculator never syncs the in-game character panel (no panel table in user_data.sqlite3; stats are reconstructed from growth tables + equipment + fork + likeability + world_bonus). nte-core measured combat values (native:attack / native:maxHp, '实测属性') are in-combat and would include any active bonus, so a post-1.4 battle record would show reconstructed ATK lower than measured ATK by the training amount unless a training source is added.",
+      "user_check": "Compare the character screen ATK before/after buying one Boot Camp level in game, or compare 实测 vs reconstructed attack in a battle record captured after 2026-09-30 (the installed account's 3 battle records are all from 2026-09-05/09, pre-1.4)."
+    }
+  },
+  "property_map": {
+    "atk": {
+      "property_id": "AtkAdd",
+      "zh": "攻击力",
+      "unit": "flat",
+      "note": "same id the calculator already uses for the account-wide 妖刀 furniture bonus (world_bonus)"
+    },
+    "def": {
+      "property_id": "DefAdd",
+      "zh": "防御力",
+      "unit": "flat"
+    },
+    "hp": {
+      "property_id": "HPMaxAdd",
+      "zh": "生命值",
+      "unit": "flat"
+    },
+    "crit_rate_pct": {
+      "property_id": "CritBase",
+      "zh": "暴击率",
+      "unit": "fraction in calculator (0.10% -> 0.001)",
+      "note": "likeability bonus and fork permanent stats use CritBase additive"
+    },
+    "crit_dmg_pct": {
+      "property_id": "CritDamageBase",
+      "zh": "暴击伤害",
+      "unit": "fraction in calculator (0.20% -> 0.002)",
+      "note": "same id as 拳套 furniture bonus"
+    },
+    "cycle": {
+      "property_id": "MagBase",
+      "zh": "环合强度",
+      "unit": "flat",
+      "note": "equipment/fork/divination all use MagBase flat (show_percent=0); ko 사이클 강도, en Cycle Intensity, ja サイクル強度 (kamigame: 連環パワー)"
+    },
+    "break": {
+      "property_id": "UnbalIntensityBase",
+      "zh": "倾陷强度",
+      "unit": "flat",
+      "note": "ko 붕괴 강도 (user decision 2026-10-07: 倾陷=붕괴), en Break Intensity, ja ブレイク強度 (kamigame: ブレイクパワー)"
+    }
+  },
+  "max_totals": {
+    "atk": 28,
+    "def": 30,
+    "hp": 420,
+    "crit_rate_pct": 2.5,
+    "crit_dmg_pct": 5,
+    "cycle": 12,
+    "break": 12
+  },
+  "conflicts": [
+    {
+      "item": "crit rate total",
+      "values": {
+        "2.5%": [
+          "S1",
+          "S3",
+          "S4+S6 (L1-10 = 1.3)",
+          "S5",
+          "S7",
+          "S13"
+        ],
+        "2.8%": [
+          "S2 (derived from its own L4 typo 0.40%)"
+        ]
+      },
+      "adopted": "2.5%"
+    },
+    {
+      "item": "break strength total",
+      "values": {
+        "12": [
+          "S1",
+          "S2",
+          "S5",
+          "S7"
+        ],
+        "13": [
+          "S7 body line '붕괴 강도 12 >> 13으로 버프' (author's own test, pre-release)"
+        ],
+        "4": [
+          "S13 (snippet)"
+        ]
+      },
+      "adopted": "12"
+    },
+    {
+      "item": "L4 contents",
+      "values": {
+        "CR 0.10% + Break 1": [
+          "S1",
+          "S2 (break col)",
+          "S4",
+          "S5",
+          "S6"
+        ],
+        "CR 0.40% + Break 1": [
+          "S2 image typo"
+        ],
+        "HP 20 + Break 1": [
+          "S3"
+        ]
+      },
+      "adopted": "CR 0.10% + Break 1"
+    },
+    {
+      "item": "L6 DEF",
+      "values": {
+        "2": [
+          "S1",
+          "S2"
+        ],
+        "5": [
+          "S3"
+        ]
+      },
+      "adopted": "2"
+    },
+    {
+      "item": "bundle levels (5/10/15/20) Break +2",
+      "values": {
+        "included": [
+          "S1",
+          "S2",
+          "S5"
+        ],
+        "omitted": [
+          "S4 (L5/L10)",
+          "S3"
+        ]
+      },
+      "adopted": "included (needed for the 12 total)"
+    },
+    {
+      "item": "plan level for training L5",
+      "values": {
+        "15": [
+          "S1",
+          "S2",
+          "S3",
+          "S4"
+        ],
+        "not listed as cap increase": [
+          "S6",
+          "S8"
+        ]
+      },
+      "adopted": "15"
+    }
+  ],
+  "levels": [
+    {
+      "level": 1,
+      "required_plan_level": 7,
+      "cost_fons": 100000,
+      "cumulative_cost_fons": 100000,
+      "delta": {
+        "atk": 2,
+        "def": 0,
+        "hp": 0,
+        "crit_rate_pct": 0.1,
+        "crit_dmg_pct": 0,
+        "cycle": 0,
+        "break": 0
+      },
+      "cumulative": {
+        "atk": 2,
+        "def": 0,
+        "hp": 0,
+        "crit_rate_pct": 0.1,
+        "crit_dmg_pct": 0,
+        "cycle": 0,
+        "break": 0
+      },
+      "confidence": "high",
+      "sources": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6"
+      ],
+      "notes": [
+        "Plan level 7 = unlock ('푸카 특훈 해금' / 'Unlocks Puka Boot Camp'); L1 may be bought immediately after unlock."
+      ]
+    },
+    {
+      "level": 2,
+      "required_plan_level": 9,
+      "cost_fons": 100000,
+      "cumulative_cost_fons": 200000,
+      "delta": {
+        "atk": 0,
+        "def": 2,
+        "hp": 0,
+        "crit_rate_pct": 0,
+        "crit_dmg_pct": 0.2,
+        "cycle": 0,
+        "break": 0
+      },
+      "cumulative": {
+        "atk": 2,
+        "def": 2,
+        "hp": 0,
+        "crit_rate_pct": 0.1,
+        "crit_dmg_pct": 0.2,
+        "cycle": 0,
+        "break": 0
+      },
+      "confidence": "high",
+      "sources": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6"
+      ],
+      "notes": []
+    },
+    {
+      "level": 3,
+      "required_plan_level": 11,
+      "cost_fons": 100000,
+      "cumulative_cost_fons": 300000,
+      "delta": {
+        "atk": 0,
+        "def": 0,
+        "hp": 20,
+        "crit_rate_pct": 0,
+        "crit_dmg_pct": 0,
+        "cycle": 1,
+        "break": 0
+      },
+      "cumulative": {
+        "atk": 2,
+        "def": 2,
+        "hp": 20,
+        "crit_rate_pct": 0.1,
+        "crit_dmg_pct": 0.2,
+        "cycle": 1,
+        "break": 0
+      },
+      "confidence": "high",
+      "sources": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6"
+      ],
+      "notes": []
+    },
+    {
+      "level": 4,
+      "required_plan_level": 13,
+      "cost_fons": 100000,
+      "cumulative_cost_fons": 400000,
+      "delta": {
+        "atk": 0,
+        "def": 0,
+        "hp": 0,
+        "crit_rate_pct": 0.1,
+        "crit_dmg_pct": 0,
+        "cycle": 0,
+        "break": 1
+      },
+      "cumulative": {
+        "atk": 2,
+        "def": 2,
+        "hp": 20,
+        "crit_rate_pct": 0.2,
+        "crit_dmg_pct": 0.2,
+        "cycle": 1,
+        "break": 1
+      },
+      "confidence": "high",
+      "sources": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6"
+      ],
+      "notes": [
+        "GameFAQs image shows CRT RATE 0.40% here (typo); kamigame/namu/Reddit-breakdown/PTT crit example give 0.10%; game8 shows 'HP 20' here (typo). Adopted: crit 0.10% + break 1."
+      ]
+    },
+    {
+      "level": 5,
+      "required_plan_level": 15,
+      "cost_fons": 600000,
+      "cumulative_cost_fons": 1000000,
+      "delta": {
+        "atk": 5,
+        "def": 5,
+        "hp": 80,
+        "crit_rate_pct": 0.5,
+        "crit_dmg_pct": 1.0,
+        "cycle": 2,
+        "break": 2
+      },
+      "cumulative": {
+        "atk": 7,
+        "def": 7,
+        "hp": 100,
+        "crit_rate_pct": 0.7,
+        "crit_dmg_pct": 1.2,
+        "cycle": 3,
+        "break": 3
+      },
+      "confidence": "high",
+      "sources": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6"
+      ],
+      "notes": [
+        "namu.wiki row omits 붕괴 강도; kamigame, GameFAQs image and the Reddit breakdown (1*4+2*4=12) include Break +2.",
+        "Required plan level 15: namu, kamigame, GameFAQs image, game8 agree; arca 184148155 / PTT reward lists do not mark 15 as a cap increase (their L15 reward line is dominated by the S-character box + drone cam)."
+      ]
+    },
+    {
+      "level": 6,
+      "required_plan_level": 17,
+      "cost_fons": 200000,
+      "cumulative_cost_fons": 1200000,
+      "delta": {
+        "atk": 0,
+        "def": 2,
+        "hp": 0,
+        "crit_rate_pct": 0,
+        "crit_dmg_pct": 0,
+        "cycle": 1,
+        "break": 0
+      },
+      "cumulative": {
+        "atk": 7,
+        "def": 9,
+        "hp": 100,
+        "crit_rate_pct": 0.7,
+        "crit_dmg_pct": 1.2,
+        "cycle": 4,
+        "break": 3
+      },
+      "confidence": "high",
+      "sources": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6"
+      ],
+      "notes": [
+        "game8 lists DEF 5 (typo); kamigame + GameFAQs image give DEF 2."
+      ]
+    },
+    {
+      "level": 7,
+      "required_plan_level": 19,
+      "cost_fons": 200000,
+      "cumulative_cost_fons": 1400000,
+      "delta": {
+        "atk": 0,
+        "def": 0,
+        "hp": 20,
+        "crit_rate_pct": 0,
+        "crit_dmg_pct": 0,
+        "cycle": 0,
+        "break": 1
+      },
+      "cumulative": {
+        "atk": 7,
+        "def": 9,
+        "hp": 120,
+        "crit_rate_pct": 0.7,
+        "crit_dmg_pct": 1.2,
+        "cycle": 4,
+        "break": 4
+      },
+      "confidence": "high",
+      "sources": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6"
+      ],
+      "notes": []
+    },
+    {
+      "level": 8,
+      "required_plan_level": 21,
+      "cost_fons": 200000,
+      "cumulative_cost_fons": 1600000,
+      "delta": {
+        "atk": 0,
+        "def": 2,
+        "hp": 0,
+        "crit_rate_pct": 0.1,
+        "crit_dmg_pct": 0,
+        "cycle": 0,
+        "break": 0
+      },
+      "cumulative": {
+        "atk": 7,
+        "def": 11,
+        "hp": 120,
+        "crit_rate_pct": 0.8,
+        "crit_dmg_pct": 1.2,
+        "cycle": 4,
+        "break": 4
+      },
+      "confidence": "high",
+      "sources": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6"
+      ],
+      "notes": []
+    },
+    {
+      "level": 9,
+      "required_plan_level": 23,
+      "cost_fons": 200000,
+      "cumulative_cost_fons": 1800000,
+      "delta": {
+        "atk": 2,
+        "def": 0,
+        "hp": 0,
+        "crit_rate_pct": 0,
+        "crit_dmg_pct": 0.2,
+        "cycle": 0,
+        "break": 0
+      },
+      "cumulative": {
+        "atk": 9,
+        "def": 11,
+        "hp": 120,
+        "crit_rate_pct": 0.8,
+        "crit_dmg_pct": 1.4,
+        "cycle": 4,
+        "break": 4
+      },
+      "confidence": "high",
+      "sources": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6"
+      ],
+      "notes": []
+    },
+    {
+      "level": 10,
+      "required_plan_level": 25,
+      "cost_fons": 1200000,
+      "cumulative_cost_fons": 3000000,
+      "delta": {
+        "atk": 5,
+        "def": 5,
+        "hp": 80,
+        "crit_rate_pct": 0.5,
+        "crit_dmg_pct": 1.0,
+        "cycle": 2,
+        "break": 2
+      },
+      "cumulative": {
+        "atk": 14,
+        "def": 16,
+        "hp": 200,
+        "crit_rate_pct": 1.3,
+        "crit_dmg_pct": 2.4,
+        "cycle": 6,
+        "break": 6
+      },
+      "confidence": "high",
+      "sources": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6"
+      ],
+      "notes": [
+        "namu.wiki row omits 붕괴 강도; kamigame, GameFAQs image and the Reddit breakdown (1*4+2*4=12) include Break +2."
+      ]
+    },
+    {
+      "level": 11,
+      "required_plan_level": 27,
+      "cost_fons": 300000,
+      "cumulative_cost_fons": 3300000,
+      "delta": {
+        "atk": 0,
+        "def": 0,
+        "hp": 20,
+        "crit_rate_pct": 0,
+        "crit_dmg_pct": 0,
+        "cycle": 0,
+        "break": 1
+      },
+      "cumulative": {
+        "atk": 14,
+        "def": 16,
+        "hp": 220,
+        "crit_rate_pct": 1.3,
+        "crit_dmg_pct": 2.4,
+        "cycle": 6,
+        "break": 7
+      },
+      "confidence": "high",
+      "sources": [
+        "S1",
+        "S2",
+        "S3",
+        "S5",
+        "S6"
+      ],
+      "notes": []
+    },
+    {
+      "level": 12,
+      "required_plan_level": 29,
+      "cost_fons": 300000,
+      "cumulative_cost_fons": 3600000,
+      "delta": {
+        "atk": 0,
+        "def": 0,
+        "hp": 20,
+        "crit_rate_pct": 0.1,
+        "crit_dmg_pct": 0,
+        "cycle": 0,
+        "break": 0
+      },
+      "cumulative": {
+        "atk": 14,
+        "def": 16,
+        "hp": 240,
+        "crit_rate_pct": 1.4,
+        "crit_dmg_pct": 2.4,
+        "cycle": 6,
+        "break": 7
+      },
+      "confidence": "high",
+      "sources": [
+        "S1",
+        "S2",
+        "S3",
+        "S5",
+        "S6"
+      ],
+      "notes": []
+    },
+    {
+      "level": 13,
+      "required_plan_level": 31,
+      "cost_fons": 300000,
+      "cumulative_cost_fons": 3900000,
+      "delta": {
+        "atk": 2,
+        "def": 0,
+        "hp": 0,
+        "crit_rate_pct": 0,
+        "crit_dmg_pct": 0.2,
+        "cycle": 0,
+        "break": 0
+      },
+      "cumulative": {
+        "atk": 16,
+        "def": 16,
+        "hp": 240,
+        "crit_rate_pct": 1.4,
+        "crit_dmg_pct": 2.6,
+        "cycle": 6,
+        "break": 7
+      },
+      "confidence": "high",
+      "sources": [
+        "S1",
+        "S2",
+        "S3",
+        "S5",
+        "S6"
+      ],
+      "notes": []
+    },
+    {
+      "level": 14,
+      "required_plan_level": 33,
+      "cost_fons": 300000,
+      "cumulative_cost_fons": 4200000,
+      "delta": {
+        "atk": 0,
+        "def": 2,
+        "hp": 0,
+        "crit_rate_pct": 0,
+        "crit_dmg_pct": 0,
+        "cycle": 1,
+        "break": 0
+      },
+      "cumulative": {
+        "atk": 16,
+        "def": 18,
+        "hp": 240,
+        "crit_rate_pct": 1.4,
+        "crit_dmg_pct": 2.6,
+        "cycle": 7,
+        "break": 7
+      },
+      "confidence": "high",
+      "sources": [
+        "S1",
+        "S2",
+        "S3",
+        "S5",
+        "S6"
+      ],
+      "notes": []
+    },
+    {
+      "level": 15,
+      "required_plan_level": 35,
+      "cost_fons": 1800000,
+      "cumulative_cost_fons": 6000000,
+      "delta": {
+        "atk": 5,
+        "def": 5,
+        "hp": 80,
+        "crit_rate_pct": 0.5,
+        "crit_dmg_pct": 1.0,
+        "cycle": 2,
+        "break": 2
+      },
+      "cumulative": {
+        "atk": 21,
+        "def": 23,
+        "hp": 320,
+        "crit_rate_pct": 1.9,
+        "crit_dmg_pct": 3.6,
+        "cycle": 9,
+        "break": 9
+      },
+      "confidence": "high",
+      "sources": [
+        "S1",
+        "S2",
+        "S3",
+        "S5",
+        "S6"
+      ],
+      "notes": [
+        "game8 omits Break Intensity in bundles; kamigame + GameFAQs image + Reddit breakdown include Break +2."
+      ]
+    },
+    {
+      "level": 16,
+      "required_plan_level": 37,
+      "cost_fons": 500000,
+      "cumulative_cost_fons": 6500000,
+      "delta": {
+        "atk": 2,
+        "def": 0,
+        "hp": 0,
+        "crit_rate_pct": 0,
+        "crit_dmg_pct": 0.2,
+        "cycle": 0,
+        "break": 0
+      },
+      "cumulative": {
+        "atk": 23,
+        "def": 23,
+        "hp": 320,
+        "crit_rate_pct": 1.9,
+        "crit_dmg_pct": 3.8,
+        "cycle": 9,
+        "break": 9
+      },
+      "confidence": "high",
+      "sources": [
+        "S1",
+        "S2",
+        "S3",
+        "S5",
+        "S6"
+      ],
+      "notes": []
+    },
+    {
+      "level": 17,
+      "required_plan_level": 39,
+      "cost_fons": 500000,
+      "cumulative_cost_fons": 7000000,
+      "delta": {
+        "atk": 0,
+        "def": 2,
+        "hp": 0,
+        "crit_rate_pct": 0,
+        "crit_dmg_pct": 0.2,
+        "cycle": 0,
+        "break": 0
+      },
+      "cumulative": {
+        "atk": 23,
+        "def": 25,
+        "hp": 320,
+        "crit_rate_pct": 1.9,
+        "crit_dmg_pct": 4,
+        "cycle": 9,
+        "break": 9
+      },
+      "confidence": "high",
+      "sources": [
+        "S1",
+        "S2",
+        "S3",
+        "S5",
+        "S6"
+      ],
+      "notes": []
+    },
+    {
+      "level": 18,
+      "required_plan_level": 41,
+      "cost_fons": 500000,
+      "cumulative_cost_fons": 7500000,
+      "delta": {
+        "atk": 0,
+        "def": 0,
+        "hp": 20,
+        "crit_rate_pct": 0,
+        "crit_dmg_pct": 0,
+        "cycle": 1,
+        "break": 0
+      },
+      "cumulative": {
+        "atk": 23,
+        "def": 25,
+        "hp": 340,
+        "crit_rate_pct": 1.9,
+        "crit_dmg_pct": 4,
+        "cycle": 10,
+        "break": 9
+      },
+      "confidence": "high",
+      "sources": [
+        "S1",
+        "S2",
+        "S3",
+        "S5",
+        "S6"
+      ],
+      "notes": []
+    },
+    {
+      "level": 19,
+      "required_plan_level": 43,
+      "cost_fons": 500000,
+      "cumulative_cost_fons": 8000000,
+      "delta": {
+        "atk": 0,
+        "def": 0,
+        "hp": 0,
+        "crit_rate_pct": 0.1,
+        "crit_dmg_pct": 0,
+        "cycle": 0,
+        "break": 1
+      },
+      "cumulative": {
+        "atk": 23,
+        "def": 25,
+        "hp": 340,
+        "crit_rate_pct": 2,
+        "crit_dmg_pct": 4,
+        "cycle": 10,
+        "break": 10
+      },
+      "confidence": "high",
+      "sources": [
+        "S1",
+        "S2",
+        "S3",
+        "S5",
+        "S6"
+      ],
+      "notes": []
+    },
+    {
+      "level": 20,
+      "required_plan_level": 45,
+      "cost_fons": 3000000,
+      "cumulative_cost_fons": 11000000,
+      "delta": {
+        "atk": 5,
+        "def": 5,
+        "hp": 80,
+        "crit_rate_pct": 0.5,
+        "crit_dmg_pct": 1.0,
+        "cycle": 2,
+        "break": 2
+      },
+      "cumulative": {
+        "atk": 28,
+        "def": 30,
+        "hp": 420,
+        "crit_rate_pct": 2.5,
+        "crit_dmg_pct": 5,
+        "cycle": 12,
+        "break": 12
+      },
+      "confidence": "high",
+      "sources": [
+        "S1",
+        "S2",
+        "S3",
+        "S5",
+        "S6"
+      ],
+      "notes": [
+        "game8 omits Break Intensity in bundles; kamigame + GameFAQs image + Reddit breakdown include Break +2."
+      ]
+    }
+  ],
+  "sources": {
+    "S1": {
+      "id": "kamigame",
+      "url": "https://kamigame.jp/nte/page/420112618024357379.html",
+      "lang": "ja",
+      "title": "【NTE】名声レベルとドリームレベルの上げ方｜シティ名声",
+      "date": "2026-10-09 (更新 13:43)",
+      "covers": "L1-20 full table (plan level, ファンス, per-level buff)"
+    },
+    "S2": {
+      "id": "gamefaqs_image",
+      "url": "https://gamefaqs.gamespot.com/boards/475499-nte-neverness-to-everness/81198285",
+      "lang": "en",
+      "title": "Puka Boot Camp (starlingspirit) - image a/forum/3/35180d93.jpg",
+      "date": "approx. 2026-10-03/04 (\"1 week ago\" on 2026-10-11)",
+      "covers": "L1-20 spreadsheet image; typos: L4 CRT RATE 0.40% (should be 0.10%), L9 CRT DMG '0.%2'; total row 2.80% derives from the L4 typo"
+    },
+    "S3": {
+      "id": "game8",
+      "url": "https://game8.co/games/Neverness-to-Everness/archives/630789",
+      "lang": "en",
+      "title": "Puka Membership Program Guide",
+      "date": "2026-10-09 21:52",
+      "covers": "L0-20 table; deviations: L4 'HP 20' (should be CRIT Rate 0.10%), L6 'DEF 5' (should be 2), bundles omit Break Intensity 2, L15 req '25' typo"
+    },
+    "S4": {
+      "id": "namu",
+      "url": "https://namu.wiki/w/%EC%9D%B4%ED%99%98/%EB%8F%84%EC%8B%9C%20%ED%83%80%EC%9D%B4%EC%BF%A4",
+      "lang": "ko",
+      "title": "이환/도시 타이쿤 §1.2.1 푸카 특훈",
+      "date": "2026-10-07 09:25 (최근 수정)",
+      "covers": "L1-10 table (요구 멤버십 레벨, 필요 폰즈, 보너스); L5/L10 rows omit 붕괴 강도 2; in-game description sentence (출전 중인 캐릭터에게만 적용)"
+    },
+    "S5": {
+      "id": "reddit_via_gamewiki",
+      "url": "https://game-wiki.online/nte/%E3%80%90nte-%E3%81%BE%E3%81%A8%E3%82%81%E3%80%91%E3%83%97%E3%82%AB%E8%A8%93%E7%B7%B4lv20%E3%81%AE%E3%82%B9%E3%83%86%E3%83%BC%E3%82%BF%E3%82%B9%E3%81%A8%E8%8E%AB%E5%A4%A7%E3%81%AA%E3%83%95%E3%82%A1/",
+      "lang": "ja (quoting r/NTELeaks 'Puka Training Stats at Level 20 (Live Server)')",
+      "date": "2026-09-25",
+      "covers": "cumulative breakdown: ATK 2+2+2+2+5*4=28, DEF 2*5+5*4=30, HP 20*5+80*4=420, CR 0.1*5+0.5*4=2.5, CD 0.2*5+1*4=5, cycle 1*4+2*4=12, break 1*4+2*4=12; total 1100万"
+    },
+    "S6": {
+      "id": "ptt_disp",
+      "url": "https://disp.cc/ptt/C_Chat/1gm9d4YT",
+      "lang": "zh-TW",
+      "title": "[異環] 噗卡計畫一覽 (GBO5)",
+      "date": "2026-10-03 13:59",
+      "covers": "cost table L1-20 (10W x4, 60W, 20W x4, 120W, 30W x4, 180W, 50W x4, 300W = 1100W); max buff 攻擊+28 爆擊+2.5% 爆傷+5%; crit example LV1(0.1) 4(0.1) 5(0.5) 8(0.1) 10(0.5)=1.3; plan reward list"
+    },
+    "S7": {
+      "id": "arca_leak",
+      "url": "https://arca.live/b/nevernesstoeverness/183555556",
+      "lang": "ko",
+      "title": "⚠️유출 정보 푸카 특훈 (목면)",
+      "date": "2026-09-20 15:02",
+      "covers": "pre-release cumulative: 공격력 +28 방어력 +30 생명력 +420 치확 +2.5% 치피 +5% 사이클 강도 +12 붕괴 강도 +12, 누적 폰즈 1100만; body note '붕괴 강도 12 >> 13으로 버프' (author's own test, unverified)"
+    },
+    "S8": {
+      "id": "arca_plan_table",
+      "url": "https://arca.live/b/nevernesstoeverness/184148155",
+      "lang": "ko",
+      "title": "정보/공략 푸카멤버십 폰즈 요구량 (호토리)",
+      "date": "2026-09-26 18:53 (수정 19:03)",
+      "covers": "plan L1-45 cumulative 폰즈 + tasks + rewards: 특훈 해금 at 7; '푸카 특훈 레벨 상한 증가' at 9,11,13,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45 (15 not listed; see note)"
+    },
+    "S9": {
+      "id": "official_kr",
+      "url": "https://nte.perfectworld.com/kr/article/news/gamenews/20260929/264413.html",
+      "lang": "ko",
+      "title": "Ver. 1.4 「누구를 위하여 기도를 올리나」 업데이트 안내",
+      "date": "2026-09-29",
+      "covers": "official KO names: 푸카 멤버십 플랜 / 푸카 특훈 / 단꿈 레벨 / 폰즈"
+    },
+    "S10": {
+      "id": "official_en",
+      "url": "https://nte.perfectworld.com/en/article/news/gamenews/20260929/264409.html",
+      "lang": "en",
+      "title": "Ver. 1.4 「For Whom the Verses Mourn」 Patch Notes",
+      "date": "2026-09-29",
+      "covers": "official EN names: Puka Membership Program / Puka Boot Camp / Sweetdream Level / Fons"
+    },
+    "S11": {
+      "id": "official_jp",
+      "url": "https://nte.perfectworld.com/jp/article/news/gamenews/20260929/264412.html",
+      "lang": "ja",
+      "title": "Ver.1.4「名もなき祈歌」アップデートのお知らせ",
+      "date": "2026-09-29",
+      "covers": "official JA names: シティ名声「プカプラン」 / プカ特訓 / スイートドリームレベル / ファンス"
+    },
+    "S12": {
+      "id": "official_cn_via_taptap",
+      "url": "https://www.taptap.cn/app/714119/all-info",
+      "lang": "zh-CN",
+      "title": "TapTap 官方信息页に転載された《异环》1.4 版本更新公告",
+      "date": "1.4 CN release 2026-09-24",
+      "covers": "official CN names: 噗卡计划 / 噗卡特训 / 甜梦等级 / 方斯 — sentence 「噗卡计划」开启后完成系列任务，达到一定甜梦等级即可解锁「噗卡特训」"
+    },
+    "S13": {
+      "id": "x_froggy",
+      "url": "https://x.com/FroGGyNTE/status/2106929291342602360",
+      "lang": "en",
+      "title": "FroGGy: PUKA BOOT CAMP GIVES PERMANENT STATS TO YOUR ENTIRE NTE ROSTER",
+      "date": "2026-10 (search snippet only; page paywalled to fetch)",
+      "covers": "totals 11,000,000 Fons, ATK+28 DEF+30 HP+420 CR+2.50% CD+5.00% Cycle+12, Break '+4' (conflicts with all other sources: 12)"
+    }
+  },
+  "generated": "2026-10-11"
+}

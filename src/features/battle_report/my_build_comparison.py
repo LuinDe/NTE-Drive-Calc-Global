@@ -56,10 +56,12 @@ class BattleMyBuildComparisonDialog(QDialog):
         self.header.setWordWrap(True)
         self.header.setStyleSheet(themed_style("font-size:15px;font-weight:700;color:#f0f6fc"))
         root.addWidget(self.header)
-        notice = QLabel(_L('固定轴对比：动作、逐击、目标与时段沿用原战报；与我相同的角色换成我的养成与当前空幕/驱动，其他角色保留原玩家配置。结果为量化估计。'))
+        notice = QLabel("")
         notice.setWordWrap(True)
         notice.setStyleSheet(themed_style("color:#8b949e;font-size:12px"))
         root.addWidget(notice)
+        self.notice = notice
+        self.set_puka_overrides(True)
 
         self.match_table = QTableWidget(0, 4)
         self.match_table.setHorizontalHeaderLabels([_L('角色'), _L('处理'), _L('养成来源'), _L('变化项')])
@@ -94,6 +96,13 @@ class BattleMyBuildComparisonDialog(QDialog):
         buttons.addWidget(rerun)
         buttons.addWidget(close)
         root.addLayout(buttons)
+
+    def set_puka_overrides(self, enabled: bool) -> None:
+        """S12 by the account's Tier 2 switch (decision U2)."""
+        puka = (_L('家具加成与噗卡特训沿用原战报的冻结值；其中防御力、生命值、暴击率、环合强度与倾陷强度经「边际手工调整」通道计入，量化状态可能显示为「部分」。') if enabled
+                else _L('家具加成与噗卡特训沿用原战报的冻结值；原生核心重算时噗卡特训只计攻击力与暴击伤害部分，结果可能偏低。'))
+        self.notice.setText(_L('固定轴对比：动作、逐击、目标与时段沿用原战报；与我相同的角色换成我的养成与当前空幕/驱动，其他角色保留原玩家配置。结果为量化估计。')
+                            + "\n" + puka)
 
     @staticmethod
     def _setup_table(table: QTableWidget, *, stretch: int) -> None:
@@ -212,6 +221,9 @@ class BattleMyBuildComparisonController(QObject):
         if self._dialog is None:
             self._dialog = BattleMyBuildComparisonDialog(self._dialog_parent)
             self._dialog.rerun_requested.connect(self.open)
+        from src.services.puka_training_settings_service import load_account_puka_options
+
+        self._dialog.set_puka_overrides(load_account_puka_options(user_path).native_overrides)
         self._dialog.begin()
         self._dialog.show()
         self._dialog.raise_()

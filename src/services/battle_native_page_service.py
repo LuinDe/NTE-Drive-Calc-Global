@@ -10,6 +10,7 @@ from src.integrations.native_battle_page_wire import decode_page, decode_derived
 from src.integrations.nte_analysis_core import NativeAnalysisError
 from src.services.battle_analysis_progress import report_battle_analysis_progress
 from src.services.battle_page_overall_progress import BattlePageOverallProgress
+from src.services.puka_training_override_service import prepare_native_request
 from src.services.battle_native_page_cache import (
     BattleNativePageCache, file_identity, page_cache_key,
 )
@@ -64,6 +65,8 @@ class BattleNativePageService:
                 and Path(request.static_database_path).resolve()
                 != Path(dependencies.static_database_path).resolve()):
             raise ValueError(_L('战报请求静态数据上下文已失效'))
+        # 噗卡特训第二阶段：冻结 Lv>0 的战报，修改副本与对比候选经「边际手工调整」通道补回五项特训加成。
+        request = prepare_native_request(request, dependencies)
         cache_enabled = getattr(self._client, 'supports_battle_page_identity', False) is True
         frozen_files = (Path(dependencies.static_database_path).resolve(), self._semantics_path)
         if cache_enabled:

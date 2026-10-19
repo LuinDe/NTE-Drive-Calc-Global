@@ -38,8 +38,17 @@ Variants
              ViGEmBus task / run step / shortcut, default directory under C:\Temp - for testing without
              administrator rights and without touching the real installation or its uninstall registry entry.
 
+Versions (from 2.3.1-global.2): ``--version`` is the GLOBAL version ``<major>.<minor>.<patch>-global.<n>`` of
+``src/app/global_release.py`` (``--tree <root>`` refuses a mismatch).  AppVersion / DisplayVersion carry the full
+Global version, VERSIONINFO is ``major.minor.patch.n``, the program entry name keeps the upstream base, the asset
+names carry the full version (the in-app updater derives them from the release tag).  The installer also carries the
+gated ``[Run]`` entry that restarts the program after an in-app update (``/AUTOUPDATE=1 /RELAUNCH=1``, silent only)
+and removes ``{app}\\updates`` on uninstall.  ``--emit-manifest`` writes the unsigned release manifest the updater
+verifies (sign it with ``ssh-keygen -Y sign`` afterwards; see build_tools/README.md).
+
 Outputs in --out:
-    <output base>.exe   (default NTE_Drive_Calc_Setup_<version>_multilingual[_sandbox])
+    <output base>.exe   (default NTE_Drive_Calc_<version>_Multilingual_Setup[_sandbox])
+    NTE_Drive_Calc_<version>_release.json   (with --emit-manifest; unsigned)
 Outputs in --aux-dir (default: --out):
     payload_manifest_<variant>.json   every file the installer lays down under {app} (size, sha256)
     build_report_<variant>.json       installer size/sha256, compile time, inputs
@@ -70,7 +79,18 @@ APP_EXE_NAME = "NTE_Drive_Calc.exe"
 OFFICIAL_APP_ID = "D7DA28BE-8A19-4E05-9216-3F16C4C2C820"      # upstream build_installer.py APP_ID
 SANDBOX_APP_ID = "5B0C6E1A-7F2D-4C39-8E54-1D9A3F6B2C70"       # test-only identity, never the official one
 SANDBOX_DEFAULT_DIR = r"C:\Temp\nte_g231_setup_sandbox"
-DEFAULT_VERSION = "2.3.1"
+DEFAULT_VERSION = "2.3.1-global.2"                             # Global grammar: <major>.<minor>.<patch>-global.<n>
+GLOBAL_VERSION_RE = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-global\.([1-9][0-9]*)", re.ASCII)
+MANIFEST_FORMAT = 1                                            # src/services/global_update/verify.py parse_manifest
+MANIFEST_PRODUCT = "NTE-Drive-Calc-Global"
+FIRST_AUTO_UPDATE_VERSION = "2.3.1-global.2"                   # first build with the in-app updater
+RELEASE_KEY_ID_DEFAULT = "nte-global-release"
+RELEASE_SIG_NAMESPACE = "nte-drive-calc-global-release"       # src/app/global_release.py RELEASE_SIG_NAMESPACE
+RELEASE_PUBKEY_DEFAULT = Path(os.environ.get("USERPROFILE") or str(Path.home())) / ".ssh" / "nte_global_release.pub"
+# throwaway TEST keys used by the sandbox end-to-end tests (public halves only): never pinned by a release
+KNOWN_TEST_KEY_FINGERPRINTS = ("SHA256:rtNBWF/OjSt0BLrQqMA6az9qA/OAMaZdf7heZnAQw2M",)
+TEST_HOOK_MARKERS = ("NTE_GUP_", "NTE_SMOKE_")
+REMOVABLE_UPSTREAM_MODULES = ("features/settings/updates", "ui/controllers/update_controller")
 UPSTREAM_COMMIT = "0e7a6b4e8e61d7a288e520bbc192a411d68c2fb1"
 UPSTREAM_URL = "https://github.com/hxwd94666/NTE-Drive-Calculator"
 PROJECT_URL = "https://github.com/LuinDe/NTE-Drive-Calc-Global"
@@ -281,7 +301,7 @@ LaunchProgram=启动 %1
 
 NOTICE = {
     "ko": """\
-NTE Drive Calc {version} 다국어판 "NTE Drive Calc Global" (비공식 빌드)
+NTE Drive Calc Global {global_version} - NTE Drive Calc {version} 다국어판 (비공식 빌드)
 
 이 설치 프로그램은 NTE Drive Calc {version} 의 비공식 다국어(한국어 / English / 日本語 / 简体中文) 빌드를 설치합니다.
 원 프로그램 제작자(NTE Drive Calc contributors)가 배포하는 공식 빌드가 아니며, 공식 지원 대상이 아닙니다.
@@ -291,6 +311,7 @@ NTE Drive Calc {version} 다국어판 "NTE Drive Calc Global" (비공식 빌드)
 - 공식 버전과 같은 위치·같은 프로그램 항목으로 설치됩니다. 공식 {version}, 이전 다국어판(Global 2.3.0), 한글 패치를 적용한 {version} 이 설치되어 있으면 그 자리에서 업그레이드합니다.
 - 계정, 설정, 로그, 저장한 사이클, 효율표 캐시 등 사용자 데이터는 그대로 유지됩니다. 한글 패치가 만든 백업 파일(NTE_Drive_Calc.original.exe 등)도 지우지 않습니다.
 - 나중에 공식 설치 프로그램을 실행하면 공식 버전으로 되돌릴 수 있습니다.
+- 이 빌드는 시작할 때(하루 한 번) {releases_url} 에서 새 Global 버전을 확인하고, 사용자가 승인하면 같은 폴더에 설치합니다. 원 프로젝트의 업데이트 채널은 사용하지 않습니다.
 - 프로그램은 지금 고른 설치 언어로 시작하며(이미 언어를 설정해 둔 경우 그 설정을 유지), 프로그램 안에서 언제든 바꿀 수 있습니다.
 - 팀 시뮬레이션(Beta)과 아크 효율표는 이 빌드에서 추가한 기능이며, 계산 모델에 한계가 있습니다(자세한 내용은 저장소의 README).
 
@@ -299,7 +320,7 @@ NTE Drive Calc {version} 다국어판 "NTE Drive Calc Global" (비공식 빌드)
 이 빌드에 대응하는 전체 소스 코드는 이 설치 파일과 함께 배포되는 {source_zip} 에 있습니다.
 """,
     "en": """\
-NTE Drive Calc {version} Multilingual Edition "NTE Drive Calc Global" (unofficial build)
+NTE Drive Calc Global {global_version} - Multilingual Edition of NTE Drive Calc {version} (unofficial build)
 
 This installer sets up an unofficial multilingual (Korean / English / Japanese / Simplified Chinese) build of NTE Drive Calc {version}.
 It is NOT an official build published by the original authors (NTE Drive Calc contributors) and is not supported by them.
@@ -309,6 +330,7 @@ This build: {project_url}
 - It installs to the same location and under the same program entry as the official version. An existing official {version}, an earlier multilingual build (Global 2.3.0) or a Korean-patched {version} is upgraded in place.
 - User data such as accounts, settings, logs, saved cycles and the efficiency-table cache is kept. Backup files made by the Korean patch (NTE_Drive_Calc.original.exe and others) are not removed.
 - Running the official installer later restores the official version.
+- At startup (at most once a day) this build checks {releases_url} for a newer Global version and, after your confirmation, installs it into the same folder. The original project's update channel is not used.
 - The program starts in the language chosen for this setup (an existing language setting is kept); it can be changed inside the program at any time.
 - Team Simulation (Beta) and the Arc Efficiency table are features added by this build; their calculation model has limits (see the README of the repository).
 
@@ -317,7 +339,7 @@ The full license text and the source code notice are installed into the {docs} f
 The complete corresponding source code of this build is distributed together with this installer as {source_zip}.
 """,
     "ja": """\
-NTE Drive Calc {version} 多言語版「NTE Drive Calc Global」(非公式ビルド)
+NTE Drive Calc Global {global_version} - NTE Drive Calc {version} 多言語版（非公式ビルド）
 
 このインストーラーは NTE Drive Calc {version} の非公式多言語（韓国語 / English / 日本語 / 簡体字中国語）ビルドをインストールします。
 原作者（NTE Drive Calc contributors）が配布する公式ビルドではなく、公式サポートの対象外です。
@@ -327,6 +349,7 @@ NTE Drive Calc {version} 多言語版「NTE Drive Calc Global」(非公式ビル
 - 公式版と同じ場所・同じプログラム項目にインストールされます。公式 {version}、以前の多言語版（Global 2.3.0）、韓国語パッチを適用した {version} がインストール済みの場合は、そのまま上書きアップグレードします。
 - アカウント、設定、ログ、保存したサイクル、効率表のキャッシュなどのユーザーデータは保持されます。韓国語パッチが作成したバックアップファイル（NTE_Drive_Calc.original.exe など）も削除しません。
 - 後で公式インストーラーを実行すれば公式版に戻せます。
+- このビルドは起動時（1日1回まで）に {releases_url} で新しい Global バージョンを確認し、承認すると同じフォルダーにインストールします。元プロジェクトの更新チャンネルは使用しません。
 - プログラムはここで選んだ言語で起動します（すでに言語を設定済みの場合はその設定を維持）。言語はプログラム内でいつでも変更できます。
 - チームシミュレーション（Beta）とアーク効率表はこのビルドで追加した機能で、計算モデルには限界があります（詳しくはリポジトリの README）。
 
@@ -335,7 +358,7 @@ NTE Drive Calc {version} 多言語版「NTE Drive Calc Global」(非公式ビル
 このビルドに対応する完全なソースコードは、このインストーラーと一緒に配布される {source_zip} に含まれています。
 """,
     "zh": """\
-NTE Drive Calc {version} 多语言版「NTE Drive Calc Global」（非官方构建）
+NTE Drive Calc Global {global_version} - NTE Drive Calc {version} 多语言版（非官方构建）
 
 本安装程序将安装 NTE Drive Calc {version} 的非官方多语言（韩语 / English / 日语 / 简体中文）构建。
 它不是原作者（NTE Drive Calc contributors）发布的官方构建，也不在官方支持范围内。
@@ -345,6 +368,7 @@ NTE Drive Calc {version} 多语言版「NTE Drive Calc Global」（非官方构�
 - 安装位置和程序条目与官方版本相同。如果已安装官方 {version}、更早的多语言版（Global 2.3.0）或打过韩语补丁的 {version}，将直接原地升级。
 - 账号、设置、日志、保存的循环、效率表缓存等用户数据会被保留。韩语补丁创建的备份文件（NTE_Drive_Calc.original.exe 等）也不会被删除。
 - 之后运行官方安装程序即可恢复为官方版本。
+- 本构建会在启动时（每天至多一次）检查 {releases_url} 是否有新的 Global 版本，经你确认后安装到同一文件夹。不使用原项目的更新渠道。
 - 程序将以此处选择的安装语言启动（如已设置过语言则保留原设置），之后可随时在程序内切换。
 - 队伍模拟（Beta）和弧盘效率表是本构建新增的功能，其计算模型有局限（详见仓库的 README）。
 
@@ -355,8 +379,8 @@ NTE Drive Calc {version} 多语言版「NTE Drive Calc Global」（非官方构�
 }
 
 SOURCE_OFFER = """\
-NTE Drive Calc {version} 다국어판 "NTE Drive Calc Global" (비공식) - 대응 소스 코드 안내
-NTE Drive Calc {version} Multilingual Edition "NTE Drive Calc Global" (unofficial) - Corresponding Source
+NTE Drive Calc Global {global_version} - NTE Drive Calc {version} 다국어판 (비공식) - 대응 소스 코드 안내
+NTE Drive Calc Global {global_version} - Multilingual Edition of NTE Drive Calc {version} (unofficial) - Corresponding Source
 
 [한국어]
 - 이 프로그램은 GNU AGPL-3.0 으로 배포되는 NTE Drive Calc {version} 의 비공식 다국어 빌드(파생물)입니다.
@@ -398,7 +422,7 @@ NTE Drive Calc {version} Multilingual Edition "NTE Drive Calc Global" (unofficia
 """
 
 README = """\
-NTE Drive Calc {version} 다국어판 "NTE Drive Calc Global" (비공식 빌드) / Multilingual Edition (unofficial build)
+NTE Drive Calc Global {global_version} - NTE Drive Calc {version} 다국어판 (비공식 빌드) / Multilingual Edition (unofficial build)
 ================================================================================================================
 
 [한국어]
@@ -452,12 +476,169 @@ def sha256_of(path: Path) -> str:
     return digest.hexdigest()
 
 
-def windows_numeric_version(value: str) -> str:
-    """Port of upstream src.app.version.windows_numeric_version (0e7a6b4)."""
-    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:\.T\d{6})?", value)
+def parse_global_version(value: str) -> tuple[int, int, int, int]:
+    """``2.3.1-global.2`` -> (2, 3, 1, 2): the grammar of src/app/global_release.py (no leading zeros, ``-global.<n>``
+    from 1, every part <= 65535).  A plain upstream version (``2.3.1``) or a tag (``v2.3.1-global.2``) is refused."""
+    match = GLOBAL_VERSION_RE.fullmatch(value)
     if not match or any(int(part) > 65535 for part in match.groups()):
-        raise BuildError(f"unsupported Windows installer version: {value}")
-    return ".".join(str(int(part)) for part in match.groups()) + ".0"
+        raise BuildError(f"not a Global version (expected <major>.<minor>.<patch>-global.<n>): {value!r}")
+    major, minor, patch, n = (int(part) for part in match.groups())
+    return major, minor, patch, n
+
+
+def windows_numeric_version(value: str) -> str:
+    """VERSIONINFO of the Global build: ``2.3.1-global.2`` -> ``2.3.1.2`` (src.app.global_release.global_numeric_version)."""
+    return ".".join(str(part) for part in parse_global_version(value))
+
+
+def base_version(value: str) -> str:
+    """The upstream base ``2.3.1`` of a Global version (information only: program entry name, notices)."""
+    major, minor, patch, _n = parse_global_version(value)
+    return f"{major}.{minor}.{patch}"
+
+
+def installer_asset_name(value: str) -> str:
+    """The asset name the in-app updater derives from the release tag (src.app.global_release.installer_name)."""
+    return f"NTE_Drive_Calc_{value}_Multilingual_Setup.exe"
+
+
+def tree_global_version(root: Path) -> str:
+    """GLOBAL_VERSION of ``<root>/src/app/global_release.py``: what an executable built from that tree reports."""
+    source = root / "src" / "app" / "global_release.py"
+    if not source.is_file():
+        raise BuildError(f"not a tree root (src/app/global_release.py missing): {root}")
+    match = re.search(r'^GLOBAL_VERSION\s*=\s*"([^"]+)"', source.read_text(encoding="utf-8"), re.MULTILINE)
+    if not match:
+        raise BuildError(f"GLOBAL_VERSION not found in {source}")
+    return match.group(1)
+
+
+def normalize_notes(text) -> str:
+    """The release body as the signed ``notes_sha256`` covers it (identical to src/services/global_update/verify.py
+    ``normalize_notes``; unit-tested): line endings -> LF, trailing white space of every line removed, leading /
+    trailing blank lines removed."""
+    lines = str(text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    return "\n".join(line.rstrip() for line in lines).strip("\n")
+
+
+def notes_digest(text) -> str:
+    return hashlib.sha256(normalize_notes(text).encode("utf-8")).hexdigest()
+
+
+def release_manifest(*, version: str, installer_size: int, installer_sha256: str, exe_sha256: str,
+                     published_utc: str, min_global_version: str = FIRST_AUTO_UPDATE_VERSION,
+                     notes_sha256: str = "") -> dict:
+    """The unsigned release manifest (design_final §6.2) the updater verifies after the sshsig signature: it binds
+    the tag, the canonical asset name, the installer size and SHA-256 and the executable's SHA-256.
+    ``min_global_version`` = the oldest RUNNING Global version that may install this release in-app (older
+    builds are told to install it manually); it must not exceed ``version``."""
+    minimum = parse_global_version(min_global_version)
+    if minimum > parse_global_version(version):
+        raise BuildError(f"min_global_version {min_global_version} is newer than the release {version}")
+    return {
+        "format": MANIFEST_FORMAT, "product": MANIFEST_PRODUCT, "tag": "v" + version, "global_version": version,
+        "upstream_base": base_version(version),
+        "installer": {"name": installer_asset_name(version), "size": int(installer_size), "sha256": installer_sha256},
+        "exe_sha256": exe_sha256, "min_global_version": min_global_version, "published_utc": published_utc,
+        "notes_sha256": notes_sha256,
+    }
+
+
+def read_release_public_key(path: Path) -> tuple[str, str]:
+    """(key id, "ssh-ed25519 <base64>") of a one-line OpenSSH ed25519 PUBLIC key file.  Only *.pub files are read:
+    the private key is never opened by any build step."""
+    import base64
+    if path.suffix != ".pub":
+        raise BuildError(f"refusing to read {path.name}: not a .pub file")
+    lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    match = re.fullmatch(r"ssh-ed25519 ([A-Za-z0-9+/=]+)(?: (\S.*))?", lines[0]) if len(lines) == 1 else None
+    if match is None:
+        raise BuildError(f"{path}: not a one-line ssh-ed25519 public key")
+    blob = base64.b64decode(match.group(1), validate=True)
+    if len(blob) != 51 or blob[:15] != b"\x00\x00\x00\x0bssh-ed25519" or blob[15:19] != b"\x00\x00\x00\x20":
+        raise BuildError(f"{path}: malformed ssh-ed25519 key blob")
+    key_id = (match.group(2) or "").strip() or RELEASE_KEY_ID_DEFAULT
+    if "test" in key_id.lower():
+        raise BuildError(f"{path}: comment {key_id!r} names a test key; a release pins only the real key")
+    return key_id, f"ssh-ed25519 {match.group(1)}"
+
+
+def key_fingerprint(line: str) -> str:
+    import base64
+    digest = hashlib.sha256(base64.b64decode(line.split()[1])).digest()
+    return "SHA256:" + base64.b64encode(digest).decode().rstrip("=")
+
+
+def tree_signing_keys(root: Path) -> list[tuple[str, str]]:
+    """RELEASE_SIGNING_KEYS of <root>/src/app/global_release.py (literal evaluation, nothing is executed)."""
+    import ast
+    source = root / "src" / "app" / "global_release.py"
+    for node in ast.parse(source.read_text(encoding="utf-8")).body:
+        target = node.target if isinstance(node, ast.AnnAssign) else (node.targets[0] if isinstance(node, ast.Assign) else None)
+        if isinstance(target, ast.Name) and target.id == "RELEASE_SIGNING_KEYS" and node.value is not None:
+            return [(str(a), str(b)) for a, b in ast.literal_eval(node.value)]
+    raise BuildError(f"RELEASE_SIGNING_KEYS not found in {source}")
+
+
+def _key_fingerprints_of(paths) -> set[str]:
+    result = set()
+    for path in paths or ():
+        line = Path(path).read_text(encoding="utf-8").split()
+        if len(line) >= 2 and line[0] == "ssh-ed25519":
+            result.add(key_fingerprint(" ".join(line[:2])))
+    return result
+
+
+def release_exe_gate(*, tree: Path, exe: Path, official_exe: Path | None) -> dict:
+    """Review r5 F7: the executable that gets packaged must be the one built from ``tree`` (verify_exe_l10n_g231.py
+    against the official 2.3.1 exe: every src.* module equals the tree, nothing else changed), and the tree must not
+    carry a test hook."""
+    hooks = []
+    for path in sorted((tree / "src").rglob("*.py")):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        hooks += [f"{path.relative_to(tree).as_posix()}: {marker}" for marker in TEST_HOOK_MARKERS if marker in text]
+    if hooks:
+        raise BuildError(f"RELEASE GATE: the tree carries test hooks: {hooks[:5]}")
+    if official_exe is None or not official_exe.is_file():
+        raise BuildError("RELEASE GATE: a release build needs --official-exe <official 2.3.1 NTE_Drive_Calc.exe> "
+                         "to verify that --exe was built from --tree")
+    removed = [f"--removed=src.{m.replace('/', '.')}" for m in REMOVABLE_UPSTREAM_MODULES
+               if not (tree / "src" / f"{m}.py").is_file()]
+    verifier = TOOLS_DIR / "verify_exe_l10n_g231.py"
+    completed = subprocess.run([sys.executable, str(verifier), str(official_exe), str(exe), str(tree / "src"), *removed],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
+    if completed.returncode != 0 or "VERIFY_OK" not in completed.stdout:
+        tail = (completed.stdout + completed.stderr)[-2000:]
+        raise BuildError(f"RELEASE GATE: --exe was not built from --tree (verify_exe_l10n_g231.py rc="
+                         f"{completed.returncode})\n{tail}")
+    return {"exe_verified": completed.stdout.strip().splitlines()[-1], "test_hooks": 0}
+
+
+def release_key_gate(tree: Path | None, pubkey: Path, reject_keys=()) -> dict:
+    """Release gate (user decision U1, 2026-10-13): the tree the release exe was built from pins EXACTLY the real
+    public key of ``pubkey`` (default %USERPROFILE%\\.ssh\\nte_global_release.pub) in its first slot.  An absent key
+    file fails the gate; a test key is never substituted."""
+    if tree is None:
+        raise BuildError("RELEASE GATE: a release build needs --tree <root> (the tree the exe was built from)")
+    if not pubkey.is_file():
+        raise BuildError(f"RELEASE GATE: release public key file absent: {pubkey}\n"
+                         "  create the key pair yourself (interactive, with a passphrase):\n"
+                         "  ssh-keygen -t ed25519 -f %USERPROFILE%\\.ssh\\nte_global_release -C nte-global-release\n"
+                         "  then: build_tools/pin_release_key.py <tree root>, rebuild the exe, rebuild the installer")
+    key_id, line = read_release_public_key(pubkey)
+    pins = tree_signing_keys(tree)
+    if not pins:
+        raise BuildError(f"RELEASE GATE: {tree} pins no release key (run build_tools/pin_release_key.py {tree})")
+    if pins[0][1].split()[:2] != line.split()[:2]:
+        raise BuildError(f"RELEASE GATE: the first key pinned by {tree} is not {pubkey.name} "
+                         f"({key_fingerprint(pins[0][1])} != {key_fingerprint(line)})")
+    if any("test" in key.lower() for key, _ in pins):
+        raise BuildError(f"RELEASE GATE: {tree} pins a key whose id names a test key: {[k for k, _ in pins]}")
+    rejected = set(KNOWN_TEST_KEY_FINGERPRINTS) | _key_fingerprints_of(reject_keys)
+    test_slots = [key_fingerprint(value) for _key, value in pins if key_fingerprint(value) in rejected]
+    if test_slots:
+        raise BuildError(f"RELEASE GATE: {tree} pins a known TEST key in a slot: {test_slots}")
+    return {"key_id": pins[0][0], "fingerprint": key_fingerprint(line), "slots": len(pins)}
 
 
 def scan_tree(root: Path) -> list[dict]:
@@ -657,7 +838,8 @@ def custom_message_lines(version: str, sandbox: bool) -> str:
     lines = []
     for key, table in CUSTOM_MESSAGES.items():
         for lang in LANGS:
-            text = table[lang].format(version=version)
+            # the program entry name keeps the upstream base (no churn per -global.<n>); DisplayVersion carries the full one
+            text = table[lang].format(version=base_version(version) if key == "L10nAppVerName" else version)
             if key == "L10nAppVerName" and sandbox:
                 text += " [sandbox]"
             if key in ICON_MESSAGE_KEYS and any(ch in text for ch in '\\/:*?"<>|'):
@@ -763,11 +945,25 @@ def build_iss(*, variant: str, version: str, exe: Path, stage: Path, out_dir: Pa
             'StatusMsg: "{cm:StatusStartViGEm}"; Flags: runhidden waituntilterminated; Tasks: installvigem; '
             "Check: IsWin64"
         )
+    # In-app update (design_final §9): the program's own updater runs Setup silently with /AUTOUPDATE=1 /RELAUNCH=1
+    # and this entry restarts it; a wizard install (not silent) or /RELAUNCH=0 (install on exit) never triggers it.
+    run.append(
+        'Filename: "{app}\\{#MyAppExeName}"; WorkingDir: "{app}"; Flags: nowait runascurrentuser; '
+        "Check: ShouldRelaunchAfterAutoUpdate"
+    )
     run.append(
         'Filename: "{app}\\{#MyAppExeName}"; '
         "Description: \"{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}\"; "
         "Flags: nowait postinstall skipifsilent runascurrentuser"
     )
+    relaunch_code = """\
+function ShouldRelaunchAfterAutoUpdate: Boolean;
+begin
+  Result := WizardSilent and (ExpandConstant('{param:AUTOUPDATE|0}') = '1') and
+    (ExpandConstant('{param:RELAUNCH|1}') = '1');
+end;
+
+"""
     vigem_code = "" if sandbox else """\
 function ShouldInstallViGEmBus: Boolean;
 begin
@@ -839,6 +1035,7 @@ Source: "{stage / "drivers" / VIGEM_DEST_NAME}"; DestDir: "{{app}}\\drivers"; De
 
 [UninstallDelete]
 Type: files; Name: "{{app}}\\_internal\\config\\i18n_language.json"
+Type: filesandordirs; Name: "{{app}}\\updates"
 
 [Dirs]
 Name: "{{app}}\\config"; Permissions: users-modify
@@ -854,7 +1051,7 @@ Name: "{{app}}\\scanned_images"; Permissions: users-modify
 {chr(10).join(run)}
 
 [Code]
-{vigem_code}procedure WriteInitialLanguage;
+{relaunch_code}{vigem_code}procedure WriteInitialLanguage;
 var
   ConfigDir: String;
   LanguageFile: String;
@@ -895,9 +1092,11 @@ end;
 
 
 def doc_fields(*, version: str, exe_sha256: str, source_zip_name: str) -> dict:
-    return dict(version=version, docs=DOCS_DIR_NAME, source_zip=source_zip_name, exe_name=APP_EXE_NAME,
-                exe_sha256=exe_sha256, upstream_url=UPSTREAM_URL, upstream_commit=UPSTREAM_COMMIT,
-                project_url=PROJECT_URL)
+    """``version`` in the documents is the upstream base (what the program is a build *of*); ``global_version`` is
+    this build's own version."""
+    return dict(version=base_version(version), global_version=version, docs=DOCS_DIR_NAME, source_zip=source_zip_name,
+                exe_name=APP_EXE_NAME, exe_sha256=exe_sha256, upstream_url=UPSTREAM_URL, upstream_commit=UPSTREAM_COMMIT,
+                project_url=PROJECT_URL, releases_url=PROJECT_URL + "/releases")
 
 
 def render_source_offer(*, version: str, exe_sha256: str, source_zip_name: str) -> str:
@@ -935,7 +1134,25 @@ def main() -> int:
     parser.add_argument("--stage", type=Path, required=True, help="clean payload directory")
     parser.add_argument("--out", type=Path, help="output directory")
     parser.add_argument("--variant", choices=("release", "sandbox"))
-    parser.add_argument("--version", default=DEFAULT_VERSION)
+    parser.add_argument("--version", default=DEFAULT_VERSION,
+                        help="Global version <major>.<minor>.<patch>-global.<n> (default %(default)s)")
+    parser.add_argument("--tree", type=Path, default=None,
+                        help="source tree root; its src/app/global_release.py GLOBAL_VERSION must equal --version")
+    parser.add_argument("--emit-manifest", action="store_true",
+                        help="also write the unsigned release manifest NTE_Drive_Calc_<version>_release.json into --out")
+    parser.add_argument("--notes", type=Path, default=None,
+                        help="manifest: the release body (Markdown, exactly what the GitHub release will show); its "
+                             "normalised SHA-256 is signed with the manifest (required for a release manifest)")
+    parser.add_argument("--official-exe", type=Path, default=None,
+                        help="release gate: the official 2.3.1 NTE_Drive_Calc.exe (verifies that --exe was built from --tree)")
+    parser.add_argument("--reject-key", type=Path, action="append", default=[],
+                        help="release gate: a test PUBLIC key that no release may pin (repeatable)")
+    parser.add_argument("--min-global-version", default=FIRST_AUTO_UPDATE_VERSION,
+                        help="manifest: oldest running Global version allowed to install this release in-app "
+                             "(default %(default)s)")
+    parser.add_argument("--release-pubkey", type=Path, default=RELEASE_PUBKEY_DEFAULT,
+                        help="release gate: the real release-signing PUBLIC key the --tree must pin "
+                             "(default %%USERPROFILE%%\\.ssh\\nte_global_release.pub)")
     parser.add_argument("--iscc", type=Path, default=None, help="path to ISCC.exe (else INNO_SETUP_ISCC / default install)")
     parser.add_argument("--compression", default="lzma2/ultra64",
                         help="Inno Compression value (official: lzma2/ultra64; lzma2/fast for quick dry runs)")
@@ -944,7 +1161,7 @@ def main() -> int:
                         help="file name of the source zip shipped next to the installer (named in the notices)")
     parser.add_argument("--sandbox-dir", default=SANDBOX_DEFAULT_DIR, help="default directory of the sandbox variant")
     parser.add_argument("--output-base", default=None,
-                        help="installer file name without .exe (default NTE_Drive_Calc_Setup_<version>_multilingual[_sandbox])")
+                        help="installer file name without .exe (default NTE_Drive_Calc_<version>_Multilingual_Setup[_sandbox])")
     parser.add_argument("--aux-dir", type=Path, default=None,
                         help="directory for build_<variant>/, the payload manifest and the build report (default: --out)")
     parser.add_argument("--generate-only", action="store_true", help="write the .iss and support files, skip ISCC")
@@ -976,14 +1193,18 @@ def main() -> int:
         if not license_path.is_file():
             raise BuildError(f"LICENSE file not found: {license_path} (pass --license)")
         version = args.version
-        windows_numeric_version(version)
-        source_zip_name = args.source_zip_name or f"NTE_Drive_Calc_{version}_multilingual_source.zip"
+        parse_global_version(version)
+        if args.tree is not None:
+            tree_version = tree_global_version(args.tree.resolve())
+            if tree_version != version:
+                raise BuildError(f"--version {version} does not match GLOBAL_VERSION {tree_version!r} of {args.tree}")
+        source_zip_name = args.source_zip_name or f"NTE_Drive_Calc_{version}_Multilingual_source.zip"
         aux_dir = (args.aux_dir or out_dir).resolve()
         if "program files" in str(aux_dir).lower():
             raise BuildError("refusing to write under Program Files")
         build_dir = aux_dir / f"build_{args.variant}"
         output_base = args.output_base or (
-            f"NTE_Drive_Calc_Setup_{version}_multilingual" + ("_sandbox" if args.variant == "sandbox" else ""))
+            installer_asset_name(version)[:-4] + ("_sandbox" if args.variant == "sandbox" else ""))
         if not output_base.strip() or any(ch in output_base for ch in '\\/:*?"<>|') or output_base.lower().endswith(".exe"):
             raise BuildError(f"--output-base must be a plain file name without extension: {output_base!r}")
         if args.variant == "release" and output_base.lower().endswith("_sandbox"):
@@ -1045,6 +1266,26 @@ def main() -> int:
                                          encoding="utf-8", newline="\n")
         info(f"wrote {payload_manifest_path} ({len(installed)} files)")
 
+        key_gate = None
+        if args.variant == "release":
+            if args.generate_only:
+                info("generate-only: release key gate not evaluated (it runs before every ISCC release build)")
+            else:
+                key_gate = release_key_gate(args.tree.resolve() if args.tree is not None else None,
+                                            args.release_pubkey.expanduser().resolve(), args.reject_key)
+                info(f"release key gate: tree pins {key_gate['key_id']} {key_gate['fingerprint']}")
+                key_gate.update(release_exe_gate(tree=args.tree.resolve(), exe=exe,
+                                                 official_exe=args.official_exe.resolve() if args.official_exe else None))
+                info(f"release exe gate: {key_gate['exe_verified']}")
+            if args.emit_manifest and args.notes is None:
+                raise BuildError("a release manifest needs --notes <release body .md> (the signed notes digest)")
+        parse_global_version(args.min_global_version)
+        notes_sha256 = ""
+        if args.notes is not None:
+            if not args.notes.is_file():
+                raise BuildError(f"--notes file not found: {args.notes}")
+            notes_sha256 = notes_digest(args.notes.read_bytes().decode("utf-8"))
+            info(f"release notes {args.notes.name}: notes_sha256={notes_sha256}")
         if args.generate_only:
             info("generate-only: skipped ISCC")
             return 0
@@ -1064,6 +1305,10 @@ def main() -> int:
         report = {
             "variant": args.variant,
             "version": version,
+            "global_version": version,
+            "tag": "v" + version,
+            "upstream_base": base_version(version),
+            "asset_name": installer_asset_name(version),
             "installer": str(setup_path),
             "installer_size": setup_path.stat().st_size,
             "installer_sha256": sha256_of(setup_path),
@@ -1078,7 +1323,22 @@ def main() -> int:
             "payload_bytes": payload_manifest["total_bytes"],
             "source_zip_name": source_zip_name,
             "built_utc": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "release_key": key_gate,
         }
+        if args.emit_manifest:
+            # The manifest names the canonical asset (what the app derives from the tag).  A sandbox build is
+            # published under that name only on a test server; the release build's file name already equals it.
+            manifest = release_manifest(version=version, installer_size=report["installer_size"],
+                                        installer_sha256=report["installer_sha256"], exe_sha256=exe_sha256,
+                                        published_utc=report["built_utc"],
+                                        min_global_version=args.min_global_version, notes_sha256=notes_sha256)
+            manifest_path = out_dir / f"NTE_Drive_Calc_{version}_release.json"
+            manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=1, sort_keys=True) + "\n",
+                                     encoding="utf-8", newline="\n")
+            report["manifest"] = str(manifest_path)
+            info(f"wrote {manifest_path} (unsigned)")
+            info("sign it (maintainer, interactive; the passphrase is typed by you):")
+            info(f"  ssh-keygen -Y sign -f %USERPROFILE%\\.ssh\\nte_global_release -n {RELEASE_SIG_NAMESPACE} {manifest_path.name}")
         report_path = aux_dir / f"build_report_{args.variant}.json"
         report_path.write_text(json.dumps(report, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
         info(f"installer: {setup_path}")

@@ -26,6 +26,10 @@ from src.services.official_role_profile_service import (
     OfficialRoleProfileService,
     OfficialRoleProfileUpdate,
 )
+from src.services.puka_training_settings_service import (
+    PukaTrainingSettings,
+    PukaTrainingSettingsService,
+)
 from src.services.world_bonus_settings_service import (
     WorldBonusSettings,
     WorldBonusSettingsService,
@@ -56,6 +60,9 @@ class OfficialRoleController(QObject):
             dependencies.user_database_path
         )
         self._world_bonus_service = WorldBonusSettingsService(
+            dependencies.user_database_path
+        )
+        self._puka_training_service = PukaTrainingSettingsService(
             dependencies.user_database_path
         )
 
@@ -123,10 +130,10 @@ class OfficialRoleController(QObject):
         def read():
             def model():
                 if self._index_model is None:
-                    self._index_model = self.load_index(), self.load_world_bonus()
+                    self._index_model = self.load_index(), self.load_world_bonus(), self.load_puka_training()
                 return self._index_model
-            (roles, settings), key = self._stable_read(model)
-            return deepcopy(roles), settings, key
+            (roles, settings, puka), key = self._stable_read(model)
+            return deepcopy(roles), settings, puka, key
         self._reads.submit(PageRequest(("index", self.dependencies, self._epoch), read, apply, failed))
 
     def request_detail(self, character_id: int, apply, failed, discarded=lambda: None) -> None:
@@ -265,6 +272,21 @@ class OfficialRoleController(QObject):
             message=_L('保存家具加成'),
         ):
             return self._world_bonus_service.save(settings)
+
+    def load_puka_training(self) -> PukaTrainingSettings:
+        return self._puka_training_service.load()
+
+    def save_puka_training(
+        self, settings: PukaTrainingSettings,
+    ) -> PukaTrainingSettings:
+        with operation_scope(
+            self._operation(),
+            started_event="role.puka_training_save_started",
+            succeeded_event="role.puka_training_save_succeeded",
+            failed_event="role.puka_training_save_failed",
+            message=_L('保存噗卡特训等级'),
+        ):
+            return self._puka_training_service.save(settings)
 
     def reset_profile(self, character_id: int) -> None:
         with operation_scope(

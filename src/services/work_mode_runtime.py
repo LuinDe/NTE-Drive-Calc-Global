@@ -34,6 +34,7 @@ from src.services.equipment_plugin_deployment import (
 from src.services.managed_plugin_cleanup import cleanup_managed_plugin
 from src.services.mod_plugin_loading_service import ModPluginLoadingError, ModPluginLoadingWaiting
 from src.services.work_mode_diagnostics import detection_failure_detail, detection_failure_state
+from src.services.rtss_compat import rtss_probe_for
 
 
 @dataclass(frozen=True)
@@ -604,6 +605,8 @@ class WorkModeRuntime:
             local_probe = WorkModeProbe(
                 analysis_available=self._analysis_available, core_available=core_available,
                 npcap_available=npcap_installation_present(), input_available=find_spec("pyautogui") is not None,
+                # Global: read-only RTSS check (cached ~2 s; an explicit check re-reads now), injecting modes only.
+                rtss=rtss_probe_for(self.policy, force=allow_connect),
             )
             if not path_valid:
                 self._file_key = None

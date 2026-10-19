@@ -29,6 +29,11 @@ from src.features.official_role.sync_controller import RoleSyncResultText
 from src.services.official_role_profile_service import (
     OfficialRoleProfileUpdate,
 )
+from src.services.puka_training_data import (
+    MAX_LEVEL as PUKA_MAX_LEVEL,
+    cumulative_display as puka_cumulative_display,
+)
+from src.services.puka_training_settings_service import PukaTrainingSettings
 from src.services.world_bonus_settings_service import WorldBonusSettings
 from src.ui.persistent_tab_order import bind_persistent_tab_order
 from src.utils.logger import logger
@@ -78,9 +83,26 @@ def _mark_world_bonus_dirty(window) -> None:
     window._my_role_dirty = True
 
 
-def _set_world_bonus_controls(window, settings: WorldBonusSettings) -> None:
+def _puka_level_tooltip(level: int) -> str:
+    """Cumulative bonus of the entered Puka Boot Camp level, in game units (2.5 -> "2.5", 5.0 -> "5")."""
+    shown = tuple(f"{value:g}" for value in puka_cumulative_display(level))
+    return _LF('噗卡特训（账号共享，出战角色全部生效）：当前 Lv.{0}，累计攻击力 +{1}、防御力 +{2}、生命值 +{3}、暴击率 +{4}%、暴击伤害 +{5}%、环合强度 +{6}、倾陷强度 +{7}；满级 Lv.20 为 +28/+30/+420/+2.5%/+5%/+12/+12。等级见游戏「都市大亨 → 噗卡计划」。').format(int(level), *shown)
+
+
+def _set_puka_tooltips(window, level: int) -> None:
+    """The same cumulative-bonus tooltip on the short title and on the level spin box."""
+    tip = _puka_level_tooltip(int(level))
+    for widget in (getattr(window, "official_role_puka_title", None), getattr(window, "official_role_puka_level", None)):
+        if widget is not None:
+            widget.setToolTip(tip)
+
+
+def _set_world_bonus_controls(
+    window, settings: WorldBonusSettings, puka: PukaTrainingSettings | None = None,
+) -> None:
     attack = getattr(window, "official_role_world_attack", None)
     crit_damage = getattr(window, "official_role_world_crit_damage", None)
+    puka_level = getattr(window, "official_role_puka_level", None)
     if attack is None or crit_damage is None:
         return
     attack.blockSignals(True)
@@ -89,6 +111,11 @@ def _set_world_bonus_controls(window, settings: WorldBonusSettings) -> None:
     crit_damage.setValue(float(settings.quantao_crit_damage) * 100.0)
     attack.blockSignals(False)
     crit_damage.blockSignals(False)
+    if puka_level is not None and puka is not None:
+        puka_level.blockSignals(True)
+        puka_level.setValue(int(puka.level))
+        puka_level.blockSignals(False)
+        _set_puka_tooltips(window, int(puka.level))
 
 
 def _build_world_bonus_card(window) -> QFrame:
@@ -131,15 +158,39 @@ def _build_world_bonus_card(window) -> QFrame:
     crit_damage_unit = QLabel(_L('%爆伤'))
     crit_damage_unit.setObjectName("officialRoleWorldCritDamageUnit")
     layout.addWidget(crit_damage_unit)
+    # 噗卡特训等级：与家具加成同一张账号级固定属性卡、同一个脏标记与保存按钮。
+    # 噗卡特训：标题 + 带 "Lv " 前缀的等级框；累计加成在两者的提示中。
+    puka_title = QLabel(_L('噗卡特训'))
+    puka_title.setObjectName("officialRolePukaLevelTitle")
+    layout.addWidget(puka_title)
+    puka_level = NoWheelSpinBox()
+    puka_level.setObjectName("officialRolePukaLevel")
+    puka_level.setRange(0, PUKA_MAX_LEVEL)
+    puka_level.setSingleStep(1)
+    puka_level.setPrefix("Lv ")
+    puka_level.setButtonSymbols(QAbstractSpinBox.NoButtons)
+    puka_level.setFixedWidth(58)
+    puka_level.setFixedHeight(29)
+    puka_level.setStyleSheet("padding:1px 4px")
+    layout.addWidget(puka_level)
     window.official_role_world_attack = attack
     window.official_role_world_crit_damage = crit_damage
-    _set_world_bonus_controls(window, settings)
+    window.official_role_puka_level = puka_level
+    window.official_role_puka_title = puka_title
+    _set_world_bonus_controls(window, settings, PukaTrainingSettings())
     attack.setEnabled(False)
     crit_damage.setEnabled(False)
+    puka_level.setEnabled(False)
     attack.valueChanged.connect(lambda _value: _mark_world_bonus_dirty(window))
     crit_damage.valueChanged.connect(
         lambda _value: _mark_world_bonus_dirty(window)
     )
+
+    def puka_level_changed(value: int) -> None:
+        _set_puka_tooltips(window, int(value))
+        _mark_world_bonus_dirty(window)
+
+    puka_level.valueChanged.connect(puka_level_changed)
     return card
 
 
@@ -377,6 +428,13 @@ def _save_profiles(window, *, show_message: bool = True, completion=None) -> boo
                     / 100.0,
                 ) if world_bonus_dirty else None
         )
+        puka_control = getattr(window, "official_role_puka_level", None)
+        puka = (
+            PukaTrainingSettings(level=int(puka_control.value()))
+            if world_bonus_dirty and puka_control is not None else None
+        )
+        if puka is not None:
+            puka.validate()
     except Exception as exc:
         QMessageBox.warning(window, _L('保存失败'), str(exc))
         return False
@@ -385,6 +443,8 @@ def _save_profiles(window, *, show_message: bool = True, completion=None) -> boo
             controller.save_profiles(updates)
         if settings is not None:
             controller.save_world_bonus(settings)
+        if puka is not None:
+            controller.save_puka_training(puka)
 
     def committed(_value):
         window._official_role_dirty_ids.clear()
@@ -392,9 +452,11 @@ def _save_profiles(window, *, show_message: bool = True, completion=None) -> boo
         window._my_role_dirty = False
         if settings is not None:
             window._official_role_saved_world_bonus = settings
+        if puka is not None:
+            window._official_role_saved_puka_training = puka
         _refresh_my_role(window, force=True)
         if show_message:
-            QMessageBox.information(window, _L('保存'), _L('角色养成指针与家具加成已保存到当前账号数据库。'))
+            QMessageBox.information(window, _L('保存'), _L('角色养成指针、家具加成与噗卡特训等级已保存到当前账号数据库。'))
 
     return _submit_role_change(window, work, committed, completion=completion)
 
@@ -484,7 +546,7 @@ def _page_my_role(window) -> QWidget:
         QTabBar::tab{font-size:13px;padding:10px 20px}
         QGroupBox{font-size:15px;border:1px solid #30363d;border-radius:10px;padding:24px;padding-top:36px}
         QFrame#officialRoleWorldBonusCard{border:1px solid #30363d;border-radius:8px}
-        QLabel#officialRoleWorldBonusTitle{font-weight:bold;color:#58a6ff}
+        QLabel#officialRoleWorldBonusTitle,QLabel#officialRolePukaLevelTitle{font-weight:bold;color:#58a6ff}
         """
         )
     )
@@ -511,7 +573,6 @@ def _page_my_role(window) -> QWidget:
     base_weights = QPushButton(_L('基础权重'))
     base_weights.setToolTip(_L('编辑当前账号角色基础权重；官方额外形状只读静态库，自创角色额外形状可编辑'))
     base_weights.clicked.connect(lambda: window._go("config"))
-    header.addWidget(_build_world_bonus_card(window))
     header.addWidget(blueprint)
     header.addWidget(base_weights)
     header.addWidget(reset_current)
@@ -531,6 +592,11 @@ def _page_my_role(window) -> QWidget:
     header.addWidget(sync)
     header.addWidget(save)
     root.addLayout(header)
+    # 账号级加成卡（家具加成 + 噗卡特训）单独一行：ko/en/ja 的表头已接近满宽，放在表头会把搜索框挤到看不见。
+    bonus_row = QHBoxLayout()
+    bonus_row.addWidget(_build_world_bonus_card(window))
+    bonus_row.addStretch(1)
+    root.addLayout(bonus_row)
     sync_result = RoleSyncResultText(page)
     sync_result.hide()
     root.addWidget(sync_result)
@@ -549,7 +615,8 @@ def _page_my_role(window) -> QWidget:
     if sync_controller is not None:
         sync_controller.attach_controls(sync, (area, reset_current, reset_all, save,
                                                window.official_role_world_attack,
-                                               window.official_role_world_crit_damage), result_text=sync_result)
+                                               window.official_role_world_crit_damage,
+                                               window.official_role_puka_level), result_text=sync_result)
     else:
         from src.features.input_operation_entry import show_input_unavailable
         sync.clicked.connect(lambda: show_input_unavailable(
@@ -580,7 +647,7 @@ def _refresh_my_role(window, *, restore_scroll_value: int | None = None, force: 
             if tabs is not None:
                 tabs.setEnabled(True)
             return
-        roles, settings, key = result
+        roles, settings, puka, key = result
         page = getattr(window, "official_role_page_view", None)
         if page is not None:
             page.setEnabled(True)
@@ -589,10 +656,12 @@ def _refresh_my_role(window, *, restore_scroll_value: int | None = None, force: 
                 _populate_role_tab(window, tabs.currentWidget(), int(tabs.tabBar().tabData(tabs.currentIndex())))
             return
         window._official_role_saved_world_bonus = settings
+        window._official_role_saved_puka_training = puka
         if not getattr(window, "_official_role_world_bonus_dirty", False):
-            _set_world_bonus_controls(window, settings)
+            _set_world_bonus_controls(window, settings, puka)
         sync = getattr(window, "character_profile_sync_controller", None)
-        for control in (window.official_role_world_attack, window.official_role_world_crit_damage):
+        for control in (window.official_role_world_attack, window.official_role_world_crit_damage,
+                        window.official_role_puka_level):
             control.setEnabled(not (sync is not None and sync.is_running()))
         window._official_role_source_key = key
         _apply_role_index(window, roles, restore_scroll_value=restore_scroll_value)
@@ -700,7 +769,7 @@ def confirm_pending_my_role_changes(window, *, completion=None) -> bool:
     answer = QMessageBox.question(
         window,
         _L('未保存角色状态'),
-        _L('角色养成指针或家具加成有未保存修改，是否先保存？'),
+        _L('角色养成指针、家具加成或噗卡特训等级有未保存修改，是否先保存？'),
         QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
         QMessageBox.Save,
     )
@@ -722,7 +791,9 @@ def confirm_pending_my_role_changes(window, *, completion=None) -> bool:
     window._official_role_world_bonus_dirty = False
     saved_bonus = getattr(window, "_official_role_saved_world_bonus", None)
     if saved_bonus is not None:
-        _set_world_bonus_controls(window, saved_bonus)
+        _set_world_bonus_controls(
+            window, saved_bonus, getattr(window, "_official_role_saved_puka_training", None),
+        )
     window._official_role_source_key = None
     window._my_role_dirty = False
     return True

@@ -51,6 +51,17 @@ Global supplement rules on the active clock; ``_Ctx.fork_corrections``, report i
 explanation names the members they touched.  ``team_fork_corrections.ENABLED`` / ``NTE_TEAM_FORK_CORRECTIONS=off``
 switch them off (the shipped numbers).  ``solo_session`` runs one member with many arc / refinement choices on one
 shared context (the arc efficiency table); ``_open_context`` is built on the same session code.
+
+Awakening selection (Global, ``team_awakening``; Korean UI "돌파"): a member is (level 0..6, a freely chosen set of
+the ordinary effects ``Effect1..Effect6``); the resonances and the skill-level bonus follow the level alone.
+``MemberSpec.awakening_effects`` carries the set; a spec with a level only means ``Effect1..level`` (old saves / calls,
+byte-identical results) and an empty spec the graduation template's own selection.  Node rules
+(``awakening_node_rules``: one registry, one module per character group) are prepared per context
+(``_Ctx.node_rules``) and called at fixed points: buff rules after ``load_rules``, the axis writer's gate / placed
+hooks (both modes), the swap rule (free support entries), DoT / extra hit rows before the engine, intervals right after
+the arc corrections, evidence after the Scorch patch, increments after replay (``_collect``), and the resource state's
+rule rows / hooks.  ``_with_node_notes`` writes their explanation items.  Without an active rule every path is the
+selection model alone.
 """
 from __future__ import annotations
 
@@ -124,6 +135,9 @@ class MemberSpec:
     fork_id: str | None = None
     fork_refinement_level: int | None = None
     suit_id: str | None = None
+    # A1: selected ordinary awakening effects ("Effect1".."Effect6", any order; team_awakening).  None: a level alone
+    # means Effect1..level (old saves / calls), no level either = the graduation template's own selection
+    awakening_effects: tuple | None = None
 
 
 @dataclass
@@ -143,6 +157,7 @@ class MemberResult:
     team_time_s: float = 0.0        # battle time without time stops (the DPS denominator)
     element: str = ""
     role: str = ""
+    awakening_effects: tuple = ()   # A1: the selected ordinary effects (team_awakening order)
 
     @property
     def total_damage(self) -> float:
@@ -211,12 +226,55 @@ def list_template_characters(static_path: Path) -> list[dict]:
         ).fetchall()
     finally:
         con.close()
+    from src.services import team_awakening
+
     out = []
     for cid, name, fork_id, refine, suit, profile_json in rows:
         profile = json.loads(profile_json or "{}")
+        selection = team_awakening.from_profile(profile)
         out.append({"character_id": cid, "name_zh": name, "fork_id": fork_id,
                     "fork_refinement_level": refine or 1, "suit_id": suit,
-                    "awakening_level": int(profile.get("awakening_level", 0) or 0)})
+                    "awakening_level": int(profile.get("awakening_level", 0) or 0),
+                    # A3: the template's own node selection (the card default; read, never hard-coded)
+                    "selected_awaken_effect_ids": list(selection.effects)})
+    return out
+
+
+def awaken_effect_catalog(static_path: Path, character_ids=None) -> dict[int, list[dict]]:
+    """{character id: [node, ...]} for the member cards' tooltips: ``effect_id``, ``ordinal``, ``awaken_type``
+    (Awaken_Effect | Awaken_Resonance), ``title_zh``, ``description_zh`` (raw, markup kept: the display layer
+    translates the exact text) and ``values`` {placeholder index: number text} rendered at the graduation template's
+    skill levels (``official_role_awakening_service.render_awaken_effect_description``)."""
+    from src.services.official_role_awakening_service import _description_damage_value
+    from src.storage.sqlite.static_game_data_dao import StaticGameDataDao
+
+    con = sqlite3.connect(_ro_uri(static_path), uri=True)
+    try:
+        profiles = {int(c): json.loads(p or "{}") for c, p in
+                    con.execute("SELECT character_id, profile_json FROM character_graduation_template")}
+    finally:
+        con.close()
+    wanted = sorted(profiles) if character_ids is None else [int(c) for c in character_ids]
+    out: dict[int, list[dict]] = {}
+    with StaticGameDataDao(Path(static_path)) as static:
+        for cid in wanted:
+            effects = list(static.list_character_awaken_effects(cid))
+            profile = dict(profiles.get(cid) or {})
+            rows = []
+            for effect in effects:
+                values = {}
+                for i, damage in enumerate(effect.get("description_damage_entries") or ()):
+                    try:
+                        value = _description_damage_value(damage, profile, effects)
+                    except Exception:
+                        value = None
+                    if value is not None:
+                        values[i] = f"{value:.6f}".rstrip("0").rstrip(".")
+                rows.append({"effect_id": str(effect.get("effect_id") or ""), "ordinal": int(effect.get("ordinal") or 0),
+                             "awaken_type": str(effect.get("awaken_type") or ""),
+                             "title_zh": str(effect.get("title_zh") or ""),
+                             "description_zh": str(effect.get("description_zh") or ""), "values": values})
+            out[cid] = rows
     return out
 
 
@@ -319,12 +377,22 @@ def _build_characters(con: sqlite3.Connection, specs: list[MemberSpec]) -> list[
         for item in equipment:
             if item.get("kind") == "module":
                 item["graduation_assumed_shape_ids"] = shapes
-        awakening = profile.get("awakening_level", 0) if spec.awakening_level is None else spec.awakening_level
-        awakening = max(0, min(6, int(awakening or 0)))
+        # A2: the member's node set (team_awakening): a level alone = Effect1..level (old saves / calls), nothing =
+        # the template's own selection, a set = that set in any order (level = max(level, count))
+        from src.services import team_awakening
+
+        effects = getattr(spec, "awakening_effects", None)
+        valid = None
+        if effects is not None:
+            valid = [r[0] for r in con.execute(
+                "SELECT effect_id FROM character_awaken_effect WHERE character_id=? AND awaken_type='Awaken_Effect'",
+                (spec.character_id,))] or None
+        selection = team_awakening.resolve_spec(spec.awakening_level, effects, profile, valid)
+        awakening = selection.level
         profile["awakening_level"] = awakening
         # buff inference reads the selected list, not the level (brief §0): keep them in step
         profile["awakening_selection_initialized"] = True
-        profile["selected_awaken_effect_ids"] = [f"Effect{i}" for i in range(1, awakening + 1)]
+        profile["selected_awaken_effect_ids"] = list(selection.effects)
         fork_id = spec.fork_id or row[2]
         refine = spec.fork_refinement_level or row[3] or 1
         # B1: the panel (stat reconstruction) reads the arc from the profile, the buff rules from the columns below
@@ -338,6 +406,7 @@ def _build_characters(con: sqlite3.Connection, specs: list[MemberSpec]) -> list[
             "fork_id": fork_id, "fork_refinement_level": refine, "profile": profile, "equipment": equipment,
             "skills": skills,
             "_suit_id": suit_id,
+            "_awakening": selection,        # team_awakening.AwakeningSel (kept out of the engine build: "_" key)
         })
     return characters
 
@@ -500,6 +569,24 @@ class _StepRun:
     rows: list = field(default_factory=list)
     form_role: str = ""
     actions: tuple = ()             # (ability, selector) actions laid out (form combos may be cut short)
+    # resources (team_resources; defaults = the legacy level, nothing checked)
+    cd_kind: str = ""               # cooldown kind of the step (E / Q / QTE / counter / E_alt), "" = none
+    energy_before: float | None = None   # pool energy / own clock before the step (None = not modelled)
+    energy_after: float | None = None
+    cost: float | None = None       # enforced cost the step was checked against
+    remaining_us: int = 0           # cooldown / resource time left when reached (waits, skips, warn notes)
+    note: str = ""                  # energy_short | cd_not_ready (warn) | extra_e | form_not_entered | too_long
+    events: tuple = ()              # ((code, amount), ...) energy events after the step
+    credit: float = 0.0             # gauge credited to a time-only step
+    energy_raw: float = 0.0         # sum of charge_add of the step's hits (scaled by the efficiency at the end)
+    energy_events: float = 0.0      # energy events after the step (after:E / after:Q)
+    gauge_after: float | None = None    # the member's cycle gauge after the step (resource levels)
+    gauge_gain: float = 0.0         # gauge built by the step (hits, credit, set values)
+    cd_s: float | None = None       # cooldown of the step's kind the check used (None = unknown / not enforced)
+    cd_conf: str = ""               # confidence of that cooldown cell (team_resource_data)
+    cd_source: str = ""             # short source tag of that cell
+    dropped: int = 0                # swap_out (D3): approved steps of the visit not run after it
+    wait_for: int | None = None     # wait row "all_blocked": the member whose readiness was waited for
 
 
 @dataclass
@@ -515,6 +602,13 @@ class _VisitRun:
     steps: list = field(default_factory=list)
     refilled: bool = False
     form: dict | None = None        # form window summary (see _FormRun.summary)
+    energy_in: float | None = None  # pool energy / own clock when entering (None = not modelled)
+    energy_out: float | None = None
+    waited_us: int = 0              # cooldown / resource waits inserted in this visit
+    energy_gain: float = 0.0        # ultimate energy gained in this visit (also for unknown costs)
+    energy_raw: float = 0.0         # charge_add of the visit's hits (the explanation applies the efficiency)
+    energy_events: float = 0.0      # energy events of the visit
+    early_swap: tuple = ()          # D3: (seq, kind, seconds left | None, reason, steps not run) when it ended early
 
 
 @dataclass
@@ -546,6 +640,16 @@ class _Layout:
     used_normal_entry: bool
     refill_loops: tuple = ()        # 1-based loops that started with every gauge at the cap
     form_actions: dict = field(default_factory=dict)   # cid -> {(ability, selector): runs}
+    refills: tuple = ()             # ((1-based loop, character id), ...) gauge-fallback refills (resource levels)
+    resources: Any = None           # team_resources.ResourceState of the layout (None = legacy level)
+    waited_us: int = 0              # cooldown / resource waits inserted in total
+    hit_credited: dict = field(default_factory=dict)   # cid -> uses whose unplaced hits were credited (HIT_CREDIT)
+    charge_done: bool = False       # the 盈蓄 energy grants were credited to the visits (once per layout)
+    charge_energy: float = 0.0      # 盈蓄 ultimate energy credited in total
+    charge_grants: int = 0
+    node_hooks: Any = None          # awakening_node_rules.LayoutHooks of the layout (None = no layout-level rule)
+    run_hooks: Any = None           # awakening_node_rules.RunHooks of the engine run on this layout (_collect: post)
+    node_gauge: tuple = ()          # (t_us, cid, amount): Cycle-gauge gains of awakening node rules (add_gauge)
 
 
 def _row(cid: int, name: str, t_us: int, ability_id: str | None, ge: str, attribute: str) -> dict:
@@ -600,21 +704,35 @@ class _AxisWriter:
     measured time stops, gauge gain per hit and form-action counts.  Shared by the approved layout
     (_layout_axis) and the custom-cycle walker (team_custom_cycle_service)."""
 
-    def __init__(self, static, by_key, names, gauge, stops: list) -> None:
+    def __init__(self, static, by_key, names, gauge, stops: list, resources=None, hit_credits=None,
+                 node_hooks=None) -> None:
         from src.services.team_form_actions import FORM_ACTIONS
         from src.services.team_rotation_data import Q_TIME_STOP_S
 
+        self.node_hooks = node_hooks    # awakening_node_rules.LayoutHooks: gate / placed hooks (None = none)
         self.static = static
         self.by_key = by_key
         self.names = names
         self.gauge = gauge
         self.stops = stops
+        self.resources = resources      # team_resources.ResourceState: ultimate energy per hit (None = legacy)
+        # custom cycles at a resource level (no ResourceState): team_resource_data.HIT_CREDIT for the gauge
+        self.hit_credits = hit_credits
+        self.credited: dict[int, int] = defaultdict(int)    # cid -> uses whose unplaced hits were credited
+        self.last_credit = None         # HIT_CREDIT cell of the last place() call (None = nothing credited)
+        # reviewed layout at the resource levels: gauge gains wait in time order until the axis reaches the hit
+        # (flush), so a hit landing after its member left the field is not counted towards that swap (review F-G)
+        self.defer_gauge = False
+        self._pending: list[tuple[int, int, int, float]] = []    # (hit µs, order, cid, heterochrome_add)
+        self._pending_n = 0
         self.rows: list[dict] = []
         self.side: dict[int, tuple[int, int]] = {}
         self.stop_owners: list[tuple] = []
         self.unknown_stop: set[int] = set()
         self.form_actions: dict[int, dict] = defaultdict(lambda: defaultdict(int))
         self._damage_cache: dict[str, dict | None] = {}
+        self.node_energy: dict[int, list] = defaultdict(list)   # custom cycles: node-rule energy not yet measured
+        self.node_gauge: list[tuple[int, int, float]] = []      # node-rule Cycle-gauge gains (t_us, cid, amount)
         self._form_logged = _form_logged()
         self._form_keys = {tuple(k) for k in FORM_ACTIONS}
         self._time_stops = Q_TIME_STOP_S
@@ -639,7 +757,11 @@ class _AxisWriter:
         is_form = action in self._form_keys
         if is_form:
             self.form_actions[cid][action] += 1
-        for ge, offsets in cand.effect_hit_offsets_us:
+        placed = len(run.rows)
+        effect_offsets = cand.effect_hit_offsets_us
+        if self.node_hooks is not None:     # awakening node rules: the bound GEs this action lays out (gate)
+            effect_offsets = self.node_hooks.gate(cid, action, run.slot, t0, effect_offsets)
+        for ge, offsets in effect_offsets:
             if not _is_damage_effect(ge) or ge in DOT_TICK_GES:
                 continue
             dmg = self.skill_damage(ge)
@@ -652,8 +774,83 @@ class _AxisWriter:
                 self.rows.append(row)
                 self.side[id(row)] = (vi, si)
                 run.rows.append(row)
-                self.gauge.gain(cid, dmg.get("heterochrome_add"))
-        return _step_length_us(cand, est_s)
+                if self.defer_gauge:
+                    self._pending_n += 1
+                    self._pending.append((t0 + int(off), self._pending_n, int(cid),
+                                          float(dmg.get("heterochrome_add") or 0.0)))
+                else:
+                    self.gauge.gain(cid, dmg.get("heterochrome_add"))
+                if self.resources is not None:
+                    self.resources.gain_hit(cid, dmg)
+        self.last_credit = None
+        if len(run.rows) == placed:     # the animation laid out no hit: summon / zone hits credited (resource levels)
+            credit = None
+            if self.resources is not None:
+                credit = self.resources.hit_credit(cid, action)
+            elif self.hit_credits is not None:
+                cell = self.hit_credits.get((int(cid), str(action[0]), str(action[1] or "")))
+                credit = cell if cell is not None and cell[0] is not None else None
+            if credit is not None:
+                self.gauge.gain(cid, credit[1])
+                if self.resources is not None:
+                    self.resources.gain_raw(cid, credit[0])
+                self.credited[int(cid)] += 1
+                self.last_credit = credit
+        length = _step_length_us(cand, est_s)
+        if self.node_hooks is not None:     # awakening node rules: the action log / placed hooks
+            from src.services.awakening_node_rules.core import PlacedAction
+
+            self.node_hooks.on_placed(PlacedAction(int(cid), tuple(action), str(run.slot or ""), int(t0), int(length),
+                                                   tuple(run.rows[placed:]), int(vi), int(si), self))
+        return length
+
+    def add_gauge(self, cid: int, amount: float, t_us: int) -> None:
+        """A Cycle-gauge gain at ``t_us`` outside the hit loop (awakening node rules): queued like the hits' gains
+        at the resource levels (``defer_gauge``, review F-G), applied at once otherwise."""
+        if not amount:
+            return
+        self.node_gauge.append((int(t_us), int(cid), float(amount)))     # kept for checks / diagnostics
+        if self.defer_gauge:
+            self._pending_n += 1
+            self._pending.append((int(t_us), self._pending_n, int(cid), float(amount)))
+        else:
+            self.gauge.gain(cid, amount)
+
+    def add_energy(self, cid: int, amount: float, code: str, t_us: int) -> None:
+        """Ultimate energy from an awakening node rule (an event: not scaled by the charge efficiency).  Reviewed
+        layouts: the ResourceState event; custom cycles: kept until the walker's measure takes it
+        (``take_node_energy``) into its pools and the step record."""
+        if not amount:
+            return
+        if self.resources is not None:
+            self.resources.add_energy(int(cid), float(amount), str(code))
+        else:
+            self.node_energy[int(cid)].append((str(code), float(amount), int(t_us)))
+
+    def take_node_energy(self, cid: int) -> float:
+        """Node-rule energy of ``cid`` since the last call (custom walker), then forgotten."""
+        items = self.node_energy.pop(int(cid), None) or ()
+        return float(sum(amount for _code, amount, _t in items))
+
+    def flush(self, t_us: int | None = None) -> None:
+        """Apply the deferred gauge gains of hits at or before ``t_us`` (None = all), in time order."""
+        if not self._pending:
+            return
+        self._pending.sort()
+        keep = []
+        for item in self._pending:
+            if t_us is None or item[0] <= t_us:
+                self.gauge.gain(item[2], item[3])
+            else:
+                keep.append(item)
+        self._pending = keep
+
+    def late_gauge(self) -> dict[int, float]:
+        """Deferred gauge per member not yet applied (hits after the current axis time)."""
+        out: dict[int, float] = defaultdict(float)
+        for _t, _n, cid, amount in self._pending:
+            out[cid] += amount
+        return dict(out)
 
 
 class _FormRun:
@@ -704,15 +901,64 @@ class _FormRun:
                 "exit_s": None if self.exit_us is None else self.exit_us / 1e6, "window": tuple(self.window)}
 
 
+def _swap_reason(gate) -> str:
+    """Why a step was not ready: cd (cooldown) | energy (a known ultimate cost) | clock (Hotori's own clock)."""
+    if gate.action == "energy_short":
+        return "energy" if gate.reason == "energy_short" else "clock"
+    return "clock" if gate.wait_kind == "res_wait" else "cd"
+
+
+def _not_ready_choice(resources, cid: int, gate, t_us: int, order, approved_of: dict) -> tuple:
+    """User decision D3 (2026-10-14) for a team member whose step is not ready at ``t_us``.
+
+    ``("swap", 0, None)``: another member could act at once - swap out now.  When every member is blocked the
+    earliest ready one is waited for (no endless swapping): ``("run", 0, cid)`` this member itself (its own wait, then
+    the step), ``("wait_swap", policy-clock µs, other)`` wait for ``other``, then swap out; ``("keep", 0, None)``
+    nothing gets ready by waiting within the guard (the skip / wait of the gate applies).  Readiness of the others is
+    judged at ``t_us`` (their entry time is not counted); ties go to this member, then to the visiting order."""
+    from src.services.team_resources import TOLERANCE_US
+
+    ring = list(dict.fromkeys(int(c) for c in order))
+    k = ring.index(int(cid))
+    others = [ring[(k + i) % len(ring)] for i in range(1, len(ring))]
+    remaining = []
+    for other in others:
+        r = resources.first_block_us(other, approved_of.get(other) or _approved_steps(other), t_us)
+        if r is not None and r <= TOLERANCE_US:
+            return "swap", 0, None
+        remaining.append((r, other))
+    own = None if gate.action == "energy_short" else int(gate.remaining_us)
+    cands = [(r, i, c) for i, (r, c) in enumerate([(own, int(cid))] + remaining) if r is not None]
+    if not cands:
+        return "keep", 0, None
+    r, _i, who = min(cands)
+    if r > resources.guard_us() + TOLERANCE_US:
+        return "keep", 0, None
+    if who == int(cid):
+        return ("keep", 0, None) if gate.action in ("energy_short", "cd_skip") else ("run", 0, who)
+    return "wait_swap", int(r), who
+
+
 def _layout_axis(static, order, loops, by_key, gauge, sched, names, elements, stops: list, *,
-                 opening_gauge: str = "full", full_gauge_loops=FULL_GAUGE_LOOPS) -> _Layout:
+                 opening_gauge: str = "full", full_gauge_loops=FULL_GAUGE_LOOPS, resources=None,
+                 node_hooks=None) -> _Layout:
     """Visits and steps on one timeline: gauge accumulation (refills at FULL_GAUGE_LOOPS), support-skill labels,
-    form windows, time stops and triggers."""
+    form windows, time stops and triggers.
+
+    ``resources`` (team_resources.ResourceState, None = the legacy level): ultimate energy per hit, the energy /
+    cooldown / own-resource check of every step (skips and inserted waits), gauge credits of time-only steps, and
+    the refill loops of FULL_GAUGE_LOOPS after loop 1 refill only the gauge-fallback members.  A team member whose
+    step is not ready swaps out at once (``ResourceState.not_ready_mode``, D3): the visit ends with a ``swap_out`` row
+    and the next member enters by the normal rules (support skill when the gauge allows); visits per loop do not
+    change.  Alone the member waits."""
     from src.services.team_cycle_reactions import support_skill_attack_type
     from src.services.team_form_actions import FORMS
     from src.services.team_rotation_data import NORMAL_ENTRY
 
-    writer = _AxisWriter(static, by_key, names, gauge, stops)      # rows, side table, time stops, gauge gain
+    writer = _AxisWriter(static, by_key, names, gauge, stops, resources,   # rows, side table, stops, gauge gain
+                         node_hooks=node_hooks)                            # awakening node rules (gate / placed)
+    writer.defer_gauge = resources is not None      # hit-time gauge at the resource levels (review F-G)
+    flush = writer.flush
     rows, side, stop_owners = writer.rows, writer.side, writer.stop_owners
     unknown_stop, form_actions = writer.unknown_stop, writer.form_actions
     action_len, place = writer.action_len, writer.place
@@ -722,26 +968,53 @@ def _layout_axis(static, order, loops, by_key, gauge, sched, names, elements, st
     used_default = used_gauge_set = used_normal = False
     # loop 1 is full when the (effective, see _effective_opening) opening is "full"
     refill_loops: list[int] = [1] if opening_gauge == "full" else []
+    member_refills: list[tuple[int, int]] = []      # (1-based loop, cid) fallback refills (resource levels)
+    waited_total = 0
+    swap_mode = resources is not None and resources.not_ready_mode() == "swap"      # D3 (teams)
+    approved_of = {int(c): _approved_steps(c) for c in dict.fromkeys(order)} if swap_mode else {}
 
     t_us = START_US
     previous: int | None = None
     for loop_index in range(loops):
         refill_now = loop_index > 0 and gauge.refills_at(loop_index + 1, full_gauge_loops)
         refilled = (loop_index == 0 and opening_gauge == "full") or refill_now
+        refilled_members: set[int] = set()
         for pos, cid in enumerate(order):
             vi = len(visits)
             # the boundary swap into a loop is judged on the gauges the previous loop built up (its outgoing
             # member belongs to that loop); a refill loop then starts with every member at 100, like loop 1
+            flush(t_us)                 # hits up to the swap (later ones count after the decision, review F-G)
             decision = gauge.on_swap(previous, cid)
+            if (node_hooks is not None and decision.outcome == "gauge_short" and decision.pair_reaction is not None
+                    and node_hooks.free_support(previous, cid, t_us, decision.pair_reaction, decision)):
+                # awakening node rule (free_support): the support entry needs no gauge and does not consume it
+                decision = dataclasses.replace(decision, entry="support_skill", outcome="reaction",
+                                               reaction=decision.pair_reaction)
             if refill_now and pos == 0:
-                gauge.refill_all()
-                refill_loops.append(loop_index + 1)
+                if resources is None:
+                    gauge.refill_all()
+                    refill_loops.append(loop_index + 1)
+                else:       # resource levels: only members without gauge data keep the fixed refill (fallback)
+                    for member in order:
+                        if resources.gauge_fallback(member):
+                            gauge.set_full(member)
+                            refilled_members.add(member)
+                            member_refills.append((loop_index + 1, member))
             entry = "opener" if previous is None else decision.entry
             if previous is not None:
                 swaps.append(_SwapRun(len(swaps), t_us, previous, cid, decision.out_element or elements.get(previous, ""),
                                       decision.in_element or elements.get(cid, ""), float(decision.gauge),
                                       decision.outcome, None))
+            if resources is not None:
+                refilled = (loop_index == 0 and opening_gauge == "full") or cid in refilled_members
             visit = _VisitRun(vi, loop_index, cid, entry, t_us, t_us, gauge.value(cid), refilled=refilled)
+            if resources is not None:
+                visit.energy_in = resources.snapshot(cid, t_us)
+                gained_in = resources.gained(cid)
+                raw_in, events_in = resources.raw_gain(cid), resources.event_total(cid)
+                approved = None if resources.has_record(cid) else _approved_steps(cid)
+            skipped_seqs: set[int] = set()   # steps skipped by the resource check in this visit
+            form_skipped = False             # the step that starts the member's form was skipped
             qte_rows: list[dict] = []
             rule = FORMS.get(cid)
             form: _FormRun | None = None
@@ -771,12 +1044,100 @@ def _layout_axis(static, order, loops, by_key, gauge, sched, names, elements, st
                         done.append(action)
                 run.actions = tuple(done)
 
-            for step, mode in plan:
-                si = len(visit.steps)
+            for pi, (step, mode) in enumerate(plan):
                 ability_id, selector = step.get("ability_id"), step.get("selector")
                 repeat = max(1, int(step.get("repeat") or 1))
                 role = str(step.get("form_role") or "")
-                run = _StepRun(int(step.get("seq") or 0), str(step.get("slot") or "other"), ability_id, selector,
+                seq = int(step.get("seq") or 0)
+                cls = gate = None
+                if resources is not None and mode != "skipped":
+                    cls = resources.classify(cid, step, approved)
+                    actions0 = [tuple(a) for a in (step.get("combo") or ((ability_id, selector),))]
+                    runnable0 = bool(step.get("sim")) and all(a in by_key for a in actions0)
+                    if runnable0:
+                        cut = ((cls.requires_seq is not None and cls.requires_seq in skipped_seqs)
+                               or (form_skipped and role and form is None))
+                        if cut:     # the form (or the paid ultimate this free one follows) did not happen
+                            run = _StepRun(seq, str(step.get("slot") or "other"), ability_id, selector, t_us, t_us,
+                                           "form_cut", form_role=role, note="form_not_entered")
+                            visit.steps.append(run)
+                            skipped_seqs.add(seq)
+                            continue
+                        gate = resources.gate(cid, cls, t_us)
+                        blocked_note, blocked_for = "", None
+                        if swap_mode and resources.short_wait(gate):  # < 0.3 s of cooldown left: wait, cast (10-18)
+                            blocked_note = "short_wait"
+                        elif swap_mode and (gate.action in ("energy_short", "cd_skip") or gate.wait_us > 0):
+                            how, wait_pc, other = _not_ready_choice(resources, cid, gate, t_us, order, approved_of)
+                            if how == "run":            # every member blocked and this one is ready first: it waits
+                                blocked_note, blocked_for = "all_blocked", cid
+                            elif how in ("swap", "wait_swap"):
+                                if how == "wait_swap":  # every member blocked: wait for the earliest ready one
+                                    end = resources.wall_after(t_us, wait_pc)
+                                    visit.steps.append(_StepRun(seq, "wait", None, None, t_us, end, "cd_wait",
+                                                                cd_kind=cls.cd_kind or "", remaining_us=int(wait_pc),
+                                                                note="all_blocked", wait_for=other))
+                                    resources.waited(cid, dataclasses.replace(gate, wait_us=end - t_us,
+                                                                              wait_kind="blocked_wait"))
+                                    resources.all_blocked_wait(cid, loop_index, seq, end - t_us, other)
+                                    visit.waited_us += end - t_us
+                                    waited_total += end - t_us
+                                    t_us = end
+                                left = resources.peek_remaining(cid, cls, t_us)
+                                reason = _swap_reason(gate)
+                                if how == "wait_swap" and reason == "cd" and resources.short_left(left):
+                                    # after waiting for the earliest ready member less than the threshold is left:
+                                    # the rest is waited out and the skill cast, no swap (2026-10-18)
+                                    gate = dataclasses.replace(gate, action="run", wait_kind="cd_wait",
+                                                               wait_us=resources.wall_after(t_us, int(left)) - t_us,
+                                                               remaining_us=int(left))
+                                    blocked_note = "short_wait"
+                                else:
+                                    dropped = sum(1 for _st, md in plan[pi + 1:] if md == "run")
+                                    for st, md in plan[pi + 1:]:    # ultimates not reached: planned, not cast (F1)
+                                        acts = [tuple(a) for a in (st.get("combo")
+                                                                   or ((st.get("ability_id"), st.get("selector")),))]
+                                        if (md == "run" and st.get("sim") and all(a in by_key for a in acts)
+                                                and resources.classify(cid, st, approved).cost_ref == "q_cost"):
+                                            resources.dropped_q(cid)
+                                    run = _StepRun(seq, str(step.get("slot") or "other"), ability_id, selector, t_us,
+                                                   t_us, "swap_out", form_role=role, cd_kind=cls.cd_kind or "",
+                                                   energy_before=gate.energy_before, cost=gate.cost,
+                                                   remaining_us=int(left or 0), note=reason, dropped=dropped)
+                                    run.cd_s, run.cd_conf, run.cd_source = resources.cd_info(cid, cls.cd_kind)
+                                    visit.steps.append(run)
+                                    resources.early_swap(cid, loop_index, seq, cls.cd_kind, reason, left, dropped)
+                                    visit.early_swap = (seq, cls.cd_kind or "", None if left is None
+                                                        else round(int(left) / 1e6, 3), reason, dropped)
+                                    break       # the rest of this visit is not run; the next member enters
+                        if gate.action in ("energy_short", "cd_skip"):
+                            run = _StepRun(seq, str(step.get("slot") or "other"), ability_id, selector, t_us, t_us,
+                                           gate.action, form_role=role, cd_kind=cls.cd_kind or "",
+                                           energy_before=gate.energy_before, cost=gate.cost,
+                                           remaining_us=int(gate.remaining_us), note=gate.reason)
+                            visit.steps.append(run)
+                            resources.skipped(cid, gate, loop_index)
+                            skipped_seqs.add(seq)
+                            if rule and (ability_id, selector) == tuple(rule["start"][:2]):
+                                form_skipped = True
+                            continue
+                        if gate.wait_us > 0:
+                            wait = _StepRun(seq, "wait", None, None, t_us, t_us + int(gate.wait_us), gate.wait_kind,
+                                            cd_kind=cls.cd_kind or "", remaining_us=int(gate.remaining_us),
+                                            energy_before=gate.energy_before, cost=gate.cost, note=blocked_note,
+                                            wait_for=blocked_for)
+                            visit.steps.append(wait)
+                            resources.waited(cid, gate)
+                            if blocked_note == "all_blocked":
+                                resources.all_blocked_wait(cid, loop_index, seq, int(gate.wait_us), cid)
+                            elif blocked_note == "short_wait":      # under the swap threshold (2026-10-18)
+                                resources.short_wait_done(cid, loop_index, seq, cls.cd_kind, int(gate.wait_us),
+                                                          int(gate.remaining_us))
+                            t_us += int(gate.wait_us)
+                            visit.waited_us += int(gate.wait_us)
+                            waited_total += int(gate.wait_us)
+                si = len(visit.steps)
+                run = _StepRun(seq, str(step.get("slot") or "other"), ability_id, selector,
                                t_us, t_us, "ok", form_role=role)
                 visit.steps.append(run)
                 if mode == "skipped":
@@ -794,16 +1155,32 @@ def _layout_axis(static, order, loops, by_key, gauge, sched, names, elements, st
                         run.status = "missing_candidate"
                         missing[cid].append(f"{ability_id or step.get('seq')}:{selector or ''}")
                         est = float(est or 0.0)
+                        if resources is not None:
+                            resources.mark_missing(cid)
                     elif est is None:
                         run.status = "time_default"
                         used_default = True
                         est = DEFAULT_STEP_S
                     else:
                         run.status = "time_only"
+                    if resources is not None and not step.get("sim"):
+                        if cls is not None and cls.reason == "own_clock_wait":
+                            resources.note_interlude(cid)
+                        credit = resources.time_only_credit(cid, seq)
+                        flush(t_us)
+                        if credit:              # the research record names the action: its gauge is credited
+                            g0 = float(gauge.value(cid))
+                            gauge.gain(cid, credit * repeat)
+                            added = float(gauge.value(cid)) - g0      # capped at the gauge cap (review F-D)
+                            run.credit = added
+                            resources.note_credit(cid, seq, added)
+                            run.gauge_gain = added
+                        elif resources.partial_time_only(cid, seq):
+                            resources.note_partial(cid, seq)
+                        run.gauge_after = float(gauge.value(cid))
                     t_us += int(round(float(est) * repeat * 1_000_000))
                     run.end_us = t_us
                     continue
-
                 # ── form window rules (before the step runs) ──
                 if form is not None and not form.closed and role:
                     policy = rule.get("policy")
@@ -844,7 +1221,12 @@ def _layout_axis(static, order, loops, by_key, gauge, sched, names, elements, st
                             continue
                     elif role == "exit" or (policy == "window" and role == "window"):
                         e = form.elapsed(t_us)
-                        lo, hi = rule.get("exit_window_s") or rule.get("window_s") or (0.0, rule["duration_s"])
+                        from src.services import global_live_overlay   # Akane stage 2 from 4 s (CN release)
+
+                        lo, hi = (global_live_overlay.form_window(cid, rule.get("code"), rule.get("exit_window_s")
+                                                                  or rule.get("window_s"),
+                                                                  getattr(static, "database_path", None))
+                                  or (0.0, rule["duration_s"]))
                         form.exit_us = e
                         form.window = (float(lo), float(hi))
                         if not (_us(lo) <= e <= _us(hi)):
@@ -852,10 +1234,33 @@ def _layout_axis(static, order, loops, by_key, gauge, sched, names, elements, st
                     elif policy == "warn" and role == "body" and not form.inside(t_us):
                         form.mark("overrun")
 
+                if gate is not None:            # the step runs: spend energy / clock, start its cooldown (F11)
+                    run.cd_kind = cls.cd_kind or ""
+                    run.cost = gate.cost
+                    run.note = gate.note or (gate.reason if gate.reason == "extra_e" else "")
+                    run.remaining_us = int(gate.remaining_us) if gate.note == "cd_not_ready" else 0
+                    run.energy_before = resources.begin(cid, cls, t_us, gate, step)
+                    if run.energy_before is None:
+                        run.energy_before = resources.snapshot(cid, t_us)
+                    run.cd_s, run.cd_conf, run.cd_source = resources.cd_info(cid, cls.cd_kind)
+                    raw0, events0 = resources.raw_gain(cid), resources.event_total(cid)
+                    flush(t_us)
+                    gauge0 = float(gauge.value(cid))
                 run_actions(run, si, actions, repeat, step.get("est_s"), role)
                 run.end_us = t_us
+                flush(t_us)                     # the step's hits up to its end (no-op at the legacy level)
+                if gate is not None:
+                    run.events = tuple(resources.after(cid, cls, step, t_us, presses=len(run.actions) or 1))
+                    if step.get("slot") == "basic":
+                        resources.note_basic(cid)
+                    run.energy_after = resources.snapshot(cid, t_us)
                 if gauge.apply_step(cid, step):
                     used_gauge_set = True
+                if gate is not None:            # per-step energy / gauge trace (resource levels)
+                    run.energy_raw = resources.raw_gain(cid) - raw0
+                    run.energy_events = resources.event_total(cid) - events0
+                    run.gauge_after = float(gauge.value(cid))
+                    run.gauge_gain = run.gauge_after - gauge0
                 if entry == "support_skill" and step.get("entry_only"):
                     qte_rows = sorted(run.rows, key=lambda r: r["relative_time_us"])
 
@@ -902,7 +1307,14 @@ def _layout_axis(static, order, loops, by_key, gauge, sched, names, elements, st
                                       source_rows=qte_rows)
                 swaps[-1].reaction_index = index
             visit.end_us = t_us
+            flush(t_us)
             visit.gauge_out = gauge.value(cid)
+            if resources is not None:
+                resources.visit_end(cid, t_us)
+                visit.energy_out = resources.snapshot(cid, t_us)
+                visit.energy_gain = resources.gained(cid) - gained_in
+                visit.energy_raw = resources.raw_gain(cid) - raw_in
+                visit.energy_events = resources.event_total(cid) - events_in
             if form is not None:
                 if rule.get("policy") == "warn":
                     over = form.elapsed(form.last_us) - form.duration_us
@@ -911,9 +1323,11 @@ def _layout_axis(static, order, loops, by_key, gauge, sched, names, elements, st
                 visit.form = form.summary()
             visits.append(visit)
             previous = cid
+    flush(None)
     return _Layout(rows, side, visits, swaps, stops, stop_owners, t_us, dict(missing), unknown_stop,
                    used_default, used_gauge_set, used_normal, tuple(refill_loops),
-                   {cid: dict(v) for cid, v in form_actions.items()})
+                   {cid: dict(v) for cid, v in form_actions.items()}, tuple(member_refills), resources, waited_total,
+                   hit_credited=dict(writer.credited), node_hooks=node_hooks, node_gauge=tuple(writer.node_gauge))
 
 
 # ── Phase 1b: damage-over-time ticks ──────────────────────────────────────
@@ -1095,10 +1509,11 @@ def _form_configs(static, team_ids) -> dict:
 
 def _run_engine(static, build, candidates, buff_rules, hits: list[dict], stops: list[tuple[int, int]],
                 ordinary_scorch: dict[str, str], form_configs: dict | None = None, *,
-                target_condition: dict | None = None, buff_edit=None, fork_corrections=None):
+                target_condition: dict | None = None, buff_edit=None, fork_corrections=None, node_hooks=None):
     """``target_condition`` (None = DEFAULT_TARGET) and ``buff_edit`` (a function applied to the analysis right
     after buff inference: disabled / manual buffs) are the custom-cycle mode's options.  ``fork_corrections``
-    (team_fork_corrections.ForkCorrections) runs first, so the custom mode can switch corrected buffs off too."""
+    (team_fork_corrections.ForkCorrections) runs first, so the custom mode can switch corrected buffs off too;
+    ``node_hooks`` (awakening_node_rules.RunHooks) right after it (intervals) and after the Scorch patch (evidence)."""
     from src.services.battle_counterfactual_analysis_service import BattleCounterfactualAnalysisService
     from src.services.battle_hit_replay_service import BattleHitReplayService
     from src.services.battle_skill_damage_evidence_service import BattleSkillDamageEvidenceService
@@ -1114,10 +1529,14 @@ def _run_engine(static, build, candidates, buff_rules, hits: list[dict], stops: 
     )
     if fork_corrections is not None:
         analysis = fork_corrections(analysis)
+    if node_hooks is not None:          # awakening node rules: supplement / replace / fill buff intervals
+        analysis = node_hooks.intervals(analysis)
     if buff_edit is not None:
         analysis = buff_edit(analysis)
     evidence = BattleSkillDamageEvidenceService.load(static, analysis, build)
     evidence = patch_ordinary_scorch_evidence(evidence, ordinary_scorch)
+    if node_hooks is not None:          # awakening node rules: skill coefficients of named damage GEs
+        evidence = node_hooks.evidence(evidence)
     replays = BattleHitReplayService.replay(analysis, evidence, apply_observed_refinements=False)
     return analysis, replays
 
@@ -1164,6 +1583,9 @@ class _Ctx:
     target_condition: Any = None    # None = DEFAULT_TARGET (custom-cycle mode: the enemy options)
     buff_edit: Any = None           # analysis -> analysis after buff inference (custom-cycle mode)
     fork_corrections: Any = None    # team_fork_corrections.ForkCorrections (applied before buff_edit)
+    policy: Any = None              # team_resources.ResourcePolicy of the reviewed layout (None = legacy level)
+    node_rules: Any = None          # awakening_node_rules.Prepared: the selected-node rules of the members
+    charge_eff: Any = None          # {cid: build charge efficiency} once an engine run has shown it (resources)
 
 
 @dataclass
@@ -1177,6 +1599,7 @@ class _Run:
     sched: Any
     to_active: Any
     corrections: Any = None         # team_fork_corrections.CorrectionReport of the engine run kept
+    node_hooks: Any = None          # awakening_node_rules.RunHooks of the engine run kept (post increments, notes)
 
 
 def _new_axis(ctx: _Ctx):
@@ -1190,11 +1613,46 @@ def _new_axis(ctx: _Ctx):
     return stops, to_active, to_wall, gauge, sched
 
 
+def _new_resources(ctx: _Ctx, stops: list):
+    """The ResourceState of one reviewed layout (None at the legacy level: the old rule, bit for bit)."""
+    policy = ctx.policy
+    if policy is None or getattr(policy, "legacy", True):
+        return None
+    from src.services import team_awakening
+    from src.services.team_resources import ResourceState
+
+    # A4: the members' node sets (rules store the node number n = Effect n, team_resources.ResourceState.unlocked)
+    awakening = team_awakening.selections_of(ctx.characters)
+    rules = ctx.node_rules
+    extra = {}
+    if rules is not None and not rules.empty:      # awakening node rules: resource rows and hooks
+        extra = {"extra_rules": {c: rules.resource_rules(c) for c in ctx.team_ids},
+                 "extra_events": {c: rules.resource_events(c) for c in ctx.team_ids},
+                 "hooks": rules.resource_hooks()}
+    state = ResourceState(ctx.team_ids, policy=policy, stops=stops, solo=len(ctx.team_ids) < 2, awakening=awakening,
+                          charge_eff=ctx.charge_eff, **extra)
+    state.target = ctx.target_condition or DEFAULT_TARGET     # resource hooks / e_resets_q see the enemy options
+    from src.services import global_live_overlay      # explanation codes the Global live overlay replaces
+
+    state.code_map = global_live_overlay.code_map(getattr(ctx.static, "database_path", None))
+    return state
+
+
+def _layout_hooks(ctx: _Ctx, mode: str = "approved"):
+    """Per-layout awakening node hooks (gate / placed / free_support), None when no such rule is active."""
+    rules = getattr(ctx, "node_rules", None)
+    hooks = None if rules is None else rules.layout(mode)
+    if hooks is not None:               # the gate sees the run's enemy (custom mode sets it before the layout)
+        hooks.target_condition = ctx.target_condition or DEFAULT_TARGET
+    return hooks
+
+
 def _dry_layout(ctx: _Ctx, order) -> tuple[_Layout, Any, Any]:
     """Layout only (no engine): the planner's cheap first pass."""
     stops, to_active, _to_wall, gauge, sched = _new_axis(ctx)
     layout = _layout_axis(ctx.static, order, ctx.loops, ctx.by_key, gauge, sched, ctx.names, ctx.elements, stops,
-                          opening_gauge=ctx.opening_gauge)
+                          opening_gauge=ctx.opening_gauge, resources=_new_resources(ctx, stops),
+                          node_hooks=_layout_hooks(ctx))
     sched.set_horizon(layout.end_us)
     return layout, sched, to_active
 
@@ -1202,24 +1660,37 @@ def _dry_layout(ctx: _Ctx, order) -> tuple[_Layout, Any, Any]:
 def _run_order(ctx: _Ctx, order) -> _Run:
     return _run_axis(ctx, lambda stops, gauge, sched: _layout_axis(
         ctx.static, order, ctx.loops, ctx.by_key, gauge, sched, ctx.names, ctx.elements, stops,
-        opening_gauge=ctx.opening_gauge), order)
+        opening_gauge=ctx.opening_gauge, resources=_new_resources(ctx, stops), node_hooks=_layout_hooks(ctx)), order)
 
 
-def _run_axis(ctx: _Ctx, lay, order=()) -> _Run:
+def _run_axis(ctx: _Ctx, lay, order=(), _regated: bool = False) -> _Run:
     """One full run: ``lay(stops, gauge, sched)`` lays the hits out (the approved rotations, or a custom cycle),
     then the damage-over-time ticks, the reaction rows, the engine and the owner pass."""
     stops, to_active, to_wall, gauge, sched = _new_axis(ctx)
     # the layout appends measured stops to the clock's own list (make_clock re-reads it lazily)
     layout = lay(stops, gauge, sched)
     sched.set_horizon(layout.end_us)
-    dot_rows = _dot_tick_rows(_dot_applications(layout.rows, ctx.build), ctx.static, ctx.names, to_active, to_wall,
-                              layout.end_us, ctx.nightmare)
+    applications = _dot_applications(layout.rows, ctx.build)
+    dot_rows = _dot_tick_rows(applications, ctx.static, ctx.names, to_active, to_wall, layout.end_us, ctx.nightmare)
+    node_hooks = _run_hooks(ctx, layout, to_active, to_wall, sched, applications)
+    extra_rows: list = []
+    tick_rows = dot_rows
+    if node_hooks is not None:          # awakening node rules: DoT rows (dot_rows) and extra hit rows (rows)
+        layout.run_hooks = node_hooks   # _collect reads the post hooks from the layout (its call shape is unchanged)
+        dot_rows = node_hooks.dot_rows(dot_rows)
+        extra_rows, extra_ticks = node_hooks.rows()
+        tick_rows = dot_rows + extra_ticks
     # Zankou's Scorch waits for a DoT tick and every DoT tick refreshes it (GA_Zankou_Passive1)
-    sched.set_dot_ticks(row["relative_time_us"] for row in dot_rows)
+    sched.set_dot_ticks(row["relative_time_us"] for row in tick_rows)
+    if extra_rows:                      # credited like DoT ticks: the owner's latest visit (_collect)
+        dot_rows = dot_rows + extra_rows
     reaction_rows = sched.rows("incoming")
     hits = _number(layout.rows + dot_rows + reaction_rows)
     options = {"target_condition": ctx.target_condition, "buff_edit": ctx.buff_edit,
                "fork_corrections": ctx.fork_corrections}
+    if node_hooks is not None:
+        options["node_hooks"] = node_hooks
+        node_hooks.info.hits = hits
     analysis, replays = _run_engine(ctx.static, ctx.build, ctx.candidates, ctx.buff_rules, hits, stops,
                                     sched.ordinary_scorch_attributes(), ctx.form_configs, **options)
     from src.services import team_cycle_reactions as tcr
@@ -1230,11 +1701,37 @@ def _run_axis(ctx: _Ctx, lay, order=()) -> _Run:
         new_rows = sched.rows(owners)
         if rerun or not _adopt_numbering(reaction_rows, new_rows):
             hits = _number(layout.rows + dot_rows + new_rows)
+            if node_hooks is not None:
+                node_hooks.info.hits = hits
             analysis, replays = _run_engine(ctx.static, ctx.build, ctx.candidates, ctx.buff_rules, hits, stops,
                                             sched.ordinary_scorch_attributes(), ctx.form_configs, **options)
         reaction_rows = new_rows
+    resources = getattr(layout, "resources", None)
+    if resources is not None:
+        # the build's whole-fight charge efficiency (arc / cartridge) is known only now: the energy gained follows
+        # it at once; a member whose ultimate a pool gates is laid out again with it (design §4.4)
+        from src.services.team_resources import charge_eff_from_analysis
+
+        eff = charge_eff_from_analysis(analysis, ctx.team_ids, START_US, layout.end_us)
+        regate = resources.set_build_eff(eff)
+        ctx.charge_eff = eff
+        if regate and not _regated:
+            return _run_axis(ctx, lay, order, _regated=True)
     report = getattr(ctx.fork_corrections, "last_report", None) if ctx.fork_corrections is not None else None
-    return _Run(tuple(order), layout, dot_rows, reaction_rows, analysis, replays, sched, to_active, report)
+    return _Run(tuple(order), layout, dot_rows, reaction_rows, analysis, replays, sched, to_active, report,
+                node_hooks=node_hooks)
+
+
+def _run_hooks(ctx: _Ctx, layout, to_active, to_wall, sched, applications):
+    """awakening_node_rules.RunHooks of one engine run (None when no run-level rule is active)."""
+    rules = getattr(ctx, "node_rules", None)
+    if rules is None or not rules.has("dot_rows", "rows", "intervals", "evidence", "post"):
+        return None
+    from src.services.awakening_node_rules.core import RunInfo
+
+    hooks = getattr(layout, "node_hooks", None)
+    return rules.run(RunInfo(ctx, layout, to_active, to_wall, sched, applications,
+                             tuple(hooks.placed) if hooks is not None else ()))
 
 
 # ── visit-order planner (order_mode "plan") ───────────────────────────────
@@ -1353,8 +1850,13 @@ def _plan_order(ctx: _Ctx, collect) -> tuple[_Run, Any, Any]:
         covered, form_s = _coverage_s(layout, sched, carry, to_active, ctx.elements)
         coverage = round(covered, 1)
         first = bool(order) and order[0] == carry
-        key = (-reactions, -coverage, -int(loop2), 0 if first else 1, slot_rank.get(order, 0))
-        scored.append((key, order, reactions, coverage, loop2, first, round(form_s, 1)))
+        q_casts = sum(1 for v in layout.visits for s in v.steps if s.slot == "ultimate" and s.status == "ok")
+        waited = round(layout.waited_us / 1e6, 2)
+        if layout.resources is None:        # legacy level: the old key, unchanged
+            key = (-reactions, -coverage, -int(loop2), 0 if first else 1, slot_rank.get(order, 0))
+        else:                               # resources break ties after the existing priorities (design J12)
+            key = (-reactions, -coverage, -int(loop2), -q_casts, waited, 0 if first else 1, slot_rank.get(order, 0))
+        scored.append((key, order, reactions, coverage, loop2, first, round(form_s, 1), q_casts, waited))
     scored.sort(key=lambda r: r[0])
     simulated: dict[tuple, tuple[_Run, Any]] = {}
     for _key, order, *_rest in scored[:PLAN_MAX_RUNS]:
@@ -1368,12 +1870,14 @@ def _plan_order(ctx: _Ctx, collect) -> tuple[_Run, Any, Any]:
                 best = (order, dps, rank)
     chosen = best[0]
     trace_rows = []
-    for rank, (_key, order, reactions, coverage, loop2, first, form_s) in enumerate(scored):
+    resourced = any(r[0] and len(r[0]) == 7 for r in scored)
+    for rank, (_key, order, reactions, coverage, loop2, first, form_s, q_casts, waited) in enumerate(scored):
         dps = simulated[order][1].dps if order in simulated else None
+        extra = {"q_casts": q_casts, "waited_s": waited} if resourced else {}
         trace_rows.append(tx.PlanCandidate(order=order, adjacency=_cyclic_adjacency(order, ctx.elements),
                                            reactions=reactions, coverage_s=coverage, loop2_support_entry=loop2,
                                            carry_first=first, dps=dps, chosen=order == chosen, rank=rank,
-                                           form_s=form_s))
+                                           form_s=form_s, **extra))
     chosen_row = next(r for r in trace_rows if r.chosen)
     # reasons follow the data: the fixed "first / last" rationales only where they hold for this team
     best_cover = max((r.coverage_s for r in trace_rows if r.dps is not None), default=0.0)
@@ -1390,6 +1894,10 @@ def _plan_order(ctx: _Ctx, collect) -> tuple[_Run, Any, Any]:
         reasons.append(tx.note(tx.PLAN_COVERAGE, chosen_row.coverage_s, chosen_row.form_s))
     if chosen_row.coverage_s + 0.05 < best_cover:
         reasons.append(tx.note(tx.PLAN_COVER_TRADE, chosen_row.coverage_s, best_cover))
+    if resourced:
+        others = [r.q_casts for r in trace_rows if not r.chosen and r.dps is not None]
+        if others and chosen_row.q_casts > max(others):
+            reasons.append(tx.note(tx.PLAN_Q_CASTS, chosen_row.q_casts))
     plan = tx.PlanTrace(carry_character_id=carry, carry_basis=basis, candidates=tuple(trace_rows),
                         reasons=tuple(reasons))
     run, result = simulated[chosen]
@@ -1407,6 +1915,7 @@ def _open_session(static_path: Path, user_db_path: Path | None, account_id: str,
     from src.services.battle_buff_inference_service import BattleBuffInferenceService
     from src.services.battle_build_stat_reconstruction_service import BattleBuildStatReconstructionService
     from src.services.battle_report_persistence_service import BattleReportPersistenceDependencies
+    from src.services import awakening_node_rules
     from src.services import team_cycle_reactions as tcr
     from src.services import team_fork_corrections
     from src.storage.sqlite.static_game_data_dao import StaticGameDataDao
@@ -1450,17 +1959,21 @@ def _open_session(static_path: Path, user_db_path: Path | None, account_id: str,
                                             for c in characters]}
                     nightmare = _nightmare_setup(con, build)
                     corrections = team_fork_corrections.prepare(con, characters)
+                    node_rules = awakening_node_rules.prepare(con, static, characters)   # selected-node rules
                 finally:
                     con.close()
                 names = {c["character_id"]: c["observed_name"] for c in characters}
                 BattleBuildStatReconstructionService.enrich(build, deps)
                 _add_form_skill_levels(static, build)
+                buff_rules = BattleBuffInferenceService.load_rules(static, build)
+                if node_rules.has("buff_rules"):
+                    buff_rules = node_rules.extend_buff_rules(static, build, buff_rules)
                 return _Ctx(static=static, team_ids=list(team_ids), characters=characters, build=build, rules=rules,
                             nightmare=nightmare, ability_names=ability_names, elements=elements, names=names,
                             candidates=candidates, by_key=by_key,
-                            buff_rules=BattleBuffInferenceService.load_rules(static, build),
+                            buff_rules=buff_rules,
                             form_configs=form_configs, loops=loops, gauge_rule=gauge_rule,
-                            opening_gauge=opening_gauge, fork_corrections=corrections)
+                            opening_gauge=opening_gauge, fork_corrections=corrections, node_rules=node_rules)
 
             yield make
 
@@ -1503,10 +2016,44 @@ def _with_fork_notes(result: TeamResult, report) -> TeamResult:
     return result
 
 
+def _with_node_notes(result: TeamResult, run: "_Run | None", ctx: "_Ctx | None") -> TeamResult:
+    """Explanation items of the awakening node rules (awakening_node_rules; nothing when no rule / note applies):
+    the nodes whose rules ran, expected-value nodes, selected nodes the simulator does not price (measure / not
+    computable), the notes the hooks wrote, and limits that a selected node's rules make obsolete dropped."""
+    if result is None or result.explanation is None or ctx is None or getattr(ctx, "node_rules", None) is None:
+        return result
+    from src.services import team_simulation_explanation as tx
+
+    assume, limits, drop = tx.node_rule_notes(ctx.node_rules, run)
+    if not assume and not limits and not drop:
+        return result
+    expl = result.explanation
+    kept = tuple(item for item in expl.limits if tx.split_note(item)[0] not in drop)
+    result.explanation = dataclasses.replace(expl, assumptions=tuple(expl.assumptions) + tuple(assume),
+                                             limits=kept + tuple(limits))
+    return result
+
+
+def resolve_policy(resource_model: str | None = None, resource_policy=None):
+    """The team_resources.ResourcePolicy a run uses: an explicit policy, else the level's defaults
+    (``None`` = team_resources.DEFAULT_RESOURCE_MODEL)."""
+    from src.services import team_resources
+
+    if resource_policy is not None:
+        return resource_policy
+    return team_resources.policy_for(resource_model)
+
+
 def simulate_team(static_path: Path, user_db_path: Path, account_id: str, specs: list[MemberSpec], *,
                   order_mode: str = "auto", loops: int = DEFAULT_LOOPS, gauge_rule: str = "game",
-                  opening_gauge: str = "full") -> TeamResult:
-    """Simulate the team with approved rotations; Esper Cycle reactions are always computed."""
+                  opening_gauge: str = "full", resource_model: str | None = None,
+                  resource_policy=None) -> TeamResult:
+    """Simulate the team with approved rotations; Esper Cycle reactions are always computed.
+
+    ``resource_model`` ("legacy" | "data" | "community", None = team_resources.DEFAULT_RESOURCE_MODEL) or an explicit
+    ``resource_policy`` (team_resources.ResourcePolicy) decides the ultimate-energy / cooldown checks and the gauge
+    refill rule; "legacy" reproduces the old rule bit for bit."""
+    policy = resolve_policy(resource_model, resource_policy)
     if order_mode not in ORDER_MODES:
         raise ValueError(f"unknown order_mode {order_mode!r}")
     if gauge_rule not in GAUGE_RULES:
@@ -1520,15 +2067,16 @@ def simulate_team(static_path: Path, user_db_path: Path, account_id: str, specs:
         _approved_steps(cid)                      # fail early for a member without an approved rotation
     with _open_context(static_path, user_db_path, account_id, specs, loops=loops, gauge_rule=gauge_rule,
                        opening_gauge=opening_gauge) as ctx:
+        ctx.policy = policy
         characters, elements, ability_names, by_key = ctx.characters, ctx.elements, ctx.ability_names, ctx.by_key
         simulated = _simulated_steps(team_ids, by_key)
 
         def collect(run: _Run, plan) -> TeamResult:
-            return _with_fork_notes(
+            return _with_node_notes(_with_fork_notes(
                 _collect(team_ids, characters, run.order, loops, order_mode, gauge_rule, opening_gauge,
                          run.layout, run.dot_rows, run.reaction_rows, run.analysis, run.replays, run.sched,
                          run.to_active, elements, ability_names, simulated, plan),
-                run.corrections)
+                run.corrections), run, ctx)
 
         if order_mode == "plan":
             run, _result, plan = _plan_order(ctx, collect)
@@ -1561,8 +2109,11 @@ class SoloRun:
 
 @contextlib.contextmanager
 def solo_session(static_path: Path, character_id: int, *, loops: int = DEFAULT_LOOPS, user_db_path: Path | None = None,
-                 account_id: str = "solo_session", gauge_rule: str = "game", opening_gauge: str = "full"):
+                 account_id: str = "solo_session", gauge_rule: str = "game", opening_gauge: str = "full",
+                 resource_model: str | None = None, resource_policy=None):
     """One member, many arc / refinement / awakening / set choices on one shared context (the arc efficiency table).
+    Awakening specs follow ``MemberSpec``: ``awakening_effects`` = any node set (level = max(level, count); a level
+    above the count leaves slots open, the efficiency table's resonance-only variants), a level alone = Effect1..level.
 
     Yields ``run(spec) -> SoloRun``.  Every run gives exactly ``simulate_team(static_path, account, account_id, [spec],
     loops=loops)`` (order "auto", one member: first visit "opener", no swap, no reaction).  Without ``user_db_path``
@@ -1574,6 +2125,7 @@ def solo_session(static_path: Path, character_id: int, *, loops: int = DEFAULT_L
         raise ValueError(f"unknown opening_gauge {opening_gauge!r}")
     loops = max(1, min(MAX_LOOPS, int(loops)))
     opening_gauge = _effective_opening(opening_gauge)
+    policy = resolve_policy(resource_model, resource_policy)
     cid = int(character_id)
     _approved_steps(cid)
     with _open_session(static_path, user_db_path, account_id, [cid], loops=loops, gauge_rule=gauge_rule,
@@ -1584,13 +2136,14 @@ def solo_session(static_path: Path, character_id: int, *, loops: int = DEFAULT_L
                 raise ValueError(f"this session runs {cid}, not {spec.character_id}")
             started = time.perf_counter()
             ctx = make([spec])
+            ctx.policy = policy
             order = _visit_order([cid], ctx.elements, "auto")
             done = _run_order(ctx, order)
-            result = _with_fork_notes(
+            result = _with_node_notes(_with_fork_notes(
                 _collect([cid], ctx.characters, done.order, loops, "auto", gauge_rule, opening_gauge, done.layout,
                          done.dot_rows, done.reaction_rows, done.analysis, done.replays, done.sched, done.to_active,
                          ctx.elements, ctx.ability_names, _simulated_steps([cid], ctx.by_key), None),
-                done.corrections)
+                done.corrections), done, ctx)
             return SoloRun(spec, result, done, time.perf_counter() - started)
 
         yield run
@@ -1609,7 +2162,12 @@ def buff_key(interval) -> str:
 
 def _collect(team_ids, characters, order, loops, order_mode, gauge_rule, opening_gauge, layout, dot_rows,
              reaction_rows, analysis, replays, sched, to_active, elements, ability_names, simulated,
-             plan=None) -> TeamResult:
+             plan=None, *, node_hooks=None) -> TeamResult:
+    """``node_hooks`` (awakening_node_rules.RunHooks of the run; default: ``layout.run_hooks``): damage its post
+    hooks settle after replay is added to the members' direct damage and credited to their visits like DoT ticks."""
+    if node_hooks is None:
+        node_hooks = getattr(layout, "run_hooks", None)
+    from src.services import team_awakening
     from src.services import team_cycle_reactions as tcr
     from src.services import team_simulation_explanation as tx
     from src.services.team_rotation_data import CHARACTERS
@@ -1619,11 +2177,13 @@ def _collect(team_ids, characters, order, loops, order_mode, gauge_rule, opening
     def event_of(row: dict) -> str:
         return f"{row['sequence_order']}:primary"
 
+    selections = team_awakening.selections_of(characters)
     results = {c["character_id"]: MemberResult(
         character_id=c["character_id"], name_zh=c["observed_name"], fork_id=c["fork_id"],
         fork_refinement_level=c["fork_refinement_level"], awakening_level=c["awakening_level"],
         suit_id=c["_suit_id"], element=elements.get(c["character_id"], ""),
-        role=str((CHARACTERS.get(c["character_id"]) or {}).get("role") or "")) for c in characters}
+        role=str((CHARACTERS.get(c["character_id"]) or {}).get("role") or ""),
+        awakening_effects=tuple(selections[int(c["character_id"])].effects)) for c in characters}
 
     status: dict[str, int] = defaultdict(int)
     unreplayable = 0
@@ -1708,6 +2268,14 @@ def _collect(team_ids, characters, order, loops, order_mode, gauge_rule, opening
         breakdown[inc.reaction_zh] += inc.increment
         if inc.character_id in results:
             results[int(inc.character_id)].reaction_damage += inc.increment
+    if node_hooks is not None:          # awakening node rules: damage settled after replay (post hooks)
+        for settled in node_hooks.post(pairs):
+            cid = int(settled.character_id)
+            if cid in results and settled.damage:
+                results[cid].damage += float(settled.damage)
+                vi = owner_visit(cid, int(settled.t_us))
+                if vi is not None:
+                    dot_damage[vi] += float(settled.damage)
 
     # visits, on-field time and the battle clock
     wall_time_s = _seconds(layout.end_us)
@@ -1793,6 +2361,9 @@ def _explain(team_ids, order, loops, order_mode, gauge_rule, opening_gauge, layo
 
     dot_damage, dot_hits = dot_damage or {}, dot_hits or {}
 
+    resources = getattr(layout, "resources", None)
+    if resources is not None:
+        _credit_charge_energy(layout, sched, resources)
     visits = []
     for visit in layout.visits:
         steps = []
@@ -1800,11 +2371,27 @@ def _explain(team_ids, order, loops, order_mode, gauge_rule, opening_gauge, layo
             name = ability_names.get(step.ability_id or "", "")
             if not name and (step.ability_id, step.selector) in FORM_ACTIONS:
                 name = FORM_ACTIONS[(step.ability_id, step.selector)].get("name_zh") or ""
+            extra = {}
+            if resources is not None:
+                extra = {"energy_before": step.energy_before, "energy_after": step.energy_after,
+                         "cd_kind": step.cd_kind, "remaining_s": step.remaining_us / 1e6, "note": step.note,
+                         "events": tuple(step.events), "credit": float(step.credit), "cost": step.cost,
+                         "energy_gain": round(resources.scaled(visit.character_id, step.energy_raw,
+                                                               step.energy_events), 3),
+                         "gauge_after": step.gauge_after, "gauge_gain": round(float(step.gauge_gain), 3),
+                         "cd_s": step.cd_s, "cd_conf": step.cd_conf, "cd_source": step.cd_source,
+                         "dropped": int(getattr(step, "dropped", 0) or 0), "wait_for": getattr(step, "wait_for", None)}
             steps.append(tx.StepTrace(
                 seq=step.seq, slot=step.slot, ability_id=step.ability_id, selector=step.selector,
                 start_s=_seconds(step.start_us), duration_s=(step.end_us - step.start_us) / 1e6,
                 hits=step_hits.get((visit.index, si), 0), damage=step_damage.get((visit.index, si), 0.0),
-                status=step.status, ability_name_zh=name, form_role=step.form_role))
+                status=step.status, ability_name_zh=name, form_role=step.form_role, **extra))
+        extra = {}
+        if resources is not None:
+            extra = {"energy_in": visit.energy_in, "energy_out": visit.energy_out,
+                     "waited_s": visit.waited_us / 1e6, "early_swap": tuple(getattr(visit, "early_swap", ()) or ()),
+                     "energy_gain": round(resources.scaled(visit.character_id, visit.energy_raw,
+                                                           visit.energy_events), 3)}
         visits.append(tx.VisitTrace(
             index=visit.index, loop_index=visit.loop_index, character_id=visit.character_id,
             element=elements.get(visit.character_id, ""), entry=visit.entry,
@@ -1813,7 +2400,7 @@ def _explain(team_ids, order, loops, order_mode, gauge_rule, opening_gauge, layo
             gauge_in=float(visit.gauge_in), gauge_out=float(visit.gauge_out), steps=tuple(steps),
             damage=sum(s.damage for s in steps), dot_damage=float(dot_damage.get(visit.index, 0.0)),
             dot_hits=int(dot_hits.get(visit.index, 0)), refilled=bool(visit.refilled),
-            form=_form_trace(tx, visit.form, to_active)))
+            form=_form_trace(tx, visit.form, to_active), **extra))
 
     swaps = tuple(tx.SwapTrace(
         index=s.index, time_s=_seconds(s.time_us), out_character_id=s.out_character_id,
@@ -1864,7 +2451,15 @@ def _explain(team_ids, order, loops, order_mode, gauge_rule, opening_gauge, layo
     assumptions = [tx.note(tx.ASSUME_APPROVED_ROTATIONS), tx.note(order_note)]
     if opening_gauge != "full":
         assumptions.append(tx.note(tx.ASSUME_OPENING_ZERO))
-    if refills:
+    if resources is not None:               # resource levels: accumulated gauge, fixed refill for fallback members
+        if refills:
+            assumptions.append(tx.note(tx.ASSUME_GAUGE_ACCUMULATED))
+        by_loop: dict[int, list[int]] = defaultdict(list)
+        for loop, cid in getattr(layout, "refills", ()) or ():
+            by_loop[int(loop)].append(int(cid))
+        for loop in sorted(by_loop):
+            assumptions.append(tx.note(tx.ASSUME_GAUGE_FALLBACK, loop, *by_loop[loop]))
+    elif refills:
         assumptions.append(tx.note(tx.ASSUME_FULL_GAUGE_LOOPS, *refills))
     assumptions.append(tx.note(tx.ASSUME_GAUGE_GAME if gauge_rule == "game" else tx.ASSUME_GAUGE_IDEAL))
     if layout.used_gauge_set:
@@ -1884,7 +2479,13 @@ def _explain(team_ids, order, loops, order_mode, gauge_rule, opening_gauge, layo
         if entered:
             assumptions.append(tx.note(tx.ASSUME_FORM_WINDOW, cid, entered[0].name_zh,
                                        f"{entered[0].duration_s:g}"))
-    assumptions.append(tx.note(tx.ASSUME_ENERGY_NOT_GATED))
+    resource_traces, resource_assume, resource_limits = (), [], []
+    if resources is None:
+        assumptions.append(tx.note(tx.ASSUME_ENERGY_NOT_GATED))
+    else:
+        resource_traces, resource_assume, resource_limits = _resource_notes(tx, team_ids, layout, visits, codes,
+                                                                            resources)
+        assumptions.extend(resource_assume)
     for code in (tx.ASSUME_HEXED_IMMEDIATE, tx.ASSUME_SCORCH_DOT):   # scheduler model notes, not limits
         if any(c == code for c, _args in scheduler_limits):
             assumptions.append(tx.note(code))
@@ -1892,6 +2493,8 @@ def _explain(team_ids, order, loops, order_mode, gauge_rule, opening_gauge, layo
         assumptions.append(tx.note(tx.ASSUME_REACTION_OWNER))
 
     dropped = {tx.ASSUME_HEXED_IMMEDIATE, tx.ASSUME_SCORCH_DOT}
+    if resources is not None:               # the 盈蓄 energy is in the energy shown (validation F7)
+        dropped.add(tx.LIMIT_CHARGE_ENERGY)
     if scorch_layers >= 2:       # the damage-over-time ticks already stack Zankou's Scorch past 1 layer
         dropped.add(tx.LIMIT_SCORCH_ONE_LAYER)
     limits = [tx.note(code, *args) for code, args in scheduler_limits if code not in dropped]
@@ -1900,8 +2503,12 @@ def _explain(team_ids, order, loops, order_mode, gauge_rule, opening_gauge, layo
     if 1072 in team_ids:
         limits.append(tx.note(tx.LIMIT_LINKO_COATTACK))
     lacrimosa = next((c for c in results.values() if c.character_id == LACRIMOSA_ID), None)
-    if lacrimosa is not None and lacrimosa.awakening_level >= 6:
+    if lacrimosa is not None and "Effect6" in lacrimosa.awakening_effects:     # A5: the node, not the level
         limits.append(tx.note(tx.LIMIT_LACRIMOSA_A6))
+    for assumed_by in results.values():     # the approved rotation assumes a node the member did not select
+        for node in tx.rotation_assumed_nodes(assumed_by.character_id):
+            if node not in assumed_by.awakening_effects:
+                limits.append(tx.note(tx.LIMIT_ROTATION_ASSUMES_AWAKENING, assumed_by.character_id, node))
     limits.append(tx.note(tx.LIMIT_SUMMONS_DOT))
     for cid in team_ids:                    # form windows: cut rounds, overruns, missed exit windows
         own = [v.form for v in visits if v.character_id == cid and v.form is not None]
@@ -1931,10 +2538,221 @@ def _explain(team_ids, order, loops, order_mode, gauge_rule, opening_gauge, layo
             limits.append(tx.note(tx.LIMIT_TIME_STOP_UNKNOWN, cid))
     if unreplayable:
         limits.append(tx.note(tx.LIMIT_UNREPLAYABLE, unreplayable))
+    limits.extend(resource_limits)
     limits.append(tx.note(tx.LIMIT_FIGHT_END))
 
+    extra = {}
+    if resources is not None:
+        extra = {"resource_model": resources.policy.model, "gauge_refills": tuple(getattr(layout, "refills", ()) or ()),
+                 "resources": resource_traces, "waited_s": getattr(layout, "waited_us", 0) / 1e6,
+                 "resource_clock": resources.policy.clock, "not_ready": resources.not_ready_mode()}
     return tx.TeamExplanation(
         order_mode=order_mode, gauge_rule=gauge_rule, opening_gauge=opening_gauge, loops=loops, order=tuple(order),
         wall_time_s=wall_time_s, active_time_s=active_time_s, time_stops=stops, visits=tuple(visits), swaps=swaps,
         reactions=tuple(reactions), members=tuple(members), assumptions=tuple(assumptions), limits=tuple(limits),
-        full_gauge_loops=refills, plan=plan)
+        full_gauge_loops=refills, plan=plan, **extra)
+
+
+def _credit_charge_energy(layout, sched, resources) -> None:
+    """盈蓄 ultimate-energy grants (the member on the field at each grant, team_cycle_reactions.charge_grants) added to
+    that member's energy, its visit and the step running then (display; the layout's checks did not use them).  Runs
+    once per layout: plan mode collects the chosen run twice."""
+    if layout.charge_done:
+        return
+    layout.charge_done = True
+    grants = sched.charge_grants() if hasattr(sched, "charge_grants") else ()
+    visits = sorted(layout.visits, key=lambda v: v.start_us)
+    for t_us, amount in grants:
+        visit = next((v for v in reversed(visits) if v.start_us <= t_us), None)
+        if visit is None:
+            continue
+        resources.add_charge(visit.character_id, amount)
+        visit.energy_events += amount
+        step = next((s for s in visit.steps if s.start_us <= t_us < s.end_us and s.status == "ok"), None)
+        if step is None:
+            step = next((s for s in reversed(visit.steps) if s.status == "ok" and s.start_us <= t_us), None)
+        if step is not None:
+            step.energy_events += amount
+            step.events = tuple(step.events) + (("charge", float(amount)),)
+        layout.charge_energy += amount
+        layout.charge_grants += 1
+
+
+def _resource_notes(tx, team_ids, layout, visits, codes, resources):
+    """MemberResourceTrace per member plus the assumption / limit items of a resource level (team_resources)."""
+    from src.services import team_resources as tr
+
+    policy = resources.policy
+    data = resources.data
+    traces, assume, limits = [], [], []
+    assume.append(tx.note(tx.ASSUME_RESOURCE_MODEL, policy.model))
+    assume.append(tx.note(tx.ASSUME_RESOURCE_CLOCK, policy.clock))
+    assume.append(tx.note(tx.ASSUME_ENERGY_TRACKED))
+    assume.append(tx.note(tx.ASSUME_CHARGE_EFF))
+    if resources.not_ready_mode() == "swap":    # D3 (2026-10-14): a team swaps out at once (threshold: 2026-10-18)
+        assume.append(tx.note(tx.ASSUME_NOT_READY_SWAP, float(policy.swap_min_wait_s)))
+    elif resources.solo and policy.cooldown == "wait":     # nobody to swap to
+        assume.append(tx.note(tx.ASSUME_NOT_READY_SOLO))
+    used_kinds: dict[int, set] = defaultdict(set)
+    skipped_too_long: list = []
+    not_entered: list = []
+    for v in visits:
+        for s in v.steps:
+            if s.cd_kind and s.status in ("ok", "cd_skip", "energy_short", "swap_out"):
+                used_kinds[v.character_id].add(s.cd_kind)
+            if s.status == "cd_skip":
+                skipped_too_long.append((v.character_id, s.cd_kind or "?", round(s.remaining_s, 1)))
+            if s.status == "form_cut" and s.note == "form_not_entered":
+                not_entered.append((v.character_id, v.loop_index + 1))
+    gated, unknown_cost, community_cd, struct_none = [], [], [], []
+    swap_mode = resources.not_ready_mode() == "swap"
+    blocked_total = 0.0                     # D3: seconds of all-blocked waits (told one by one, LIMIT_ALL_BLOCKED)
+    short_total = 0.0                       # waits under the swap threshold (told per member, ASSUME_SHORT_WAIT)
+    for cid in team_ids:
+        summary = resources.member_summary(cid)
+        rec = tr.record(cid, data)
+        # A6: codes bound to an awakening node are shown only when the node is selected (team_simulation_explanation)
+        member_codes = tuple((getattr(resources, "code_map", None) or {}).get(c, c)
+                             for c in rec.get("unmodelled") or ())
+        shown_unmodelled = tx.unmodelled_for(cid, member_codes, resources.selection_of(cid))
+        energy = rec.get("energy") or {}
+        cd_rows, alt_rows = [], []
+        for kind in ("E", "E_alt", "Q", "QTE", "counter"):
+            if kind not in (rec.get("cd") or {}):
+                continue
+            enforced = tr.cd_cell(cid, kind, policy, data)
+            best = tr.best_cd_cell(cid, kind, data)
+            used = resources.cd_seconds(cid, kind)
+            cell = enforced or best or (None, "", "unknown")
+            cd_rows.append((kind, used, None if best is None else best[0], str(cell[1]), str(cell[2])))
+            for value, label, conf in (rec.get("cd_alt") or {}).get(kind, ()):
+                alt_rows.append((kind, value, label, conf))
+        own_name = ((energy.get("clock") or energy.get("meter") or {}).get("name_zh") or "")
+        traces.append(tx.MemberResourceTrace(
+            character_id=cid, energy_kind=summary["energy_kind"], cost=tuple(energy.get("cost") or ()),
+            cost_enforced=summary["cost"] is not None or summary["energy_kind"] == "own_clock",
+            cost_display=tuple(energy.get("cost_display") or ()), cost_bound=energy.get("cost_bound"),
+            gauge_fallback=bool(summary["fallback"]), fallback_reason=summary["fallback_reason"], cd=tuple(cd_rows),
+            cd_alt=tuple(alt_rows), q_planned=summary["q_planned"], q_cast=summary["q_cast"],
+            q_skipped=summary["q_skipped"], waited_s=summary["waited_s"], cd_waits=summary["cd_waits"],
+            res_waits=summary["res_waits"], cd_skips=summary["cd_skips"], interlude_s=summary["interlude_s"],
+            interludes_s=tuple(summary.get("interludes_s") or ()),
+            energy_gained=round(summary["gained"], 3), charge_eff=summary["eff"], events=summary["events"],
+            unmodelled=tuple(shown_unmodelled), unchecked=summary["unchecked"],
+            credited_gauge=round(summary["credited_gauge"], 3), own_name_zh=own_name,
+            charges=resources.charges(cid, "E"), meter_short=summary["meter_short"],
+            early_swaps=tuple(summary.get("early_swaps") or ()), all_blocked=tuple(summary.get("all_blocked") or ()),
+            short_waits=tuple(summary.get("short_waits") or ())))
+        if not resources.has_record(cid):      # data module older than the character (review F6)
+            limits.append(tx.note(tx.LIMIT_RESOURCE_DATA_MISSING, cid))
+        if summary["energy_kind"] == "ultimate":
+            if summary["cost"] is not None:
+                gated.append((cid, summary["cost"]))
+            else:
+                unknown_cost.append(cid)
+                cost = energy.get("cost") or ()
+                if cost and cost[2] in data.CONTESTED and cost[0] is not None:
+                    limits.append(tx.note(tx.LIMIT_COST_CONTESTED, cid, cost[0]))
+        else:
+            assume.append(tx.note(tx.ASSUME_OWN_RESOURCE, cid, own_name))
+            if summary["energy_kind"] == "own_clock":
+                limits.append(tx.note(tx.LIMIT_OWN_RESOURCE_DRAIN, cid, own_name))
+                if summary["interlude_s"] > 0:
+                    per_visit = "/".join(f"{s:.1f}" for s in summary.get("interludes_s") or ())
+                    assume.append(tx.note(tx.ASSUME_HOTORI_INTERLUDE, cid, own_name, round(summary["interlude_s"], 2),
+                                          per_visit))
+                if summary["res_waits"] and resources.solo:
+                    limits.append(tx.note(tx.LIMIT_MIDVISIT_SWAP, cid))
+            else:
+                limits.append(tx.note(tx.LIMIT_OWN_RESOURCE_UNIT, cid, own_name))
+        shown = []
+        for kind in ("E", "E_alt", "Q"):
+            if kind not in used_kinds[cid]:
+                continue
+            c = tr.cd_cell(cid, kind, policy, data)
+            if c is None:
+                continue
+            if c[2] == "community_low":
+                shown.append(f"{kind} {float(c[0]):g}s")
+        if shown:
+            community_cd.append((cid, " · ".join(shown)))
+        unknown_kinds = [k for k in ("E", "E_alt", "Q") if k in used_kinds[cid] and resources.cd_seconds(cid, k) is None]
+        if unknown_kinds:
+            limits.append(tx.note(tx.LIMIT_CD_UNKNOWN, cid, "/".join(unknown_kinds)))
+        if "QTE" in used_kinds[cid] or "counter" in used_kinds[cid]:
+            qte = tr.cd_cell(cid, "QTE", policy, data)
+            if qte is not None and qte[2] == "db_struct_none":
+                struct_none.append(cid)
+        if summary["q_skipped"]:
+            limits.append(tx.note(tx.LIMIT_ENERGY_SHORT, cid, len(summary["q_skipped"])))
+        blocked_s = sum(float(b[2]) for b in summary.get("all_blocked") or ()) if swap_mode else 0.0
+        blocked_total += blocked_s
+        short = tuple(summary.get("short_waits") or ()) if swap_mode else ()
+        short_s = sum(float(x[3]) for x in short)
+        short_total += short_s
+        if short:                               # cooldowns under the swap threshold waited for (2026-10-18)
+            assume.append(tx.note(tx.ASSUME_SHORT_WAIT, cid, len(short), round(sum(float(x[4]) for x in short), 3),
+                                  float(policy.swap_min_wait_s)))
+        own_wait_s = summary["waited_s"] - blocked_s - short_s
+        if summary["cd_waits"] and (own_wait_s > 0.005 if swap_mode else summary["waited_s"] > 0):
+            limits.append(tx.note(tx.LIMIT_CD_WAITED, cid, round(own_wait_s, 2)))
+        swaps = tuple(summary.get("early_swaps") or ())
+        if swaps:                               # D3: swapped out at once (each one is a row of the step table)
+            # steps not run: the swapped-out steps themselves and the rest of their visits (review F2)
+            limits.append(tx.note(tx.LIMIT_EARLY_SWAP, cid, len(swaps), len(swaps) + sum(int(s[5]) for s in swaps)))
+        for _loop, _seq, seconds, other in summary.get("all_blocked") or ():
+            limits.append(tx.note(tx.LIMIT_ALL_BLOCKED, cid, seconds, other))
+        if summary["credits"]:
+            limits.append(tx.note(tx.LIMIT_TIME_ONLY_CREDIT, cid))
+        if summary["partial_time_only"]:
+            limits.append(tx.note(tx.LIMIT_GAUGE_PARTIAL, cid, summary["partial_time_only"]))
+        unmodelled = [c for c in shown_unmodelled if c]
+        if unmodelled:
+            limits.append(tx.note(tx.LIMIT_ENERGY_EVENT_UNMODELLED, cid, *unmodelled))
+        if policy.clock == "active":           # a recorded interval shorter than the cooldown (V6, G1 open)
+            for kind in sorted(rec.get("cd_conflict") or {}):
+                bound = resources.cd_conflict(cid, kind)     # None when the build's rules explain it (review F4)
+                if kind in used_kinds[cid] and bound is not None:
+                    limits.append(tx.note(tx.LIMIT_CD_CLOCK_CONFLICT, cid, kind, resources.cd_seconds(cid, kind),
+                                          bound))
+        charges = resources.charges(cid, "E")
+        if charges > 1 and resources.cd_seconds(cid, "E"):
+            limits.append(tx.note(tx.LIMIT_CD_CHARGES, cid, charges, resources.cd_seconds(cid, "E")))
+    for cid, cost in gated:
+        assume.append(tx.note(tx.ASSUME_ENERGY_GATED, cid, cost))
+    if gated:
+        assume.append(tx.note(tx.ASSUME_START_ENERGY_FULL))
+    inserted_s = getattr(layout, "waited_us", 0) / 1e6 - blocked_total - short_total
+    if inserted_s > (0.01 if swap_mode else 0.0):      # D3: all-blocked waits are not "inserted cooldown waits"
+        assume.append(tx.note(tx.ASSUME_CD_WAIT, round(inserted_s, 2)))
+    if unknown_cost:
+        limits.insert(0, tx.note(tx.LIMIT_ENERGY_UNKNOWN, *unknown_cost))
+        limits.insert(1, tx.note(tx.LIMIT_ENERGY_SCALE))
+    for cid, text in community_cd:
+        limits.append(tx.note(tx.LIMIT_CD_COMMUNITY, cid, text))
+    if struct_none:
+        limits.append(tx.note(tx.LIMIT_CD_NONE_STRUCT, *struct_none))
+    for cid, kind, seconds in skipped_too_long:
+        limits.append(tx.note(tx.LIMIT_CD_WAIT_TOO_LONG, cid, kind, seconds))
+    for cid, loop in dict.fromkeys(not_entered):
+        limits.append(tx.note(tx.LIMIT_FORM_NOT_ENTERED, cid, loop))
+    if gated and "盈蓄" in codes:
+        limits.append(tx.note(tx.LIMIT_CHARGE_ENERGY_GATED))
+    if getattr(layout, "charge_grants", 0):
+        assume.append(tx.note(tx.ASSUME_CHARGE_ENERGY_SHOWN, round(float(layout.charge_energy), 3),
+                              int(layout.charge_grants)))
+    for cid in team_ids:                    # hits the animation does not lay out (summons / zones; review F12)
+        ran = {(s.ability_id, s.selector or "") for v in visits if v.character_id == cid for s in v.steps
+               if s.status == "ok"}
+        table = getattr(data, "HIT_CREDIT", None) or {}
+        for (hcid, ability, selector), cell in sorted(table.items()):
+            if hcid != cid or (ability, selector) not in ran:
+                continue
+            if cell[0] is None:
+                limits.append(tx.note(tx.LIMIT_HIT_UNKNOWN, cid, ability, selector))
+            elif layout.hit_credited.get(cid):
+                limits.append(tx.note(tx.LIMIT_HIT_CREDIT, cid, round(float(cell[0]), 3), round(float(cell[1]), 3),
+                                      int(cell[2] or 0), str(cell[4])))
+    if "覆纹" in codes:
+        limits.append(tx.note(tx.LIMIT_GAUGE_EFFICIENCY))
+    return tuple(traces), assume, limits

@@ -4,8 +4,10 @@ global231_plan 3.4, efficiency_design §4.  The rows come from ``arc_efficiency_
 same code the application runs when the seed does not match its data - so the seed and an in-app recomputation
 cannot differ.  Every eligible character (exclusive arc + graduation template + approved rotation; regular
 characters are not in the table, user decision U1) x every equippable arc (rule A) x refinement {1, max_star} x
-loops {1, 3} x entry "opener".  Language zh, empty account in a temp folder, no byte-code written, keys sorted,
-damage rounded to 0.1: two runs give the same bytes.
+loops {1, 3} x entry "opener" x graduation template Puka Boot Camp level (aes.TEMPLATE_LEVELS, decision U1: level 0 in
+ROWS exactly as before, the others in ROWS_BY_TEMPLATE).  Language zh, empty account in a temp folder (a level > 0
+account holds only that training level), no byte-code written, keys sorted, damage rounded to 0.1: two runs give
+the same bytes.
 
 usage (py 3.11):
   gen_arc_efficiency_data.py --root <tree root> --internal <runtime _internal> (--write | --check) [--src <dir>]
@@ -43,8 +45,20 @@ def setup(src: Path, internal: Path) -> None:
             os.add_dll_directory(str(folder))
 
 
-def render(identity, dataset: dict, characters: list, rows: dict, closure_size: int) -> str:
+def _row_lines(rows: dict, indent: str) -> list:
+    out = []
+    for key in sorted(rows):
+        row = rows[key]
+        cid, fork_id, refine, loops, entry = key
+        out.append(f"{indent}({cid}, {fork_id!r}, {refine}, {loops}, {entry!r}): "
+                   f"({row.damage:.1f}, 0x{row.flags:02x}, {row.end_us}, {row.active_us}),")
+    return out
+
+
+def render(identity, dataset: dict, characters: list, rows_by_level: dict, closure_size: int) -> str:
     from src.services import arc_efficiency_service as aes
+
+    rows = rows_by_level[0]
 
     out = [
         "# 弧盘效率表：预先计算的单人循环伤害（由 work_g231/scripts/gen_arc_efficiency_data.py 生成，勿手改）",
@@ -59,12 +73,15 @@ def render(identity, dataset: dict, characters: list, rows: dict, closure_size: 
         "CHARACTERS[cid] = {name_zh, exclusive, forks: ((fork_id, max_star), ...)}: the arc set the rows were computed",
         "for; the service uses a character's rows only while ALGO_VERSION, DATASET.sha256, ENGINE_FP and that set",
         "equal the running application's.",
+        "ROWS_BY_TEMPLATE[level] = the same rows with the graduation template's Puka Boot Camp at that level (decision",
+        "U1: the account checkbox 'view at max level'); ROWS is level 0.",
         '"""',
         "",
         f"FORMAT = {aes.FORMAT}",
         f"ALGO_VERSION = {aes.ALGO_VERSION!r}",
         "DATASET = {" + ", ".join(f"{k!r}: {dataset[k]!r}" for k in ("dataset_id", "schema", "sha256")) + "}",
         f"ENGINE_FP = {identity.engine_fp!r}",
+        f"RESOURCE_MODEL = {aes.resource_model_state()!r}",
         f"ENTRY = {aes.ENTRY!r}",
         f"LOOPS = {tuple(sorted(aes.LOOP_CHOICES))!r}",
         "",
@@ -77,11 +94,19 @@ def render(identity, dataset: dict, characters: list, rows: dict, closure_size: 
     out.append("}")
     out.append("")
     out.append("ROWS = {")
-    for key in sorted(rows):
-        row = rows[key]
-        cid, fork_id, refine, loops, entry = key
-        out.append(f"    ({cid}, {fork_id!r}, {refine}, {loops}, {entry!r}): "
-                   f"({row.damage:.1f}, 0x{row.flags:02x}, {row.end_us}, {row.active_us}),")
+    out.extend(_row_lines(rows, "    "))
+    out.append("}")
+    out.append("")
+    levels = tuple(sorted(rows_by_level))
+    out.append(f"TEMPLATE_LEVELS = {levels!r}")
+    out.append("")
+    out.append("ROWS_BY_TEMPLATE = {")
+    for level in levels:
+        if level == 0:
+            continue
+        out.append(f"    {level}: {{")
+        out.extend(_row_lines(rows_by_level[level], "        "))
+        out.append("    },")
     out.append("}")
     out.append("")
     return "\n".join(out)
@@ -106,6 +131,12 @@ def main() -> int:
 
     from src.services import arc_efficiency_service as aes
     from src.services import team_fork_corrections as tfc
+    from src.services import team_resources
+
+    if team_resources.DEFAULT_RESOURCE_MODEL != team_resources.SHIPPED_RESOURCE_MODEL:     # review F8
+        print(f"refusing: NTE_TEAM_RESOURCE_MODEL={team_resources.DEFAULT_RESOURCE_MODEL!r} (the seed is computed at "
+              f"the shipped level {team_resources.SHIPPED_RESOURCE_MODEL!r})")
+        return 2
 
     tfc.ENABLED.update(tfc.ALL)
     static = root / "data" / "game_static.sqlite3"
@@ -121,20 +152,25 @@ def main() -> int:
     identity = aes.Identity(aes.ALGO_VERSION, real, aes.engine_fingerprint(src), dataset["dataset_id"])
     started = time.perf_counter()
     characters = aes.eligible_characters(static)
-    rows: dict = {}
-    for loops in sorted(aes.LOOP_CHOICES):
-        for entry in characters:
-            t0 = time.perf_counter()
-            got = aes.compute_character(static, entry, loops)
-            basis = got.get(aes.row_key(entry.character_id, entry.exclusive_fork_id, 1, loops))
-            if basis is None or basis.damage <= 0:
-                print(f"FAIL {entry.character_id} loops {loops}: exclusive refinement-1 damage is 0")
-                return 1
-            rows.update(got)
-            print(f"  {entry.character_id} L{loops}: {len(got)} rows {time.perf_counter() - t0:.1f}s "
-                  f"basis {basis.damage:,.1f}", flush=True)
-    text = render(identity, dataset, characters, rows, len(closure))
-    print(f"{len(characters)} characters, {len(rows)} rows, {time.perf_counter() - started:.1f}s; "
+    rows_by_level: dict = {}
+    for level in aes.TEMPLATE_LEVELS:
+        rows: dict = {}
+        for loops in sorted(aes.LOOP_CHOICES):
+            for entry in characters:
+                t0 = time.perf_counter()
+                got = aes.compute_character(static, entry, loops, template_level=level)
+                basis = got.get(aes.row_key(entry.character_id, entry.exclusive_fork_id, 1, loops))
+                if basis is None or basis.damage <= 0:
+                    print(f"FAIL {entry.character_id} loops {loops} template Lv {level}: exclusive refinement-1 "
+                          f"damage is 0")
+                    return 1
+                rows.update(got)
+                print(f"  {entry.character_id} L{loops} T{level}: {len(got)} rows {time.perf_counter() - t0:.1f}s "
+                      f"basis {basis.damage:,.1f}", flush=True)
+        rows_by_level[level] = rows
+    text = render(identity, dataset, characters, rows_by_level, len(closure))
+    print(f"{len(characters)} characters, {sum(len(r) for r in rows_by_level.values())} rows "
+          f"(template levels {tuple(rows_by_level)}), {time.perf_counter() - started:.1f}s; "
           f"engine fingerprint {identity.engine_fp} ({len(closure)} modules); DB {real[:16]}...")
     target = src / TARGET
     data = text.encode("utf-8")

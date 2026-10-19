@@ -113,6 +113,13 @@ class WorkModeProbe:
     cleanup_state: CheckState | None = None
     native_diagnostic: str = ""
     native_diagnostic_state: CheckState | None = None
+    # Global: read-only RTSS evaluation (services.rtss_compat.RtssCompatResult) in injecting modes, else None.
+    rtss: object | None = None
+
+
+def _blocking(features):
+    """Global: advisory items (fact ``advisory`` = True, e.g. the RTSS reminder) never gate readiness."""
+    return tuple(item for item in features if dict(item.facts).get("advisory") is not True)
 
 
 @dataclass(frozen=True)
@@ -143,10 +150,10 @@ class WorkModeReport:
                 and (item.feature != "component_update" or item.state == CheckState.AVAILABLE)
                 and dict(item.facts).get("inspection_incomplete") is not True
                 and dict(item.facts).get("files", True) is True
-                for item in self.features
+                for item in _blocking(self.features)
             )
         )
 
     @property
     def ready(self) -> bool:
-        return all(item.state == CheckState.AVAILABLE for item in self.features)
+        return all(item.state == CheckState.AVAILABLE for item in _blocking(self.features))
