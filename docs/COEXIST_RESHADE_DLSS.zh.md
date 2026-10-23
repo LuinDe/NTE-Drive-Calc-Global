@@ -225,7 +225,7 @@ RTSS 为了绘制叠加界面，会把自己的 DLL（`RTSSHooks64.dll`）加载
 
 **另一种方法：对 HTGame.exe 关闭 RTSS**：在 RTSS 窗口中选中 **HTGame.exe**（不要选 **Global**），把 **Application detection level** 设为 **None**，也可以避免冲突。如果在选中 **Global** 时修改，所有游戏的 RTSS 都会关闭。但这样在这个游戏中不会显示 RTSS 叠加界面（FPS 显示等）。
 
-**计算器中的提示**：Global 2.3.1-global.2 及以后的版本会在你亲自点击 **启动原生 Loader** 时检查这个设置并弹出提醒，同时在 **检测详情** 中显示为黄色项目。由自动同步自动启动 Loader 时不会弹出提醒窗口，只在 **检测详情** 中显示。计算器只读取 RTSS 设置，不会修改。这个 RTSS 解决办法同样适用于官方版、韩文补丁和 Global（三个构建的 Loader 组件相同）。
+**计算器中的提示**：Global 2.3.2 及以后的版本会在你亲自点击 **启动原生 Loader** 时检查这个设置并弹出提醒，同时在 **检测详情** 中显示为黄色项目。由自动同步自动启动 Loader 时不会弹出提醒窗口，只在 **检测详情** 中显示。计算器只读取 RTSS 设置，不会修改。这个 RTSS 解决办法同样适用于官方版、韩文补丁和 Global（三个构建的 Loader 组件相同）。
 
 > [!NOTE]
 > 旧版 DLSS5 叠加界面插件也会导致同样的错误。如果没有使用 RTSS 也会退出，或者修改 RTSS 设置后仍然退出，请参阅[DLSS5 插件请更新到最新版本](#dlss5-插件请更新到最新版本)。
@@ -365,4 +365,4 @@ Loader 先进入官方启动器，再接入启动器所启动的游戏。这一�
 
 ---
 
-本文为非官方文档，与原作者、游戏厂商、ReShade、RenoDX、NVIDIA、RTSS（RivaTuner Statistics Server）、MSI 均无关联。2026-10-11 依据计算器 2.3.1 编写，2026-10-14 补充了实际游戏中的确认结果和 RTSS 说明。2026-10-19：计算器内的 RTSS 提醒已随 Global 2.3.1-global.2 发布。
+本文为非官方文档，与原作者、游戏厂商、ReShade、RenoDX、NVIDIA、RTSS（RivaTuner Statistics Server）、MSI 均无关联。2026-10-11 依据计算器 2.3.1 编写，2026-10-14 补充了实际游戏中的确认结果和 RTSS 说明。2026-10-20：计算器内的 RTSS 提醒已随 Global 2.3.2 发布。

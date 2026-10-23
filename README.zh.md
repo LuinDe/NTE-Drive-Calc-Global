@@ -24,21 +24,23 @@
 - 增加了 **队伍模拟 (Beta)**、**弧盘效率表 (Beta)**、**觉醒效率表 (Beta)**、**噗卡特训** 等功能；
 - 加入了与原版分开、**只获取本仓库发布的程序内更新**。
 
-本仓库包含修改后的源代码（`src/`）和构建工具，安装程序请到 [Releases](../../releases) 下载。当前版本为 **2.3.1-global.2**（基于原版 2.3.1）。
+本仓库包含修改后的源代码（`src/`）和构建工具，安装程序请到 [Releases](../../releases) 下载。当前版本为 **Global 2.3.2**。Global 的版本号现已独立于原版，Global 2.3.2 基于官方 2.3.1。
 
 ![弧盘效率表 (Beta) 界面](docs/images/arc_eff_zh.png)
 
-## 2.3.1-global.2 的变化
+## 2.3.2 的变化
 
 写给之前使用 2.3.1-global.1 的用户的摘要。各版本的详细内容和已知限制见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。
 
-- **正在使用 2.3.1-global.1 的用户需要手动安装一次本版本。** 2.3.1-global.1 没有更新功能；从本版本起，新版本可以在程序内获取。
+- **正在使用 2.3.1-global.1 或 2.3.1-global.2 的用户需要手动安装一次本版本。** 2.3.1-global.1 没有更新功能；2026-10-19 短暂发布的 2.3.1-global.2 无法识别新的版本号格式。从本版本起，新版本可以在程序内获取。
+- **Global 的版本号现已独立于原版。** Global 2.3.2 基于官方 2.3.1，包含 2.3.1-global.2 的全部内容。
 - **新功能：程序内更新（仅 Global）** —— 只检查本仓库的发布，只安装带有维护者有效签名的发布。原版的更新功能已删除（见下面的[更新](#更新)）。
 - **队伍模拟：终结能量、环合值、冷却与切换规则** —— 全部 24 名角色逐击累积能量和环合值并应用冷却；技能冷却还剩 0.3 秒及以上时切换到下一名角色（见下面第 2 项）。
 - **新功能：自由选择觉醒与觉醒效率表** —— 觉醒效果可以不按顺序选择，并可在表中查看每个效果带来的 DPS 变化（见下面第 3 项）。
 - **明音凛按国服上线数据计算**（见下面第 5 项）。
 - **新功能：噗卡特训** —— 把游戏 1.4 的账号通用养成计入面板、边际收益、队伍模拟和战报（见下面第 6 项）。
 - **新功能：RTSS（RivaTuner）兼容性提醒** —— 在启动 Loader 之前提示可能导致游戏一启动就崩溃的 RTSS 设置（见下面第 10 项）。
+- 首页“工作台”标题旁的角色头像由黑羽改为**明音凛**。
 - **修复**：日语直接输入面板提示中仍为中文的技能名、小吱的日语名、队伍卡片中较长的角色名被截断。
 - 同一支队伍在队伍模拟和效率表中的数值与 2.3.1-global.1 不同（因冷却等待与切换、觉醒规则、明音凛的数据）。
 
@@ -63,7 +65,7 @@
 - 界面语言可选 **中文（原文）/ 한국어 / 日本語 / English**。点击程序**左下角的语言按钮**，运行中即可立即切换（无需重启），所选语言会被保存。
 - 每种语言翻译了约 10,100 条界面文本。角色、套装、弧盘、技能、怪物的名称，效果说明以及战报中的文字也会翻译后显示。
 - 韩语以韩服客户端的官方名称为准。英语、日语在能够确认的范围内采用各语言客户端的用语，未能确认的名称（例如该语言尚未上线的内容）可能是暂定译名或保留原文。
-- 从 2.3.1-global.2 起，韩语界面把觉醒称为“돌파”；英语、日语仍为“Awakening”“覚醒”。
+- 从 2.3.2 起，韩语界面把觉醒称为“돌파”；英语、日语仍为“Awakening”“覚醒”。
 - 游戏资料（角色、装备、弧盘、怪物）的搜索框支持用韩文和韩文初声（초성）搜索（中文搜索照常可用）。
 - 安装程序同样提供四种语言。
 
@@ -87,7 +89,7 @@
   - 弧盘的常驻效果原先在面板和战斗引擎中被各算一次，现在只计算一次。
   - 战斗引擎无法求出数值的「罪与罚」「月的对跖点」的条件效果，按说明文与游戏数据中的数值计算（标注为 **Global 补充规则**；时停期间不计入持续时间）。
 
-#### 终结能量、环合值与冷却（2.3.1-global.2）
+#### 终结能量、环合值与冷却（2.3.2）
 
 - 全部 24 名角色按游戏数据**逐击累积终结能量和环合值**，并应用**技能冷却**。冷却来自游戏数据和社区资料（prydwen.gg、GameWith），冷却计时为扣除时停的战斗时间。每个数值的来源和可信度显示在说明栏。
 - 没有资料的数值不做推测：未能确认的冷却不做检查；没有环合值资料时沿用旧规则（第 1、3 轮开始时环合值 100），并在说明栏注明。
@@ -97,7 +99,7 @@
 - 直接输入的检查方式可选 不检查 / 仅警告（默认）/ 插入等待 / 严格。“严格”使用与已审核循环相同的切换规则。
 - 多数已审核队伍结果不变；冷却紧张的快节奏队伍（例如带伊洛伊的队伍）切换会增加，总伤害可能下降。
 
-### 3. 自由选择觉醒与觉醒效率表 — 新功能（2.3.1-global.2）
+### 3. 自由选择觉醒与觉醒效率表 — 新功能（2.3.2）
 
 - 《异环》的觉醒可以不按顺序选择（例如 ③ → ⑤ → ①）。在队伍模拟的角色卡片上可以分别开关 6 个觉醒效果（“觉醒 n/6”），共鸣与所选效果无关，在觉醒 3 次、6 次时生效。不再假设“觉醒 N = 效果 1–N”。
 - 以前保存的队伍和循环照常打开（只保存了觉醒次数时按效果 1–N 读取）。
@@ -122,7 +124,7 @@
 - **在队伍模拟中打开**：以装备所选弧盘的该角色打开队伍模拟。
 - 计算方式：角色单人，在官方毕业模板中只更换弧盘与精炼，按已审核循环行动，对象为 80 级木桩，使用与队伍模拟相同的引擎、相同的弧盘修正和相同的冷却规则（单人时等待）。依赖援护技、队友、队伍构成、环合强度或倾陷强度的弧盘效果按 0 计算。详细假设见页面上的“注意事项”和 [RELEASE_NOTES.md](RELEASE_NOTES.md)。
 
-### 5. 明音凛：国服上线数据（2.3.1-global.2）
+### 5. 明音凛：国服上线数据（2.3.2）
 
 - 计算器自带的游戏数据（2026-09-24）中，明音凛是上线前的数值。国服正式上线（2026-10-15）后，**只有至少两个相互独立的资料一致的数值**才会在运行时替换计算。游戏数据文件本身不修改，并且只在计算器的游戏数据正是这份 9-24 数据时生效。
 - 替换的内容：上线状态、觉醒效果 ①–⑥、共鸣 3、共鸣 6、「烁星激昂」（终结技第一段后 20 秒内攻击力 +20%）、终结技第二段可用的时机、专属弧盘「月的对跖点」（技能伤害 +28%（精炼 1），不叠层）等共 46 项。
@@ -130,7 +132,7 @@
 - **未确认的内容**（沿用游戏数据中的数值，界面上标注“未确认”）：80 级基础属性、技能倍率、普攻传导基础值、华彩连段持续时间、只有一个来源的 5 项机制、专属弧盘精炼 1 的暴击率与相属性伤害（来源之间为 16% 与 15%、20% 不一致）以及精炼 2–5 的其余数值。**E、Q 冷却与终结能量没有资料。**
 - 战报的分析组件（原版自带的程序，未修改）仍使用上线前的数据计算，含明音凛的记录会显示一行提示。
 
-### 6. 噗卡特训 — 新功能（2.3.1-global.2）
+### 6. 噗卡特训 — 新功能（2.3.2）
 
 - 把游戏 1.4 新增的账号通用养成 **噗卡特训**（Lv 0–20，作用于出战角色）纳入计算。在**角色页的家具加成卡片**中输入等级（默认 0）后，角色面板、边际收益、队伍模拟以及新录制的战报中会加上攻击力、防御力、生命值、暴击率、暴击伤害、环合强度和倾陷强度（Lv 20 合计 +28 / +30 / +420 / +2.5% / +5% / +12 / +12）。
 - 战报在开始录制时把等级固定在记录中。在此功能之前录制的战报按 Lv 0 计算，不追溯（卡片上会有提示）。
@@ -138,7 +140,7 @@
 - **按噗卡特训满级（Lv.20）查看**：在 Lv 0 / Lv 20 之间切换弧盘效率表、觉醒效率表和毕业率所用的毕业模板。
 - 等级表是对照公开资料（官方 1.4 公告、社区表格）整理的。倾陷强度合计（12）以及攻击力、防御力、生命值是否为固定值加成，未在游戏内确认。
 
-### 7. 程序内更新（仅 Global）— 新功能（2.3.1-global.2）
+### 7. 程序内更新（仅 Global）— 新功能（2.3.2）
 
 删除了原版的更新功能（检查原版发布、Mirror酱，下载官方安装程序，更新对话框），换成**只检查本仓库发布的更新**。Global 今后独立于原版开发和更新。详见下面的[更新](#更新)。
 
@@ -150,7 +152,7 @@
 
 官方 2.3.1 会向游戏目录部署 `d3d12.dll`（宿主）和 `plugins\NTE_Plugin*.dll`，并清理旧的 `NTE_Capture.dll`、`dwmapi.dll`。本构建只有在**确认（SHA-256）是本程序自己的文件**时，才会替换或删除这些文件。无法确认的文件（例如以 `d3d12.dll` 为名安装的 ReShade、UE4SS 等其他模组的 `dwmapi.dll`）既不会被覆盖，也不会被删除；此时部署会中止并在界面上给出提示，清理时也只保留该文件并告知。
 
-### 10. RTSS（RivaTuner）兼容性提醒 — 新功能（2.3.1-global.2）
+### 10. RTSS（RivaTuner）兼容性提醒 — 新功能（2.3.2）
 
 - 在作者的环境中，以默认挂钩方式运行的 RTSS（RivaTuner Statistics Server，随 MSI Afterburner 一起安装）与 2.3.1 的游戏内组件同时使用时，游戏一启动就会崩溃（D3D12 错误 `80004004 (E_ABORT)`）。
 - 本构建**只读取** RTSS 设置；检测到这种风险时，点击 **启动原生 Loader** 会提示解决方法（在 RTSS 中添加 HTGame.exe 配置，并开启 Setup → General →“Use Microsoft Detours API hooking”），环境检测的 **检测详情** 中也会列出。不会修改 RTSS 设置。提醒窗口中可以重新检测、继续或取消，也可以为当前账号关闭此提醒。
@@ -175,7 +177,7 @@
 
 ## 下载与安装
 
-1. 从 [Releases](../../releases) 下载 `NTE_Drive_Calc_2.3.1-global.2_Multilingual_Setup.exe`。安装包包含整个程序，不需要先安装官方版本。从本版本起，文件名包含完整的 Global 版本号。
+1. 从 [Releases](../../releases) 下载 `NTE_Drive_Calc_2.3.2_Multilingual_Setup.exe`。安装包包含整个程序，不需要先安装官方版本。
 2. 如果 NTE Drive Calc 正在运行，请先退出。
 3. 运行安装程序，在用户账户控制（UAC）窗口中点击“是”。
    - 该文件没有代码签名，可能会出现 **“Windows 已保护你的电脑”（SmartScreen）** 窗口。点击“更多信息”→“仍要运行”即可。运行前可以用下面的 [SHA-256](#文件校验-sha-256) 或[签名](#自行验证签名)核对文件。
@@ -190,15 +192,15 @@
 - **用户数据会保留。** 账号、设置、驱动与仓库数据、战报记录、养成记录、日志、保存的循环、效率表缓存都会保留。`accounts`、`config`、`data`、`logs`、`migration`、`scanned_images` 文件夹中的用户文件不会被删除或修改（与官方安装程序一样，只会重新写入默认文件 `config\stats.json` 和静态数据库备份 `migration\game_static.previous.sqlite3`）。
 - 韩语补丁创建的备份文件（`NTE_Drive_Calc.original.exe` 等）不会被删除。
 - 安装在 Global 2.3.0 之上时，几个 2.3.1 不再使用的文件（如 `_internal\NTE_Capture.dll`）会留在程序目录中。官方 2.3.0 → 2.3.1 升级也会留下相同的文件，不影响使用。
-- 安装后，Windows“已安装的应用”列表中的名称为“NTE Drive Calc 2.3.1 多语言版 (Global)”，版本显示为 2.3.1-global.2（以中文安装时）。
+- 安装后，Windows“已安装的应用”列表中的名称为“NTE Drive Calc 2.3.2 多语言版 (Global)”，版本显示为 2.3.2（以中文安装时）。
 
 ## 更新
 
 ### 程序内更新（仅 Global）
 
-从 2.3.1-global.2 起，可以在程序内获取新的 Global 版本。
+从 2.3.2 起，可以在程序内获取新的 Global 版本。
 
-- **更新只来自本仓库（LuinDe/NTE-Drive-Calc-Global）的发布。** Global 独立于原版开发和更新，版本号也是 Global 自己的 `v<major>.<minor>.<patch>-global.<n>`。不会向原版服务器查询版本，程序内更新也不会安装官方构建；原版的新官方版本也不会提示。
+- **更新只来自本仓库（LuinDe/NTE-Drive-Calc-Global）的发布。** Global 独立于原版开发和更新，版本号也是独立于原版的 Global 自己的 `v<major>.<minor>.<patch>`（例如 `v2.3.2`）。不会向原版服务器查询版本，程序内更新也不会安装官方构建；原版的新官方版本也不会提示。
 - 检查时机：启动时每天至多一次，以及点击 **“设置”→“软件更新”卡片中的［检查更新］** 时。卡片上显示 Global 版本、作为参考的原版基础版本（2.3.1）以及发布签名密钥的指纹。
 - 发现新版本时，显示版本号与更新说明，以及 **［立即更新］［稍后］［跳过此版本］**。［立即更新］会下载并核验安装程序；之后可以点击［立即安装并重启］，或在退出程序时安装。程序关闭后，安装程序以管理员权限在同一目录中运行，不显示安装向导（只显示进度窗口），用户数据保留；选择［立即安装并重启］时，安装完成后程序会重新启动。
 - 下载的文件放在 `安装目录\updates\` 中，安装完成后清理。
@@ -220,22 +222,22 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDrNqNVxLCFuc+fq7jN0vTL2Aphh+VzGkOmQZf74TscN
 
 ### 从 2.3.1-global.1 升级
 
-2.3.1-global.1 及更早的版本没有这个功能，因此**需要手动从 [Releases](../../releases) 下载并安装一次 2.3.1-global.2**（见上面的[下载与安装](#下载与安装)）。之后的 Global 版本即可在程序内获取。
+2.3.1-global.1 及更早的版本没有这个功能，因此**需要手动从 [Releases](../../releases) 下载并安装一次 2.3.2**（见上面的[下载与安装](#下载与安装)）。2026-10-19 短暂发布的 2.3.1-global.2 同样无法识别新的版本号格式，请用同样的方法手动安装一次 2.3.2。之后的 Global 版本即可在程序内获取。
 
 ### 自行验证签名
 
 程序内更新会自动完成下面的检查。手动下载安装程序时如果想做同样的检查，可以使用 Windows 10/11 自带的 OpenSSH `ssh-keygen`。
 
 1. 从发布页把安装程序、`NTE_Drive_Calc_<版本>_release.json` 和 `NTE_Drive_Calc_<版本>_release.json.sig` 下载到同一文件夹。
-2. 在该文件夹中打开**命令提示符**（cmd），运行下面两行（PowerShell 不支持 `<` 重定向）。第一行用维护者的公钥生成 `allowed_signers` 文件。示例为 2.3.1-global.2。
+2. 在该文件夹中打开**命令提示符**（cmd），运行下面两行（PowerShell 不支持 `<` 重定向）。第一行用维护者的公钥生成 `allowed_signers` 文件。示例为 2.3.2。
 
 ```bat
 echo nte-global-release namespaces="nte-drive-calc-global-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDrNqNVxLCFuc+fq7jN0vTL2Aphh+VzGkOmQZf74TscN> allowed_signers
-ssh-keygen -Y verify -f allowed_signers -I nte-global-release -n nte-drive-calc-global-release -s NTE_Drive_Calc_2.3.1-global.2_release.json.sig < NTE_Drive_Calc_2.3.1-global.2_release.json
+ssh-keygen -Y verify -f allowed_signers -I nte-global-release -n nte-drive-calc-global-release -s NTE_Drive_Calc_2.3.2_release.json.sig < NTE_Drive_Calc_2.3.2_release.json
 ```
 
 3. 显示 `Good "nte-drive-calc-global-release" signature for nte-global-release with ED25519 key SHA256:/fAeeg67muvrTrfFKosRIJGZd58nxmO9hX/q82d05XY` 表示清单由维护者的密钥签名。如果显示 `Could not verify signature`，请不要使用这些文件，并在 [Issues](../../issues) 中反馈。
-4. 用记事本打开清单，确认 `installer` 下的 `sha256` 和 `size` 与下载的安装程序一致（`certutil -hashfile NTE_Drive_Calc_2.3.1-global.2_Multilingual_Setup.exe SHA256`）。
+4. 用记事本打开清单，确认 `installer` 下的 `sha256` 和 `size` 与下载的安装程序一致（`certutil -hashfile NTE_Drive_Calc_2.3.2_Multilingual_Setup.exe SHA256`）。
 
 ## 恢复为官方构建
 
@@ -320,15 +322,15 @@ ssh-keygen -Y verify -f allowed_signers -I nte-global-release -n nte-drive-calc-
 
 | 文件 | 大小（字节） | SHA-256 |
 |---|---:|---|
-| `NTE_Drive_Calc_2.3.1-global.2_Multilingual_Setup.exe`（安装程序） | 184,851,232 | `8d6ea7de21b76e6a44eadb7f372f4551ce0c010a1a4df32eccfec0a2b99a209a` |
-| `NTE_Drive_Calc_2.3.1-global.2_Multilingual_source.zip`（源代码） | 7,497,484 | `75cdf8f2d8c32cafc240c1abf9d0da1934fc7409f929d47055a61a46b6479ce1` |
-| 安装后的 `NTE_Drive_Calc.exe` | 25,220,941 | `9355c146beb984e864de739998d85da6a24772838d6007ed866de534517509f3` |
+| `NTE_Drive_Calc_2.3.2_Multilingual_Setup.exe`（安装程序） | 184,850,846 | `c9faeb139a4dbad0c2d978b847c86b97dd9c3ee984bc1efba1d8db4f25623f87` |
+| `NTE_Drive_Calc_2.3.2_Multilingual_source.zip`（源代码） | 7,478,833 | `29ef19f2566f63745177c4da05c311cb73dee3f7cffa342f4001d86b0ce601aa` |
+| 安装后的 `NTE_Drive_Calc.exe` | 25,221,222 | `3a165259d6395050311d30816f34ac547b2b7646e8991e7acb68f36ff4ef384f` |
 | （参考）作为基础的官方 2.3.1 `NTE_Drive_Calc.exe` | 21,320,661 | `5b8fa8d2b7580bacd494c0f71e76d7b05cf1bee4f9b94bb945993a2e1c69e8c3` |
 
-安装程序的 SHA-256 也写在签名清单 `NTE_Drive_Calc_2.3.1-global.2_release.json` 中（见上面的[自行验证签名](#自行验证签名)）。在 PowerShell 中校验：
+安装程序的 SHA-256 也写在签名清单 `NTE_Drive_Calc_2.3.2_release.json` 中（见上面的[自行验证签名](#自行验证签名)）。在 PowerShell 中校验：
 
 ```powershell
-Get-FileHash .\NTE_Drive_Calc_2.3.1-global.2_Multilingual_Setup.exe -Algorithm SHA256
+Get-FileHash .\NTE_Drive_Calc_2.3.2_Multilingual_Setup.exe -Algorithm SHA256
 Get-FileHash "C:\Program Files\NTE Drive Calc\NTE_Drive_Calc.exe" -Algorithm SHA256
 ```
 
@@ -338,14 +340,14 @@ Get-FileHash "C:\Program Files\NTE Drive Calc\NTE_Drive_Calc.exe" -Algorithm SHA
 
 本仓库的 [`src/`](src) 是发布的可执行文件中全部 `src.*` 模块的源代码。构建工具在 [`build_tools/`](build_tools)（见 [build_tools/README.md](build_tools/README.md)）。
 
-可执行文件不是从头重新打包的，而是**只把官方 2.3.1 可执行文件 PYZ 归档中的 `src.*` 模块替换为由本源代码编译的结果**，其余部分逐字节保持不变。可执行文件内嵌 `python311.dll`，因此需要 **Python 3.11**。从 2.3.1-global.2 起，原版的 2 个更新模块不在源代码中，需要用 `--remove` / `--removed` 表明是有意去掉的。
+可执行文件不是从头重新打包的，而是**只把官方 2.3.1 可执行文件 PYZ 归档中的 `src.*` 模块替换为由本源代码编译的结果**，其余部分逐字节保持不变。可执行文件内嵌 `python311.dll`，因此需要 **Python 3.11**。从 2.3.2 起，原版的 2 个更新模块不在源代码中，需要用 `--remove` / `--removed` 表明是有意去掉的。
 
 ```powershell
 python build_tools/rebuild_exe_l10n.py      <官方 2.3.1 NTE_Drive_Calc.exe> src <输出 exe> --remove=src.features.settings.updates --remove=src.ui.controllers.update_controller
 python build_tools/verify_exe_l10n_g231.py  <官方 2.3.1 NTE_Drive_Calc.exe> <输出 exe> src --removed=src.features.settings.updates --removed=src.ui.controllers.update_controller
 ```
 
-作为基础的官方可执行文件的 SHA-256 为 `5b8fa8d2…e8c3`（由原版 Release `2.3.1` 的安装程序安装的文件，对应原版提交 `0e7a6b4`）。使用 CPython 3.11.15（Windows x64）构建时，结果的 SHA-256 与发布的可执行文件（`9355c146…09f3`）相同。其他 3.11.x 版本的压缩结果可能不同，哈希也会不同；这时可以用 `verify_exe_l10n_g231.py` 确认内容与本源代码一致。
+作为基础的官方可执行文件的 SHA-256 为 `5b8fa8d2…e8c3`（由原版 Release `2.3.1` 的安装程序安装的文件，对应原版提交 `0e7a6b4`）。使用 CPython 3.11.15（Windows x64）构建时，结果的 SHA-256 与发布的可执行文件（`3a165259…384f`）相同。其他 3.11.x 版本的压缩结果可能不同，哈希也会不同；这时可以用 `verify_exe_l10n_g231.py` 确认内容与本源代码一致。
 
 `src/app/global_release.py` 中包含维护者的发布签名公钥。如果你自己构建并发布自己的版本，请用 `build_tools/pin_release_key.py` 写入你自己的公钥（私钥不在本仓库中）。安装程序、源代码 zip 和发布清单的制作方法见 [build_tools/README.md](build_tools/README.md)。
 
@@ -355,7 +357,7 @@ python build_tools/verify_exe_l10n_g231.py  <官方 2.3.1 NTE_Drive_Calc.exe> <�
 
 - NTE Drive Calc 以 **GNU AGPL-3.0** 发布；本构建是它的衍生作品，适用相同的许可证。全文：[LICENSE](LICENSE)，声明：[NOTICE](NOTICE)
 - 原始版权：**NTE Drive Calc contributors**（[hxwd94666](https://github.com/hxwd94666)）— <https://github.com/hxwd94666/NTE-Drive-Calculator>
-- 修改：[LuinDe](https://github.com/LuinDe)，2026-10-19（2.3.1-global.2，基于原版提交 `0e7a6b4`，即官方 2.3.1；原版的 `2.3.1` 标签指向更早的提交）。2.3.1-global.1：2026-10-11；首个版本 Global 2.3.0：2026-10-05。
+- 修改：[LuinDe](https://github.com/LuinDe)，2026-10-20（Global 2.3.2，基于原版提交 `0e7a6b4`，即官方 2.3.1；原版的 `2.3.1` 标签指向更早的提交）。2.3.1-global.2（短暂发布）：2026-10-19；2.3.1-global.1：2026-10-11；首个版本 Global 2.3.0：2026-10-05。
 - 安装包中附带的 nte-core、游戏内组件与加载器、ViGEmBus 等是适用各自许可证的独立组件，未作修改。其来源和条款见 [NOTICE](NOTICE) 以及原版仓库的 `third_party/`。
 
 ## 免责声明

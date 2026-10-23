@@ -688,7 +688,7 @@ class CustomCyclePanel(QFrame):
 
         def game(name: str) -> str:
             # each game name on its own: the ja display layer leaves a whole line alone once it holds kana, so
-            # "E長押し  律动音浪" kept the Chinese name (2.3.1-global.2)
+            # "E長押し  律动音浪" kept the Chinese name (2.3.2)
             return str(tr(name)) if name else name
 
         token = view.token_text(action, self._lang)

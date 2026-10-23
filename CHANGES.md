@@ -2,12 +2,13 @@
 
 원본 NTE Drive Calc와 이 빌드의 차이를 파일 단위로 정리한 문서입니다. 사용자용 요약은 [README.md](README.md)에 있습니다.
 
-This document lists, at file level, how **NTE Drive Calc Global 2.3.1-global.2** differs from the original program.
+This document lists, at file level, how **NTE Drive Calc Global 2.3.2** differs from the original program.
 
 - Original project: <https://github.com/hxwd94666/NTE-Drive-Calculator> (NTE Drive Calc contributors, AGPL-3.0)
 - Baseline: commit `0e7a6b4e8e61d7a288e520bbc192a411d68c2fb1` ("feat：2.3.1版本开发完毕", `src/app/version.py` = 2.3.1). All 893 `src.*` modules inside the official 2.3.1 executable (SHA-256 `5b8fa8d2…e8c3`, installed by the official `NTE_Drive_Calc_Setup_2.3.1.exe`) equal a compile of this commit. The upstream tag `2.3.1` points to an older commit (`765d78a`, version 2.3.0) and is not the baseline.
-- Modified by: LuinDe, 2026-10-19 (2.3.1-global.2; 2.3.1-global.1: 2026-10-11; first Global release 2.3.0: 2026-10-05)
-- Version numbers: Global has its own version grammar `v<major>.<minor>.<patch>-global.<n>` (`GLOBAL_VERSION` in `src/app/global_release.py`). `src/app/version.py` keeps the upstream `2.3.1`, because the bundled native components read it.
+- Modified by: LuinDe, 2026-10-20 (Global 2.3.2; everything except section 16 was first published briefly on 2026-10-19 as 2.3.1-global.2; 2.3.1-global.1: 2026-10-11; first Global release 2.3.0: 2026-10-05)
+- A 2.3.1-global.2 install does not recognise the new version format, so install 2.3.2 once by hand (as from 2.3.1-global.1).
+- Version numbers: Global's version number is now independent of the original's: `v<major>.<minor>.<patch>` (`GLOBAL_VERSION` in `src/app/global_release.py`; Global 2.3.2 is based on the official 2.3.1). Releases up to 2.3.1-global.2 used `<major>.<minor>.<patch>-global.<n>`; that form is still read and sorts before the plain version with the same numbers (2.3.1-global.1 < 2.3.1-global.2 < 2.3.2 < 2.3.2-global.1 < 2.3.3; grammar in section 8). `src/app/version.py` keeps the upstream `2.3.1`, because the bundled native components read it.
 - Scope: only `src/` and the seven tutorial images are modified. Everything else of the original (main.py, assets, data, native components, third_party, build scripts) is unchanged and is not part of this repository.
 
 ## Overview of `src/`
@@ -38,19 +39,19 @@ New files:
 
 String wrapping: in the original files the user-visible Chinese literals are written as `_L('原文')` and f-strings as `_LF('模板{0}').format(…)`, plus one import line. In 557 files this is the only change; with the language set to Chinese they behave as the original. The slot numbers `{0}`, `{1}` … follow the order of the expressions in the Chinese original (Global 2.3.0 numbered 9 templates in the Korean order, so some values could appear in each other's place).
 
-Korean terms: since 2.3.1-global.2 the Korean interface calls awakening (觉醒) **돌파**; the level breakthrough (突破) is **레벨 돌파**. English and Japanese keep "Awakening" / 「覚醒」.
+Korean terms: since 2.3.2 the Korean interface calls awakening (觉醒) **돌파**; the level breakthrough (突破) is **레벨 돌파**. English and Japanese keep "Awakening" / 「覚醒」.
 
 Hooks in original files:
 
 | File | Change |
 |---|---|
-| `src/ui/app.py` | Installs the display layer at start-up (and, since 2.3.1-global.2, the Global update controller, section 8). |
-| `src/ui/main_window_navigation_mixin.py` | Language switcher at the bottom of the sidebar: four buttons (中文 / 한국어 / 日本語 / English) that switch the running interface. Since 2.3.1-global.2 the sidebar title reads "NTE Drive Calc Global". |
+| `src/ui/app.py` | Installs the display layer at start-up (and, since 2.3.2, the Global update controller, section 8). |
+| `src/ui/main_window_navigation_mixin.py` | Language switcher at the bottom of the sidebar: four buttons (中文 / 한국어 / 日本語 / English) that switch the running interface. Since 2.3.2 the sidebar title reads "NTE Drive Calc Global". |
 | `src/app/theme.py` | `Malgun Gothic` and `Yu Gothic UI` are placed in front of the font stack. |
 
 ## 2. Team Simulation (Beta) — new feature
 
-A new page in the sidebar. It is marked as unfinished in the interface; see the limits in [RELEASE_NOTES.md](RELEASE_NOTES.md). Since 2.3.1-global.2 it also models ultimate energy, the Esper-Cycle gauge and cooldowns (section 9) and free awakening choice (section 10).
+A new page in the sidebar. It is marked as unfinished in the interface; see the limits in [RELEASE_NOTES.md](RELEASE_NOTES.md). Since 2.3.2 it also models ultimate energy, the Esper-Cycle gauge and cooldowns (section 9) and free awakening choice (section 10).
 
 New files:
 
@@ -60,7 +61,7 @@ New files:
 | `src/features/team_simulation/explanation_view.py` | Explanation panel below the result: rotation used, visit order and why it was chosen, reaction table, steps per member, resource events (energy, gauge, cooldown waits and swaps), assumptions and limits (including which arcs the Global supplement rule modelled). |
 | `src/features/team_simulation/custom_panel.py`, `custom_view.py` | Custom Input mode: step builder, notation text box, options, save / load, step table of the result. |
 | `src/services/team_simulation_service.py` | The simulator: builds the team from the graduation templates, lays out the rotations on the animation time axis, runs the existing battle-replay engine, 3 loops, visit-order planner (`plan` / `auto` / `slot`). |
-| `src/services/team_fork_corrections.py` | New in 2.3.1. Arc corrections shared with the Arc Efficiency table (section 3), applied before the engine runs; the upstream engine files are not changed. **B1** the chosen arc and refinement reach the character panel (in Global 2.3.0 an arc swap did not change the panel stats). **B2** an always-on arc bonus that the panel already holds is not counted a second time by the engine. **B3** 「罪与罚」 (Crime and Punishment) and **B4** 「月的对跖点」 (Antipode of the Moon): the engine opens these arcs' buffs but cannot price them, so their windows and values are built from the description text and the database parameters; durations run on the engine's active clock (time stops excluded). B3 / B4 are labelled "Global supplement rule" in the interface. Since 2.3.1-global.2 B4 follows Akane Rin's CN-release arc text while the overlay of section 11 is on. |
+| `src/services/team_fork_corrections.py` | New in 2.3.1. Arc corrections shared with the Arc Efficiency table (section 3), applied before the engine runs; the upstream engine files are not changed. **B1** the chosen arc and refinement reach the character panel (in Global 2.3.0 an arc swap did not change the panel stats). **B2** an always-on arc bonus that the panel already holds is not counted a second time by the engine. **B3** 「罪与罚」 (Crime and Punishment) and **B4** 「月的对跖点」 (Antipode of the Moon): the engine opens these arcs' buffs but cannot price them, so their windows and values are built from the description text and the database parameters; durations run on the engine's active clock (time stops excluded). B3 / B4 are labelled "Global supplement rule" in the interface. Since 2.3.2 B4 follows Akane Rin's CN-release arc text while the overlay of section 11 is on. |
 | `src/services/team_cycle_reactions.py` | Esper Cycle model: element ring, Cycle Value rule, scheduling of Blossom / Hex / Scorch / Nova / Stain / Remora and of Charge / Discord. Reactions are always computed. |
 | `src/services/team_rotation_data.py` | Generated table: the reviewed rotation of each of the 24 characters. |
 | `src/services/team_form_actions.py` | Generated table: attacks available in transformation / form states. |
@@ -76,22 +77,22 @@ Hooks in original files:
 | File | Change |
 |---|---|
 | `src/ui/navigation.py` | New navigation items `team_sim` (below Calculate) and `arc_eff` (section 3). |
-| `src/ui/main_window_mixins.py` | `TeamSimulationMixin` and `ArcEfficiencyMixin` add the page builders to the main window (and, since 2.3.1-global.2, the update and about-link controllers of section 8). |
+| `src/ui/main_window_mixins.py` | `TeamSimulationMixin` and `ArcEfficiencyMixin` add the page builders to the main window (and, since 2.3.2, the update and about-link controllers of section 8). |
 
 The generated team tables are produced by `build_tools/gen_team_form_actions.py`, `gen_team_rotation_data.py`, `gen_team_custom_actions.py` and `gen_team_resource_data.py` (run through `build_tools/g231_shims/` for this tree). Some of their inputs (the game's static database and research notes) are not in this repository; the generated files are the form in which the tables are maintained here and can be edited directly. The header "GENERATED FILE - DO NOT EDIT" in these files was written for the author's working tree, where the generator inputs exist.
 
-Team Simulation numbers differ from Global 2.3.0. Two causes: the 2.3.1 game data (graduation templates and arc rows of 黑羽 Raven and 明音凛 Akane Rin changed upstream), and B1–B4 above. Typical effects: teams with a character whose arc has an always-on bonus are about 1–11 % lower (B2), teams with Crime and Punishment or Antipode of the Moon are higher (B3 / B4), and a member whose arc was changed from the template now gets that arc's stats (B1). Every changed number was traced to one of these causes (89 test scenarios, 52 changed by the corrections, none without the corrected arc in the team). The development switch `NTE_TEAM_FORK_CORRECTIONS=off` turns the corrections off; the Arc Efficiency table then does not use its precomputed rows. The numbers change again in 2.3.1-global.2 (sections 9 to 12).
+Team Simulation numbers differ from Global 2.3.0. Two causes: the 2.3.1 game data (graduation templates and arc rows of 黑羽 Raven and 明音凛 Akane Rin changed upstream), and B1–B4 above. Typical effects: teams with a character whose arc has an always-on bonus are about 1–11 % lower (B2), teams with Crime and Punishment or Antipode of the Moon are higher (B3 / B4), and a member whose arc was changed from the template now gets that arc's stats (B1). Every changed number was traced to one of these causes (89 test scenarios, 52 changed by the corrections, none without the corrected arc in the team). The development switch `NTE_TEAM_FORK_CORRECTIONS=off` turns the corrections off; the Arc Efficiency table then does not use its precomputed rows. The numbers change again in 2.3.2 (sections 9 to 12).
 
 ## 3. Arc Efficiency Table (Beta) — new feature
 
-A new page in the sidebar, below Team Simulation. For every character with an exclusive arc it compares the arcs the character can equip by the damage of the character's reviewed solo rotation. Since 2.3.1-global.2 the page also holds the awakening efficiency table (section 10) and the Puka Boot Camp template switch (section 12).
+A new page in the sidebar, below Team Simulation. For every character with an exclusive arc it compares the arcs the character can equip by the damage of the character's reviewed solo rotation. Since 2.3.2 the page also holds the awakening efficiency table (section 10) and the Puka Boot Camp template switch (section 12).
 
 | File | Purpose |
 |---|---|
 | `src/features/arc_efficiency/__init__.py`, `page.py`, `table_view.py` | The page: character list (best alternative and where the row came from), the arc table (rank, R1 %, max-refinement %, refinement gain, notes, optional damage columns), legend, notice, options (3 loops / 1 loop, basis "exclusive R1 = 100 %" / "same refinement", show or hide other characters' exclusive arcs †, damage columns), "Open in Team Simulation". Options are saved in `config/arc_efficiency_preferences.json` (not per account). |
 | `src/services/arc_efficiency_service.py` | The calculation: the character alone, official graduation template, only the arc and its refinement swapped, reviewed rotation, Lv80 dummy, the Team Simulation engine with the corrections of section 2. It decides per character whether the precomputed rows can be used (same game data and the same calculation code), otherwise it recomputes in the background, the viewed character first, and caches the result on this PC (`config/arc_efficiency_cache.json`). |
 | `src/services/arc_efficiency_notes.py` | Per-arc notes: which effects the solo calculation cannot reflect (support skill, teammates, team makeup, Cycle / Break intensity, hits taken …). |
-| `src/services/arc_efficiency_data.py` | Generated: the precomputed rows (11 characters × the arcs each can equip × refinement 1 and max × 1 and 3 loops; since 2.3.1-global.2 for Puka Boot Camp level 0 and level 20) with the hash of the game database and a fingerprint of the calculation code. Generator: `build_tools/gen_arc_efficiency_data.py`. |
+| `src/services/arc_efficiency_data.py` | Generated: the precomputed rows (11 characters × the arcs each can equip × refinement 1 and max × 1 and 3 loops; since 2.3.2 for Puka Boot Camp level 0 and level 20) with the hash of the game database and a fingerprint of the calculation code. Generator: `build_tools/gen_arc_efficiency_data.py`. |
 
 Which arcs are listed: the character's exclusive arc (★), the generic arcs of the same type, and other characters' exclusive arcs that the calculator's same-type rule lets the character equip (†; not verified in game, hidden with one switch). Characters without an exclusive arc are not in the table; a future character with an exclusive arc in the game data appears automatically. The limits of the model are shown on the page ("Notice") and in [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
@@ -113,7 +114,7 @@ Official 2.3.1 deploys `d3d12.dll` (host) and `plugins/NTE_Plugin{User,Combat,HU
 | `src/services/native_plugin_deployment.py` | Deploying to the game folder stops with a message (`ForeignGameFileError`) when a target file exists and is not known; the Loader's private folder keeps the original behaviour. Automatic and manual clean-up delete only known files; any other file (for example ReShade installed as `d3d12.dll`) is kept and reported, and the clean-up of the program's own files still completes. |
 | `src/integrations/legacy_game_proxy.py`, `src/services/managed_plugin_cleanup.py` | Only this program's own old `dwmapi.dll` loaders count as a leftover; another `dwmapi.dll` (for example UE4SS) is kept and reported. |
 | `src/services/component_upgrade_guide.py` | The component-upgrade check names an unknown file as foreign instead of offering to replace it. |
-| `src/services/work_mode_runtime.py` | Passes the application root and the deployment record to the clean-up so it can read the known hashes (and, since 2.3.1-global.2, the RTSS check of section 13). |
+| `src/services/work_mode_runtime.py` | Passes the application root and the deployment record to the clean-up so it can read the known hashes (and, since 2.3.2, the RTSS check of section 13). |
 | `src/ui/controllers/native_plugin_deployment_ui.py` | Shows the foreign-file message, and notes a kept file in the success dialogs. |
 
 The hot plugin update of 2.3.1 (`src/services/native_plugin_update.py`) is unchanged: it only replaces plugin files the running host reports as loaded with the same SHA-256.
@@ -136,13 +137,13 @@ Search, layout and input:
 | `src/features/allocation/execute_page.py` | Two result-header buttons use a minimum width instead of a fixed size, so longer translations fit. |
 | `src/features/settings/work_mode_card.py` | The work-mode labels and the "检测并处理" (Check and Fix) button use a minimum width instead of a fixed width (the official 96 px button is 3 px too narrow even for the Chinese text). |
 | `src/features/toolbox/cultivation_stamina_ui.py` | The stamina hint wraps, so the cultivation page has no horizontal overflow at the default window size in any language. |
-| `src/features/static_catalog/domain_pages/character_profile.py` | The quality badge uses the quality keys (`S 级` / `A 级`) instead of the level template, so it is not translated as a level. Since 2.3.1-global.2 the profile also shows Akane Rin's CN release (section 11). |
+| `src/features/static_catalog/domain_pages/character_profile.py` | The quality badge uses the quality keys (`S 级` / `A 级`) instead of the level template, so it is not translated as a level. Since 2.3.2 the profile also shows Akane Rin's CN release (section 11). |
 | `src/features/battle_report/timeline_view.py` | The fallback avatar letter is taken from the displayed (translated) name. |
 | `src/features/identification/controller.py` | Manual input on the Appraisal page: stat names shown in the current language are mapped back to the internal names before parsing. |
 | `src/ui/plain_text_edit.py` | Paste inserts through the text cursor so the display layer does not translate the text the parser reads. |
 | `src/ui/operation_guidance.py` | The "current mode does not allow this feature" message is one template, so the mode name can be placed by the translation. |
 | `src/features/settings/component_upgrade_dialog.py` | The upgrade step text is rendered in the active language before the method name is filled in (after a live language switch it stayed Chinese). |
-| `src/ui/rich_tooltip.py` (new in 2.3.1-global.2) | Rich-text tooltips shown as given: the display layer does not translate them a second time (which doubled kept terms such as "지식(蜘识)"), and long tooltips wrap. Used by the awakening and efficiency tables. |
+| `src/ui/rich_tooltip.py` (new in 2.3.2) | Rich-text tooltips shown as given: the display layer does not translate them a second time (which doubled kept terms such as "지식(蜘识)"), and long tooltips wrap. Used by the awakening and efficiency tables. |
 
 Text matching that no longer depends on the language (code that compared a message with a Chinese literal, cut a label out of it, or checked the type of a value):
 
@@ -155,12 +156,12 @@ Text matching that no longer depends on the language (code that compared a messa
 | `src/features/plugins/page.py` | Plugin status badges ("not supported", "needs update" …) are chosen from the Chinese source of the status text, so a translated status gets the same badge as in Chinese. |
 | `src/features/home/page.py`, `src/features/home/sync_retry_dialog.py`, `src/ui/controllers/inventory_sync_controller.py` | `relabel_next_step()` replaces a text replacement that only worked on the Chinese label. |
 | `src/features/inventory/equipment_assembly_controller.py` | Recognises the "missing character instance" reason in any language. |
-| `src/features/settings/page.py` | Compares against the translated message as well as the Chinese fragment. (The original's `src/ui/controllers/update_controller.py`, which had the same fix in 2.3.1-global.1, is removed in 2.3.1-global.2, section 8.) |
+| `src/features/settings/page.py` | Compares against the translated message as well as the Chinese fragment. (The original's `src/ui/controllers/update_controller.py`, which had the same fix in 2.3.1-global.1, is removed in 2.3.2, section 8.) |
 | `src/features/static_catalog/domain_pages/monster_page.py`, `monster_detail_view.py`, `src/services/static_catalog_monster_feast.py`, `src/services/static_catalog_mechanics_service.py` | Section titles, level labels, category suffixes and field tones are matched in any language. |
 
 Fixes relative to the earlier Korean patch (<https://github.com/LuinDe/NTE-Drive-Calc-KO>), not relative to the original: in that patch some dictionary keys were translated on one side only. For example, the save / manage confirmation of the inventory page failed because `counts['弃置']` no longer matched. In this tree both sides use the same wrapped key (`src/features/inventory/warehouse_controller.py`, `src/features/static_catalog/domain_pages/monster_detail_view.py`).
 
-## 8. In-app updates (Global only) — new in 2.3.1-global.2
+## 8. In-app updates (Global only) — new in 2.3.2
 
 The original's update function is removed and replaced by an updater that only knows this repository. Global is developed and updated independently of the original from this version on.
 
@@ -175,7 +176,7 @@ New files:
 
 | File | Purpose |
 |---|---|
-| `src/app/global_release.py` | Version identity and channel constants: `GLOBAL_VERSION` (`2.3.1-global.2`), the upstream base (`2.3.1`, information only), the only repository asked (`LuinDe/NTE-Drive-Calc-Global`), asset names derived from the tag, size limits, the check interval (start-up check at most once per 20 hours), and `RELEASE_SIGNING_KEYS`, the pinned Ed25519 public key of the maintainer (fingerprint `SHA256:/fAeeg67muvrTrfFKosRIJGZd58nxmO9hX/q82d05XY`; written by `build_tools/pin_release_key.py`). |
+| `src/app/global_release.py` | Version identity and channel constants: `GLOBAL_VERSION` (`2.3.2`), the upstream base (`2.3.1`, information only), the only repository asked (`LuinDe/NTE-Drive-Calc-Global`), asset names derived from the tag, size limits, the check interval (start-up check at most once per 20 hours), and `RELEASE_SIGNING_KEYS`, the pinned Ed25519 public key of the maintainer (fingerprint `SHA256:/fAeeg67muvrTrfFKosRIJGZd58nxmO9hX/q82d05XY`; written by `build_tools/pin_release_key.py`). |
 | `src/services/global_update/client.py` | Release discovery (`GET /repos/LuinDe/NTE-Drive-Calc-Global/releases`, never another host or repository) and installer download. Drafts and prereleases are ignored; tags must follow the Global grammar; a release is offered only when it is newer than the running version, carries the expected assets and a manifest with a valid signature. |
 | `src/services/global_update/verify.py` | Integrity gates, standard library only: Ed25519 (RFC 8032) and OpenSSH `sshsig` verification in pure Python (namespace `nte-drive-calc-global-release`), manifest parsing and comparison with the release (tag, version, installer name / size / SHA-256, exe SHA-256, minimum running version, notes digest), SHA-256 and PE checks of the download. |
 | `src/services/global_update/state.py` | Update state in `updates\state.json` under the program folder (last check, skipped version, staged download; never a path). |
@@ -199,9 +200,11 @@ Changed original files:
 | `src/ui/work_mode_composition.py` | `app_update_blocker()`: no installation while the work mode is switching, a battle is being recorded or a hotkey owner is active. |
 | `src/ui/gui_startup.py` | Restores `TMP` / `TEMP` after a relaunch through Setup. |
 
-The installer (`build_tools/build_installer_g231.py`) has a relaunch entry that runs only for a silent install with `/AUTOUPDATE=1 /RELAUNCH=1`, and removes `{app}\updates` on uninstall. The release manifest (`NTE_Drive_Calc_<version>_release.json`) is written by the same tool and signed by the maintainer with `ssh-keygen -Y sign` (namespace `nte-drive-calc-global-release`); `build_tools/verify_release_manifest.py` checks a signed release locally or on GitHub. 2.3.1-global.1 has no updater, so the first update to 2.3.1-global.2 is a manual install.
+The installer (`build_tools/build_installer_g231.py`) has a relaunch entry that runs only for a silent install with `/AUTOUPDATE=1 /RELAUNCH=1`, and removes `{app}\updates` on uninstall. The release manifest (`NTE_Drive_Calc_<version>_release.json`) is written by the same tool and signed by the maintainer with `ssh-keygen -Y sign` (namespace `nte-drive-calc-global-release`); `build_tools/verify_release_manifest.py` checks a signed release locally or on GitHub. 2.3.1-global.1 has no updater, so the first update to 2.3.2 is a manual install.
 
-## 9. Team Simulation: ultimate energy, Esper-Cycle gauge, cooldowns and the swap rule — new in 2.3.1-global.2
+Version grammar (extended in 2.3.2): a Global version is `<major>.<minor>.<patch>` or, as written by the releases up to 2.3.1-global.2, `<major>.<minor>.<patch>-global.<n>` with n ≥ 1; a tag is `v` followed by the version. Only ASCII digits, no leading zeros, every part at most 65535, no spaces or line breaks; the whole string must match. Versions are ordered by (major, minor, patch, n), with n = 0 for the plain form, and the Windows file version is major.minor.patch.n (2.3.2 → 2.3.2.0). The build tools refuse a `--version` that is not newer than 2.3.1-global.2. Everything else of the updater is unchanged (only this repository, signature, notes digest, download hosts, size limits), and the minimum running version (`FIRST_AUTO_UPDATE_VERSION`, the manifest's `min_global_version`) stays 2.3.1-global.2. 2.3.1-global.2 itself reads only the `-global.<n>` form, so it is not offered 2.3.2 in the program.
+
+## 9. Team Simulation: ultimate energy, Esper-Cycle gauge, cooldowns and the swap rule — new in 2.3.2
 
 | File | Purpose |
 |---|---|
@@ -211,7 +214,7 @@ The installer (`build_tools/build_installer_g231.py`) has a relaunch entry that 
 | `src/features/team_simulation/page.py`, `explanation_view.py`, `custom_panel.py`, `custom_view.py` | Resource-model choice (remembered per account), resource rows in the explanation, custom-cycle options. |
 | `src/services/arc_efficiency_notes.py`, `arc_efficiency_data.py` | Notes and precomputed rows follow the resource model (some solo rotations now wait for cooldowns). |
 
-## 10. Awakening (觉醒, Korean UI 돌파): free choice, node rules and the awakening efficiency table — new in 2.3.1-global.2
+## 10. Awakening (觉醒, Korean UI 돌파): free choice, node rules and the awakening efficiency table — new in 2.3.2
 
 In the game an awakening level gives one slot, and the six effects can be chosen in any order; the resonances turn on at levels 3 and 6 whatever is chosen. Global 2.3.1-global.1 assumed "level N = effects 1..N".
 
@@ -225,7 +228,7 @@ In the game an awakening level gives one slot, and the six effects can be chosen
 | `src/services/team_simulation_service.py`, `team_custom_cycle_service.py`, `team_custom_cycle_store.py`, `team_custom_cycle_texts.py`, `team_simulation_explanation.py` | 17 places that assumed "level N = 1..N" (including Mint ①, Haniel ⑥, Adler ⑤, Zero ②, Linko ③ resource rules) now read the selected set. |
 | `src/i18n_data_*.py`, `src/i18n_display.py`, `src/i18n_desc.py` | Korean term change (觉醒 = 돌파, 突破 = 레벨 돌파) and the new texts. |
 
-## 11. Akane Rin (明音凛): CN-release data overlay — new in 2.3.1-global.2
+## 11. Akane Rin (明音凛): CN-release data overlay — new in 2.3.2
 
 The bundled game database (dataset `cn_retail_20260924`) holds Akane Rin's pre-release values. Values of the CN release (2026-10-15) on which at least two independent sources agree replace them at run time; the database file is not changed.
 
@@ -238,7 +241,7 @@ The bundled game database (dataset `cn_retail_20260924`) holds Akane Rin's pre-r
 
 Sources: the official CN notices (yh.wanmei.com, 10-14 / 10-15 / 10-16), in-game screenshots of the CN release client (forum.gamer.com.tw), TapTap guides, Japanese guides that state they describe the Chinese version (kamigame, AppMedia, GameWith) and, for the arc only, LDShop. Unverified fields: Lv80 base stats, skill multipliers, the basic-attack conduction base values, the 华彩连段 duration and five mechanics that only one source describes, the arc's R1 crit rate and Lakshana bonus (sources disagree: 16 % vs 15 / 20 %; the database's 16 % is kept) and R2–R5 values. Graduation template, recommendation weights and Korean / English / Japanese names are not part of the overlay.
 
-## 12. Puka Boot Camp (噗卡特训) — new in 2.3.1-global.2
+## 12. Puka Boot Camp (噗卡特训) — new in 2.3.2
 
 The account-wide progression of game version 1.4 (levels 0–20; at Lv 20: ATK +28, DEF +30, HP +420, CRIT Rate +2.5 pp, CRIT DMG +5 pp, cycle intensity +12, break intensity +12) applies to deployed characters.
 
@@ -252,7 +255,7 @@ The account-wide progression of game version 1.4 (levels 0–20; at Lv 20: ATK +
 | `src/features/allocation/role_selector.py`, `role_selector_help.py`, `role_selector_preferences.py`, `src/features/inventory/equipment_graduation_controller.py`, `src/services/allocation_catalog_service.py`, `legacy_allocation_static_catalog.py` | Graduation rate and allocation use the account's level; the crit-rate cap counts the training. |
 | `src/services/arc_efficiency_service.py`, `src/features/arc_efficiency/page.py`, `src/features/team_simulation/page.py` | "View at Puka Boot Camp max (Lv.20)": the graduation template of the efficiency tables at level 0 or 20 (both precomputed); Team Simulation uses the account's level. |
 
-## 13. RTSS (RivaTuner Statistics Server) compatibility notice — new in 2.3.1-global.2
+## 13. RTSS (RivaTuner Statistics Server) compatibility notice — new in 2.3.2
 
 On the author's PC the game crashed at start (`D3D12Viewport.cpp:554`, `80004004 E_ABORT`) when RTSS with its default hooking ran together with the 2.3.1 in-game component. The check is read-only; RTSS settings are never changed.
 
@@ -262,11 +265,12 @@ On the author's PC the game crashed at start (`D3D12Viewport.cpp:554`, `80004004
 | `src/services/rtss_compat_guidance.py` (new), `src/ui/controllers/rtss_compat_notice.py` (new) | Texts and the reminder before the calculator injects into the game ([Start native Loader] / D3D deploy): fix steps (add `HTGame.exe`, Setup → General → "Use Microsoft Detours API hooking"), check again, continue, cancel, or turn the reminder off for the account. The reminder opens as tall as its text needs at its width (on a screen too small for that the text scrolls and the buttons stay visible). |
 | `src/domain/work_mode.py`, `src/services/work_mode_checks.py`, `work_mode_runtime.py`, `src/ui/controllers/environment_controller.py`, `mod_loader_controller.py` | The risk appears as an advisory item in "Detection Details" (it never blocks readiness); the reminder hook before injection. |
 
-## 14. Other changes in 2.3.1-global.2
+## 14. Other changes in 2.3.2
 
 - Japanese: skill names in the Custom Input palette tooltips (nine lines were Chinese); 小吱 is 「ちぃちゃん」 everywhere (`src/services/team_custom_actions.py`, `src/i18n_data_ja.py`); the English description name is "Chiz".
 - Team Simulation member cards: long character names (for example Lacrimosa) no longer cut off in the character selector (shortened with "…" and a tooltip when they still do not fit).
 - The sidebar title reads "NTE Drive Calc Global" (`src/ui/main_window_navigation_mixin.py`).
+- New in 2.3.2: the avatar in the home page's work-space header (工作台) shows Akane Rin (明音凛, character 1057) instead of Raven (黑羽, 1042), from the same verified character image catalogue (`src/features/home/page.py`; `data/role_catalog/game_ui` is unchanged).
 
 ## 15. Outside `src/`
 
@@ -274,11 +278,19 @@ On the author's PC the game crashed at start (`D3D12Viewport.cpp:554`, `80004004
 |---|---|
 | `config/templates/guide/1.png` – `7.png` | The seven "how to use" tutorial images are replaced by Korean versions. The program has one image set, so they are Korean in every language. |
 | Executable `NTE_Drive_Calc.exe` | The official 2.3.1 PyInstaller executable (SHA-256 `5b8fa8d2…e8c3`) with only the `src.*` records of its PYZ archive replaced: 257 records kept as they are, 634 recompiled from this tree, 91 added (the 69 new files, and 22 modules that exist in the original source but that the official build did not bundle because nothing imports them), 2 removed on purpose (`src.features.settings.updates`, `src.ui.controllers.update_controller`). The 2,008 other PYZ entries and every other archive entry are byte-identical; the PE checksum is recomputed. Script: `build_tools/rebuild_exe_l10n.py` (with `--remove=` for the two modules); proof: `build_tools/verify_exe_l10n_g231.py`. |
-| Installer | `build_tools/build_installer_g231.py`, a port of the original `build_installer.py` at the baseline commit. Same application ID, default folder, privileges, `[Files]` / `[InstallDelete]` / `[Dirs]` structure as the official 2.3.1 installer, so it upgrades an official install in place and a later official installer installs over it. Differences: a setup wizard in four languages, the product is named "NTE Drive Calc 2.3.1 Multilingual Edition (Global)" (localised) with a publisher string that says unofficial, a notice page, the folder `l10n_build` with `LICENSE.txt`, `README.txt` and `SOURCE_OFFER.txt`, the program's start language is written from the setup language only when no language was set before, and the language file is removed on uninstall. Since 2.3.1-global.2: `AppVersion` is the Global version, file version 2.3.1.2, asset names carry the full Global version, the in-app update relaunch entry and `{app}\updates` removal of section 8. |
-| Release manifest | Since 2.3.1-global.2 every release carries `NTE_Drive_Calc_<version>_release.json` and its signature `.sig` (section 8). |
+| Installer | `build_tools/build_installer_g231.py`, a port of the original `build_installer.py` at the baseline commit. Same application ID, default folder, privileges, `[Files]` / `[InstallDelete]` / `[Dirs]` structure as the official 2.3.1 installer, so it upgrades an official install in place and a later official installer installs over it. Differences: a setup wizard in four languages, the product is named "NTE Drive Calc 2.3.2 Multilingual Edition (Global)" (localised; the number is the Global version) with a publisher string that says unofficial, a notice page, the folder `l10n_build` with `LICENSE.txt`, `README.txt` and `SOURCE_OFFER.txt`, the program's start language is written from the setup language only when no language was set before, and the language file is removed on uninstall. Since 2.3.2: `AppVersion` is the Global version, file version major.minor.patch.n (2.3.2.0), asset names carry the Global version, the in-app update relaunch entry and `{app}\updates` removal of section 8. |
+| Release manifest | Since 2.3.2 every release carries `NTE_Drive_Calc_<version>_release.json` and its signature `.sig` (section 8). |
 | `_internal/`, `drivers/` in the installer | Copied from the official 2.3.1 installation without change, except the seven tutorial images. |
 
-## 16. Changes since 2.3.1-global.1
+## 16. Changes from 2.3.1-global.2 to 2.3.2
+
+Global 2.3.2 contains everything of 2.3.1-global.2, which was published briefly on 2026-10-19, plus:
+
+- Version numbers: Global's version number is now independent of the original's, and this release is plain **2.3.2** everywhere (program, installer, file names, tag `v2.3.2`). Global 2.3.2 is based on the official 2.3.1; `src/app/version.py` stays `2.3.1`. The version grammar is extended to the plain form (section 8).
+- The home page's work-space header shows Akane Rin instead of Raven (section 14).
+- A 2.3.1-global.2 install does not recognise the new version format, so it is not offered 2.3.2 in the program: install 2.3.2 once by hand, as from 2.3.1-global.1.
+
+## 17. Changes since 2.3.1-global.1
 
 For users of the previous release, in short:
 
@@ -288,9 +300,10 @@ For users of the previous release, in short:
 - Akane Rin on CN-release data (section 11).
 - Puka Boot Camp (section 12).
 - RTSS compatibility notice (section 13).
+- Version numbers independent of the original, and the home avatar (section 16).
 - Fixes listed in section 14.
 
-## 17. Changes from Global 2.3.0 to 2.3.1-global.1
+## 18. Changes from Global 2.3.0 to 2.3.1-global.1
 
 - Based on the official 2.3.1 (everything the original added in 2.3.1, including the cultivation history and the plugin-based in-game components).
 - New Arc Efficiency Table (Beta) (section 3).

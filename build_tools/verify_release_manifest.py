@@ -202,7 +202,7 @@ def github_mode(args, gr, client_mod, verify_mod, UpdateError) -> int:
     tag = args.github
     version = gr.parse_global_tag(tag)
     if version is None:
-        return fail(f"{tag!r} is not a Global tag (v<major>.<minor>.<patch>-global.<n>)", 2)
+        return fail(f"{tag!r} is not a Global tag (v<major>.<minor>.<patch>[-global.<n>])", 2)
     releases = gh_json("api", f"repos/{REPO}/releases?per_page={gr.API_PER_PAGE}")
     matching = [r for r in releases if isinstance(r, dict) and r.get("tag_name") == tag]
     if len(matching) != 1:
@@ -221,9 +221,14 @@ def github_mode(args, gr, client_mod, verify_mod, UpdateError) -> int:
         problems.append(f"release body lacks the H2 sections {missing_sections}")
     if release.get("immutable") is False and not is_draft:
         print("  warning: the release is not immutable (enable Settings -> Releases -> Immutable releases)")
-    # the app's own selection, as the build one step older would run it
-    previous = gr.GlobalVersion(version.major, version.minor, version.patch, version.n - 1) if version.n > 1 \
-        else gr.GlobalVersion(0, 0, 0, 1)
+    # the app's own selection, as the build one step older would run it (a plain tag such as v2.3.2: the previous
+    # patch; otherwise 0.0.0-global.1 - any running version older than the tag is enough for the selection rules)
+    if version.n > 1:
+        previous = gr.GlobalVersion(version.major, version.minor, version.patch, version.n - 1)
+    elif version.n == 0 and version.patch > 0:
+        previous = gr.GlobalVersion(version.major, version.minor, version.patch - 1, 0)
+    else:
+        previous = gr.GlobalVersion(0, 0, 0, 1)
     settings = gr.default_update_settings()
     view = dict(release)
     if is_draft:

@@ -72,7 +72,7 @@ NTE Drive Calc {version} Multilingual Edition "NTE Drive Calc Global" (unofficia
   - 전투 리포트 "내 캐릭터로 비교": src/features/battle_report/my_build_comparison.py,
     src/services/battle_import_comparison_service.py
   - 게임 폴더 보호(이 프로그램 것으로 확인되지 않는 d3d12.dll 등은 덮어쓰거나 지우지 않음)
-  - (2.3.1-global.2) Global 전용 프로그램 안 업데이트: src/app/global_release.py, src/services/global_update/
+  - (2.3.2) Global 전용 프로그램 안 업데이트: src/app/global_release.py, src/services/global_update/
     (원 프로젝트의 업데이트 모듈 src/features/settings/updates.py, src/ui/controllers/update_controller.py 삭제),
     푸카 특훈(src/services/puka_training_*.py), RTSS 호환성 안내(src/services/rtss_compat*.py),
     팀 시뮬레이션 자원 모델과 교체 규칙(src/services/team_resources.py, team_resource_data.py),
@@ -87,7 +87,7 @@ NTE Drive Calc {version} Multilingual Edition "NTE Drive Calc Global" (unofficia
       --remove=src.features.settings.updates --remove=src.ui.controllers.update_controller
   python build_tools/verify_exe_l10n_g231.py <공식 {version} NTE_Drive_Calc.exe> <출력 exe> src
       --removed=src.features.settings.updates --removed=src.ui.controllers.update_controller
-  (2.3.1-global.2 부터 원 프로젝트의 업데이트 모듈 두 개는 소스에 없으므로 --remove / --removed 로 일부러
+  (2.3.2 부터 원 프로젝트의 업데이트 모듈 두 개는 소스에 없으므로 --remove / --removed 로 일부러
   뺍니다. 그 밖의 모듈이 빠져 있으면 빌드가 멈춥니다.)
   공식 PyInstaller 실행 파일의 PYZ 아카이브에서 src.* 모듈만 이 소스를 컴파일한 것으로 바꾸고, 나머지는 바이트
   단위로 그대로 둡니다. 기준 공식 실행 파일의 SHA-256 은
@@ -135,7 +135,7 @@ In short:
     src/services/battle_import_comparison_service.py
   - game-folder protection (a d3d12.dll or other file that cannot be identified as this program's is never
     overwritten or deleted)
-  - (2.3.1-global.2) Global-only in-app updates: src/app/global_release.py, src/services/global_update/ (the
+  - (2.3.2) Global-only in-app updates: src/app/global_release.py, src/services/global_update/ (the
     original's update modules src/features/settings/updates.py and src/ui/controllers/update_controller.py are
     removed); Puka Boot Camp (src/services/puka_training_*.py); RTSS compatibility notice
     (src/services/rtss_compat*.py); team-simulation resource model and swap rule
@@ -151,7 +151,7 @@ Building the executable (Python 3.11 required: the executable embeds python311.d
       --remove=src.features.settings.updates --remove=src.ui.controllers.update_controller
   python build_tools/verify_exe_l10n_g231.py <official {version} NTE_Drive_Calc.exe> <output exe> src
       --removed=src.features.settings.updates --removed=src.ui.controllers.update_controller
-  (From 2.3.1-global.2 the original project's two update modules are not in the source; --remove / --removed
+  (From 2.3.2 the original project's two update modules are not in the source; --remove / --removed
   drop them on purpose. Any other missing module still stops the build.)
   Only the src.* modules in the PYZ archive of the official PyInstaller executable are replaced by a compile of this
   tree; everything else is kept byte for byte. The official executable used as the base has the SHA-256
@@ -213,7 +213,7 @@ def main() -> int:
     offer = installer.render_source_offer(version=args.version, exe_sha256=args.exe_sha256, source_zip_name=zip_name)
     entries[f"{top}/SOURCE_OFFER.txt"] = offer.replace("\r\n", "\n").replace("\n", "\r\n").encode("utf-8-sig")
     installer.parse_global_version(args.version)            # BuildError for a non-Global version
-    readme = README.format(version=installer.base_version(args.version), upstream_url=installer.UPSTREAM_URL,
+    readme = README.format(version=installer.UPSTREAM_BASE, upstream_url=installer.UPSTREAM_URL,
                            upstream_commit=installer.UPSTREAM_COMMIT, project_url=installer.PROJECT_URL,
                            official_sha=OFFICIAL_EXE_SHA256, exe_sha=args.exe_sha256)
     entries[f"{top}/README_SOURCE.txt"] = readme.replace("\r\n", "\n").replace("\n", "\r\n").encode("utf-8-sig")

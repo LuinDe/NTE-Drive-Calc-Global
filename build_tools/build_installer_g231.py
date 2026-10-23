@@ -38,10 +38,14 @@ Variants
              ViGEmBus task / run step / shortcut, default directory under C:\Temp - for testing without
              administrator rights and without touching the real installation or its uninstall registry entry.
 
-Versions (from 2.3.1-global.2): ``--version`` is the GLOBAL version ``<major>.<minor>.<patch>-global.<n>`` of
-``src/app/global_release.py`` (``--tree <root>`` refuses a mismatch).  AppVersion / DisplayVersion carry the full
-Global version, VERSIONINFO is ``major.minor.patch.n``, the program entry name keeps the upstream base, the asset
-names carry the full version (the in-app updater derives them from the release tag).  The installer also carries the
+Versions: ``--version`` is the GLOBAL version of ``src/app/global_release.py`` (``--tree <root>`` refuses a
+mismatch), in the grammar ``<major>.<minor>.<patch>`` with an optional ``-global.<n>`` suffix (n >= 1; the releases
+before 2.3.2 carry it, from 2.3.2 the Global version is plain).  It must be newer than the last published release
+``PREVIOUS_RELEASE_VERSION`` (2.3.1-global.2); versions are ordered as (major, minor, patch, n) with n = 0 without
+the suffix.  AppVersion / DisplayVersion carry the full Global version, VERSIONINFO is ``major.minor.patch.n``, the
+program entry name carries ``major.minor.patch`` of the Global version, the asset names carry the full version (the
+in-app updater derives them from the release tag).  The documents and the manifest's ``upstream_base`` name the
+official version the build is based on (``UPSTREAM_BASE``, = src/app/version.py of the tree).  The installer also carries the
 gated ``[Run]`` entry that restarts the program after an in-app update (``/AUTOUPDATE=1 /RELAUNCH=1``, silent only)
 and removes ``{app}\\updates`` on uninstall.  ``--emit-manifest`` writes the unsigned release manifest the updater
 verifies (sign it with ``ssh-keygen -Y sign`` afterwards; see build_tools/README.md).
@@ -79,8 +83,14 @@ APP_EXE_NAME = "NTE_Drive_Calc.exe"
 OFFICIAL_APP_ID = "D7DA28BE-8A19-4E05-9216-3F16C4C2C820"      # upstream build_installer.py APP_ID
 SANDBOX_APP_ID = "5B0C6E1A-7F2D-4C39-8E54-1D9A3F6B2C70"       # test-only identity, never the official one
 SANDBOX_DEFAULT_DIR = r"C:\Temp\nte_g231_setup_sandbox"
-DEFAULT_VERSION = "2.3.1-global.2"                             # Global grammar: <major>.<minor>.<patch>-global.<n>
-GLOBAL_VERSION_RE = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-global\.([1-9][0-9]*)", re.ASCII)
+DEFAULT_VERSION = "2.3.2"                                      # Global grammar: <major>.<minor>.<patch>[-global.<n>]
+# the grammar of src/app/global_release.py (_PLAIN / _VERSION_CORE): fullmatch only, ASCII digits, no leading zeros
+_PLAIN = r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+_VERSION_CORE = _PLAIN + r"(?:-global\.([1-9][0-9]*))?"
+GLOBAL_VERSION_RE = re.compile(_VERSION_CORE, re.ASCII)
+GLOBAL_TAG_RE = re.compile(r"v" + _VERSION_CORE, re.ASCII)
+PREVIOUS_RELEASE_VERSION = "2.3.1-global.2"                    # last published release: --version must be newer
+UPSTREAM_BASE = "2.3.1"                                        # official version this build is based on (src/app/version.py)
 MANIFEST_FORMAT = 1                                            # src/services/global_update/verify.py parse_manifest
 MANIFEST_PRODUCT = "NTE-Drive-Calc-Global"
 FIRST_AUTO_UPDATE_VERSION = "2.3.1-global.2"                   # first build with the in-app updater
@@ -477,22 +487,41 @@ def sha256_of(path: Path) -> str:
 
 
 def parse_global_version(value: str) -> tuple[int, int, int, int]:
-    """``2.3.1-global.2`` -> (2, 3, 1, 2): the grammar of src/app/global_release.py (no leading zeros, ``-global.<n>``
-    from 1, every part <= 65535).  A plain upstream version (``2.3.1``) or a tag (``v2.3.1-global.2``) is refused."""
-    match = GLOBAL_VERSION_RE.fullmatch(value)
-    if not match or any(int(part) > 65535 for part in match.groups()):
-        raise BuildError(f"not a Global version (expected <major>.<minor>.<patch>-global.<n>): {value!r}")
-    major, minor, patch, n = (int(part) for part in match.groups())
+    """``2.3.2`` -> (2, 3, 2, 0), ``2.3.1-global.2`` -> (2, 3, 1, 2): the grammar of src/app/global_release.py (no
+    leading zeros, ASCII digits, ``-global.<n>`` optional with n from 1, every part <= 65535).  A tag
+    (``v2.3.2``) or anything else is refused.  The tuple is the release order."""
+    match = GLOBAL_VERSION_RE.fullmatch(value) if isinstance(value, str) else None
+    if not match:
+        raise BuildError(f"not a Global version (expected <major>.<minor>.<patch>[-global.<n>]): {value!r}")
+    parts = tuple(0 if part is None else int(part) for part in match.groups())
+    if any(part > 65535 for part in parts):
+        raise BuildError(f"not a Global version (every part must be <= 65535): {value!r}")
+    major, minor, patch, n = parts
     return major, minor, patch, n
 
 
+def global_version_text(parts: tuple[int, int, int, int]) -> str:
+    """(2, 3, 2, 0) -> ``2.3.2``; (2, 3, 1, 2) -> ``2.3.1-global.2`` (src.app.global_release.GlobalVersion.text)."""
+    major, minor, patch, n = parts
+    core = f"{major}.{minor}.{patch}"
+    return core if n == 0 else f"{core}-global.{n}"
+
+
+def require_newer_than_previous(value: str) -> None:
+    """A build must be strictly newer than the last published release (2.3.1-global.2)."""
+    if parse_global_version(value) <= parse_global_version(PREVIOUS_RELEASE_VERSION):
+        raise BuildError(f"--version {value} is not newer than the published release {PREVIOUS_RELEASE_VERSION}")
+
+
 def windows_numeric_version(value: str) -> str:
-    """VERSIONINFO of the Global build: ``2.3.1-global.2`` -> ``2.3.1.2`` (src.app.global_release.global_numeric_version)."""
+    """VERSIONINFO of the Global build: ``2.3.2`` -> ``2.3.2.0``, ``2.3.1-global.2`` -> ``2.3.1.2``
+    (src.app.global_release.global_numeric_version)."""
     return ".".join(str(part) for part in parse_global_version(value))
 
 
 def base_version(value: str) -> str:
-    """The upstream base ``2.3.1`` of a Global version (information only: program entry name, notices)."""
+    """``major.minor.patch`` of a Global version (``2.3.2`` -> ``2.3.2``, ``2.3.1-global.2`` -> ``2.3.1``): the program
+    entry name.  The official version a build is based on is ``UPSTREAM_BASE`` (documents, manifest)."""
     major, minor, patch, _n = parse_global_version(value)
     return f"{major}.{minor}.{patch}"
 
@@ -510,6 +539,17 @@ def tree_global_version(root: Path) -> str:
     match = re.search(r'^GLOBAL_VERSION\s*=\s*"([^"]+)"', source.read_text(encoding="utf-8"), re.MULTILINE)
     if not match:
         raise BuildError(f"GLOBAL_VERSION not found in {source}")
+    return match.group(1)
+
+
+def tree_upstream_base(root: Path) -> str:
+    """``__version__`` of ``<root>/src/app/version.py``: the official version the tree is based on."""
+    source = root / "src" / "app" / "version.py"
+    if not source.is_file():
+        raise BuildError(f"not a tree root (src/app/version.py missing): {root}")
+    match = re.search(r'^__version__\s*=\s*"([^"]+)"', source.read_text(encoding="utf-8"), re.MULTILINE)
+    if not match:
+        raise BuildError(f"__version__ not found in {source}")
     return match.group(1)
 
 
@@ -537,7 +577,7 @@ def release_manifest(*, version: str, installer_size: int, installer_sha256: str
         raise BuildError(f"min_global_version {min_global_version} is newer than the release {version}")
     return {
         "format": MANIFEST_FORMAT, "product": MANIFEST_PRODUCT, "tag": "v" + version, "global_version": version,
-        "upstream_base": base_version(version),
+        "upstream_base": UPSTREAM_BASE,
         "installer": {"name": installer_asset_name(version), "size": int(installer_size), "sha256": installer_sha256},
         "exe_sha256": exe_sha256, "min_global_version": min_global_version, "published_utc": published_utc,
         "notes_sha256": notes_sha256,
@@ -838,7 +878,7 @@ def custom_message_lines(version: str, sandbox: bool) -> str:
     lines = []
     for key, table in CUSTOM_MESSAGES.items():
         for lang in LANGS:
-            # the program entry name keeps the upstream base (no churn per -global.<n>); DisplayVersion carries the full one
+            # the program entry name carries major.minor.patch (no churn per -global.<n>); DisplayVersion the full one
             text = table[lang].format(version=base_version(version) if key == "L10nAppVerName" else version)
             if key == "L10nAppVerName" and sandbox:
                 text += " [sandbox]"
@@ -1092,9 +1132,9 @@ end;
 
 
 def doc_fields(*, version: str, exe_sha256: str, source_zip_name: str) -> dict:
-    """``version`` in the documents is the upstream base (what the program is a build *of*); ``global_version`` is
-    this build's own version."""
-    return dict(version=base_version(version), global_version=version, docs=DOCS_DIR_NAME, source_zip=source_zip_name,
+    """``version`` in the documents is the upstream base (what the program is a build *of*: UPSTREAM_BASE);
+    ``global_version`` is this build's own version."""
+    return dict(version=UPSTREAM_BASE, global_version=version, docs=DOCS_DIR_NAME, source_zip=source_zip_name,
                 exe_name=APP_EXE_NAME, exe_sha256=exe_sha256, upstream_url=UPSTREAM_URL, upstream_commit=UPSTREAM_COMMIT,
                 project_url=PROJECT_URL, releases_url=PROJECT_URL + "/releases")
 
@@ -1135,7 +1175,8 @@ def main() -> int:
     parser.add_argument("--out", type=Path, help="output directory")
     parser.add_argument("--variant", choices=("release", "sandbox"))
     parser.add_argument("--version", default=DEFAULT_VERSION,
-                        help="Global version <major>.<minor>.<patch>-global.<n> (default %(default)s)")
+                        help="Global version <major>.<minor>.<patch>[-global.<n>], newer than "
+                             f"{PREVIOUS_RELEASE_VERSION} (default %(default)s)")
     parser.add_argument("--tree", type=Path, default=None,
                         help="source tree root; its src/app/global_release.py GLOBAL_VERSION must equal --version")
     parser.add_argument("--emit-manifest", action="store_true",
@@ -1194,10 +1235,14 @@ def main() -> int:
             raise BuildError(f"LICENSE file not found: {license_path} (pass --license)")
         version = args.version
         parse_global_version(version)
+        require_newer_than_previous(version)
         if args.tree is not None:
             tree_version = tree_global_version(args.tree.resolve())
             if tree_version != version:
                 raise BuildError(f"--version {version} does not match GLOBAL_VERSION {tree_version!r} of {args.tree}")
+            tree_base = tree_upstream_base(args.tree.resolve())
+            if tree_base != UPSTREAM_BASE:
+                raise BuildError(f"src/app/version.py of {args.tree} is {tree_base!r}, not the upstream base {UPSTREAM_BASE}")
         source_zip_name = args.source_zip_name or f"NTE_Drive_Calc_{version}_Multilingual_source.zip"
         aux_dir = (args.aux_dir or out_dir).resolve()
         if "program files" in str(aux_dir).lower():
@@ -1307,7 +1352,7 @@ def main() -> int:
             "version": version,
             "global_version": version,
             "tag": "v" + version,
-            "upstream_base": base_version(version),
+            "upstream_base": UPSTREAM_BASE,
             "asset_name": installer_asset_name(version),
             "installer": str(setup_path),
             "installer_size": setup_path.stat().st_size,

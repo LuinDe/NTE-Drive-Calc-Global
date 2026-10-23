@@ -1,10 +1,14 @@
 # Global 빌드의 버전 정체성과 업데이트 채널 상수 (NTE Drive Calc Global 추가 모듈; 순수 함수, I/O 없음)
 """Version identity and update-channel constants of NTE Drive Calc Global.
 
-The Global build has its own version grammar ``<major>.<minor>.<patch>-global.<n>`` (tag ``v`` + version).  It
-starts from the upstream base it was derived from, but every component may advance independently of the
-original project from now on.  ``src.app.version.__version__`` stays the upstream base: it feeds the native
+The Global build has its own version grammar ``<major>.<minor>.<patch>[-global.<n>]`` (tag ``v`` + version):
+plain ``x.y.z`` since Global 2.3.2, the ``-global.<n>`` form for the earlier releases (2.3.0-global.1,
+2.3.1-global.1, 2.3.1-global.2).  The Global version number is independent of the original project's.
+``src.app.version.__version__`` stays the upstream base the build is derived from: it feeds the native
 client version, battle bundles and the workshop User-Agent and is shown only as information.
+
+Ordering is the tuple ``(major, minor, patch, n)`` with ``n = 0`` for a plain version, so
+2.3.1-global.1 < 2.3.1-global.2 < 2.3.2 < 2.3.2-global.1 < 2.3.3.
 
 Everything here is a compile-time constant or a pure function: no file, network or Qt access, so the module can
 be imported by the release tooling and by tests alike.
@@ -18,7 +22,7 @@ from typing import NamedTuple
 from src.app.version import __version__
 
 # ── identity (bumped every release; the tag is "v" + GLOBAL_VERSION) ─────────────────────────────────────────
-GLOBAL_VERSION = "2.3.1-global.2"
+GLOBAL_VERSION = "2.3.2"
 UPSTREAM_BASE = __version__                      # "2.3.1": information only, never compared with GLOBAL_VERSION
 
 # ── update channel: ONLY the GitHub Releases of this repository ──────────────────────────────────────────────
@@ -58,14 +62,17 @@ INSTALLER_CONTENT_TYPES = (
     "application/vnd.microsoft.portable-executable",
 )
 
-_VERSION_CORE = r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-global\.([1-9][0-9]*)"
-# fullmatch (not "$": "$" also matches before a trailing newline)
+_PLAIN = r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+_VERSION_CORE = _PLAIN + r"(?:-global\.([1-9][0-9]*))?"     # suffix absent -> n = 0; present -> n >= 1
+# fullmatch only (not "$": "$" also matches before a trailing newline); re.ASCII: no full-width/other digits
 _TAG_RE = re.compile(r"v" + _VERSION_CORE, re.ASCII)
 _VERSION_RE = re.compile(_VERSION_CORE, re.ASCII)
 _NUMERIC_MAX = 65535
 
 
 class GlobalVersion(NamedTuple):
+    """``n == 0``: plain ``x.y.z``; ``n >= 1``: ``x.y.z-global.n``.  Compared as the tuple."""
+
     major: int
     minor: int
     patch: int
@@ -73,7 +80,7 @@ class GlobalVersion(NamedTuple):
 
     @property
     def text(self) -> str:
-        return f"{self.major}.{self.minor}.{self.patch}-global.{self.n}"
+        return self.base if self.n == 0 else f"{self.base}-global.{self.n}"
 
     @property
     def tag(self) -> str:
@@ -88,7 +95,7 @@ def _from_match(match: re.Match | None) -> GlobalVersion | None:
     if match is None:
         return None
     try:
-        parts = tuple(int(group) for group in match.groups())
+        parts = tuple(0 if group is None else int(group) for group in match.groups())
     except ValueError:
         return None
     if any(part > _NUMERIC_MAX for part in parts):
@@ -97,7 +104,8 @@ def _from_match(match: re.Match | None) -> GlobalVersion | None:
 
 
 def parse_global_tag(tag: object) -> GlobalVersion | None:
-    """``v2.3.1-global.2`` -> GlobalVersion; anything else (other grammar, whitespace, leading zeros) -> None."""
+    """``v2.3.2`` / ``v2.3.1-global.2`` -> GlobalVersion; anything else (no ``v``, other grammar, whitespace,
+    leading zeros, ``-global.0``, non-ASCII digits, a part above 65535) -> None."""
     if not isinstance(tag, str):
         return None
     return _from_match(_TAG_RE.fullmatch(tag))
@@ -146,7 +154,7 @@ def _require_tag(tag: str) -> GlobalVersion:
 
 
 def global_numeric_version(text: str) -> str:
-    """``2.3.1-global.2`` -> ``2.3.1.2`` (Windows VERSIONINFO; every part must fit 16 bits)."""
+    """``2.3.2`` -> ``2.3.2.0``, ``2.3.1-global.2`` -> ``2.3.1.2`` (Windows VERSIONINFO; every part fits 16 bits)."""
     version = parse_global_version(text)
     if version is None:
         raise ValueError(f"not a Global version: {text!r}")

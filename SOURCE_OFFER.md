@@ -1,8 +1,8 @@
 # 대응 소스 코드 안내 / Corresponding Source
 
-NTE Drive Calc Global 2.3.1-global.2(비공식 다국어 빌드)에 대한 GNU AGPL-3.0 제5조·제6조의 고지입니다.
+NTE Drive Calc Global 2.3.2(비공식 다국어 빌드)에 대한 GNU AGPL-3.0 제5조·제6조의 고지입니다.
 
-This is the notice under sections 5 and 6 of the GNU AGPL-3.0 for NTE Drive Calc Global 2.3.1-global.2 (unofficial multilingual build).
+This is the notice under sections 5 and 6 of the GNU AGPL-3.0 for NTE Drive Calc Global 2.3.2 (unofficial multilingual build).
 
 ---
 
@@ -19,19 +19,19 @@ This is the notice under sections 5 and 6 of the GNU AGPL-3.0 for NTE Drive Calc
 
 ### 이 빌드는 파생물입니다
 
-이 프로그램은 위 원본을 LuinDe가 수정한 것이며(이 버전 2.3.1-global.2는 2026-10-19, 2.3.1-global.1은 2026-10-11, 첫 버전 Global 2.3.0은 2026-10-05), 원작자가 배포하거나 지원하는 공식 빌드가 아닙니다. 무엇을 바꿨는지는 [CHANGES.md](CHANGES.md)에 있습니다. Global의 버전 번호(`v<주>.<부>.<수>-global.<n>`)는 이 빌드의 고유 번호이고, 바탕이 된 원본 버전은 2.3.1입니다.
+이 프로그램은 위 원본을 LuinDe가 수정한 것이며(이 버전 Global 2.3.2는 2026-10-20, 잠시 공개되었던 2.3.1-global.2는 2026-10-19, 2.3.1-global.1은 2026-10-11, 첫 버전 Global 2.3.0은 2026-10-05), 원작자가 배포하거나 지원하는 공식 빌드가 아닙니다. 무엇을 바꿨는지는 [CHANGES.md](CHANGES.md)에 있습니다. Global의 버전 번호(`v<주>.<부>.<수>`)는 원본과 별개인 이 빌드의 고유 번호이고, 바탕이 된 원본 버전은 2.3.1입니다.
 
 ### 대응 소스가 있는 곳
 
 배포되는 실행 파일(`NTE_Drive_Calc.exe`)의 `src.*` 모듈과 이 빌드에서 바꾼 파일에 대응하는 소스 코드는 다음 두 곳에 같은 내용으로 있습니다.
 
-1. **이 저장소** — 해당 릴리스의 태그(이 버전은 `v2.3.1-global.2`)가 가리키는 커밋의 트리
+1. **이 저장소** — 해당 릴리스의 태그(이 버전은 `v2.3.2`)가 가리키는 커밋의 트리
    - [`src/`](src): 수정된 파이썬 소스 전체. 실행 파일에 들어 있는 `src.*` 모듈은 모두 여기서 컴파일됩니다. 프로그램 안 업데이트가 확인하는 릴리스 서명 공개키도 여기에 있습니다(`src/app/global_release.py`의 `RELEASE_SIGNING_KEYS`).
    - [`config/templates/guide/`](config/templates/guide): 한국어판 튜토리얼 이미지 7장
    - [`build_tools/`](build_tools): 실행 파일·설치 프로그램·소스 zip·릴리스 매니페스트를 만드는 스크립트, 자동 생성 모듈의 생성기
-2. **같은 릴리스에 첨부된 소스 zip** — `NTE_Drive_Calc_2.3.1-global.2_Multilingual_source.zip`
-   (SHA-256 `75cdf8f2d8c32cafc240c1abf9d0da1934fc7409f929d47055a61a46b6479ce1`)
-   - 이 저장소의 커밋에서 `build_tools/make_source_zip_g231.py`로 만든 것이며(`--date 2026-10-19T00:00:00 --version 2.3.1-global.2`), 같은 커밋에서 다시 만들면 바이트 단위로 같은 파일이 나옵니다. `src/`·`build_tools/` 트리는 저장소의 것과 같습니다. 이 zip만으로 다시 빌드한 실행 파일도 배포된 실행 파일과 SHA-256이 같습니다.
+2. **같은 릴리스에 첨부된 소스 zip** — `NTE_Drive_Calc_2.3.2_Multilingual_source.zip`
+   (SHA-256 `29ef19f2566f63745177c4da05c311cb73dee3f7cffa342f4001d86b0ce601aa`)
+   - 이 저장소의 커밋에서 `build_tools/make_source_zip_g231.py`로 만든 것이며(`--date 2026-10-20T00:00:00 --version 2.3.2`), 같은 커밋에서 다시 만들면 바이트 단위로 같은 파일이 나옵니다. `src/`·`build_tools/` 트리는 저장소의 것과 같습니다. 이 zip만으로 다시 빌드한 실행 파일도 배포된 실행 파일과 SHA-256이 같습니다.
 
 `src/` 밖의 원본 파일(main.py, 빌드 스크립트, assets, data, native, third_party 등)은 바꾸지 않았으므로 원본 저장소의 위 커밋에 있는 것과 같습니다: <https://github.com/hxwd94666/NTE-Drive-Calculator/tree/0e7a6b4e8e61d7a288e520bbc192a411d68c2fb1>
 
@@ -45,9 +45,9 @@ This is the notice under sections 5 and 6 of the GNU AGPL-3.0 for NTE Drive Calc
 
 | 파일 | 크기(바이트) | SHA-256 |
 |---|---:|---|
-| `NTE_Drive_Calc_2.3.1-global.2_Multilingual_Setup.exe` | 184,851,232 | `8d6ea7de21b76e6a44eadb7f372f4551ce0c010a1a4df32eccfec0a2b99a209a` |
-| `NTE_Drive_Calc_2.3.1-global.2_Multilingual_source.zip` | 7,497,484 | `75cdf8f2d8c32cafc240c1abf9d0da1934fc7409f929d47055a61a46b6479ce1` |
-| 설치되는 `NTE_Drive_Calc.exe` | 25,220,941 | `9355c146beb984e864de739998d85da6a24772838d6007ed866de534517509f3` |
+| `NTE_Drive_Calc_2.3.2_Multilingual_Setup.exe` | 184,850,846 | `c9faeb139a4dbad0c2d978b847c86b97dd9c3ee984bc1efba1d8db4f25623f87` |
+| `NTE_Drive_Calc_2.3.2_Multilingual_source.zip` | 7,478,833 | `29ef19f2566f63745177c4da05c311cb73dee3f7cffa342f4001d86b0ce601aa` |
+| 설치되는 `NTE_Drive_Calc.exe` | 25,221,222 | `3a165259d6395050311d30816f34ac547b2b7646e8991e7acb68f36ff4ef384f` |
 | 바탕이 된 공식 2.3.1 `NTE_Drive_Calc.exe` | 21,320,661 | `5b8fa8d2b7580bacd494c0f71e76d7b05cf1bee4f9b94bb945993a2e1c69e8c3` |
 
 이전 버전(2.3.1-global.1, 2.3.0-global.1)의 파일과 해시는 [Releases](../../releases)의 해당 릴리스와 그 태그의 이 문서에 있습니다.
@@ -61,7 +61,7 @@ python build_tools/rebuild_exe_l10n.py      <공식 2.3.1 NTE_Drive_Calc.exe> sr
 python build_tools/verify_exe_l10n_g231.py  <공식 2.3.1 NTE_Drive_Calc.exe> <출력 exe> src --removed=src.features.settings.updates --removed=src.ui.controllers.update_controller
 ```
 
-`--remove` / `--removed`는 원본의 업데이트 모듈 두 개를 일부러 뺀다는 표시입니다(그 밖의 모듈이 빠져 있으면 빌드가 멈춥니다). CPython 3.11.15(Windows x64)로 빌드하면 결과물의 SHA-256이 배포된 실행 파일(`9355c146…09f3`)과 같습니다. 다른 3.11.x에서는 압축 결과가 달라 해시가 다를 수 있으며, 그때는 `verify_exe_l10n_g231.py`가 내용이 이 소스와 일치하는지 확인합니다. 설치 프로그램, 소스 zip, 서명할 릴리스 매니페스트를 만드는 순서는 [build_tools/README.md](build_tools/README.md)에 있습니다(공식 2.3.1 설치 프로그램과 Inno Setup 6 필요). 릴리스 매니페스트의 서명은 배포자의 개인키로만 할 수 있으며, 개인키는 이 저장소에 없습니다(대응 소스에 들어가지 않는 서명 키입니다). 직접 빌드한 실행 파일에 다른 공개키를 넣으려면 `build_tools/pin_release_key.py`를 쓰세요.
+`--remove` / `--removed`는 원본의 업데이트 모듈 두 개를 일부러 뺀다는 표시입니다(그 밖의 모듈이 빠져 있으면 빌드가 멈춥니다). CPython 3.11.15(Windows x64)로 빌드하면 결과물의 SHA-256이 배포된 실행 파일(`3a165259…384f`)과 같습니다. 다른 3.11.x에서는 압축 결과가 달라 해시가 다를 수 있으며, 그때는 `verify_exe_l10n_g231.py`가 내용이 이 소스와 일치하는지 확인합니다. 설치 프로그램, 소스 zip, 서명할 릴리스 매니페스트를 만드는 순서는 [build_tools/README.md](build_tools/README.md)에 있습니다(공식 2.3.1 설치 프로그램과 Inno Setup 6 필요). 릴리스 매니페스트의 서명은 배포자의 개인키로만 할 수 있으며, 개인키는 이 저장소에 없습니다(대응 소스에 들어가지 않는 서명 키입니다). 직접 빌드한 실행 파일에 다른 공개키를 넣으려면 `build_tools/pin_release_key.py`를 쓰세요.
 
 다음 파일은 `build_tools`의 생성기가 만든 표입니다: `src/services/team_rotation_data.py`, `team_form_actions.py`, `team_custom_actions.py`(`gen_team_*.py`), `team_resource_data.py`(`gen_team_resource_data.py`), `puka_training_data.py`(`gen_puka_training_data.py`, 입력 `build_tools/data/puka_training_levels.json`). 생성기의 입력 자료 일부(게임 정적 데이터베이스, 조사 노트)는 이 저장소에 없습니다. 이 저장소에서는 생성된 파일 자체를 고쳐서 관리해도 됩니다. 일부 파일 머리말의 "GENERATED FILE - DO NOT EDIT" 문구는 생성기 입력 자료가 있는 작업 폴더를 기준으로 적힌 것입니다. 입력 자료를 모두 공개하지는 않으므로, 이 저장소에서는 생성된 파일이 곧 수정용 원본입니다.
 
@@ -82,19 +82,19 @@ The baseline was not picked by hand. All 893 `src.*` modules inside the executab
 
 ### This build is a derivative work
 
-This program is the original as modified by LuinDe (this version, 2.3.1-global.2: 2026-10-19; 2.3.1-global.1: 2026-10-11; the first version, Global 2.3.0: 2026-10-05). It is not an official build published or supported by the original authors. What was changed is listed in [CHANGES.md](CHANGES.md). The Global version numbers (`v<major>.<minor>.<patch>-global.<n>`) are this build's own; the original version it is based on is 2.3.1.
+This program is the original as modified by LuinDe (this version, Global 2.3.2: 2026-10-20; 2.3.1-global.2, published briefly: 2026-10-19; 2.3.1-global.1: 2026-10-11; the first version, Global 2.3.0: 2026-10-05). It is not an official build published or supported by the original authors. What was changed is listed in [CHANGES.md](CHANGES.md). The Global version numbers (`v<major>.<minor>.<patch>`) are this build's own, independent of the original; the original version it is based on is 2.3.1.
 
 ### Where the corresponding source is
 
 The source code corresponding to the `src.*` modules of the distributed executable (`NTE_Drive_Calc.exe`) and to the files changed in this build is available, with the same content, in two places:
 
-1. **This repository**, at the tree of the commit the release's tag points to (for this version `v2.3.1-global.2`)
+1. **This repository**, at the tree of the commit the release's tag points to (for this version `v2.3.2`)
    - [`src/`](src): the complete modified Python source. Every `src.*` module in the executable is compiled from it. The release-signing public key that the in-app updater checks is here too (`RELEASE_SIGNING_KEYS` in `src/app/global_release.py`).
    - [`config/templates/guide/`](config/templates/guide): the seven Korean tutorial images
    - [`build_tools/`](build_tools): the scripts that produce the executable, the installer, the source zip and the release manifest, and the generators of the generated modules
-2. **The source zip attached to the same release**: `NTE_Drive_Calc_2.3.1-global.2_Multilingual_source.zip`
-   (SHA-256 `75cdf8f2d8c32cafc240c1abf9d0da1934fc7409f929d47055a61a46b6479ce1`)
-   - It is made from a commit of this repository with `build_tools/make_source_zip_g231.py` (`--date 2026-10-19T00:00:00 --version 2.3.1-global.2`); making it again from the same commit gives a byte-identical file. Its `src/` and `build_tools/` trees are the repository's. An executable rebuilt from the zip alone has the SHA-256 of the distributed executable.
+2. **The source zip attached to the same release**: `NTE_Drive_Calc_2.3.2_Multilingual_source.zip`
+   (SHA-256 `29ef19f2566f63745177c4da05c311cb73dee3f7cffa342f4001d86b0ce601aa`)
+   - It is made from a commit of this repository with `build_tools/make_source_zip_g231.py` (`--date 2026-10-20T00:00:00 --version 2.3.2`); making it again from the same commit gives a byte-identical file. Its `src/` and `build_tools/` trees are the repository's. An executable rebuilt from the zip alone has the SHA-256 of the distributed executable.
 
 The original files outside `src/` (main.py, build scripts, assets, data, native, third_party and so on) are not modified and are therefore the same as in the original repository at the commit above: <https://github.com/hxwd94666/NTE-Drive-Calculator/tree/0e7a6b4e8e61d7a288e520bbc192a411d68c2fb1>
 
@@ -108,9 +108,9 @@ The separately licensed components bundled in the installer (nte-core, nte-analy
 
 | File | Size (bytes) | SHA-256 |
 |---|---:|---|
-| `NTE_Drive_Calc_2.3.1-global.2_Multilingual_Setup.exe` | 184,851,232 | `8d6ea7de21b76e6a44eadb7f372f4551ce0c010a1a4df32eccfec0a2b99a209a` |
-| `NTE_Drive_Calc_2.3.1-global.2_Multilingual_source.zip` | 7,497,484 | `75cdf8f2d8c32cafc240c1abf9d0da1934fc7409f929d47055a61a46b6479ce1` |
-| Installed `NTE_Drive_Calc.exe` | 25,220,941 | `9355c146beb984e864de739998d85da6a24772838d6007ed866de534517509f3` |
+| `NTE_Drive_Calc_2.3.2_Multilingual_Setup.exe` | 184,850,846 | `c9faeb139a4dbad0c2d978b847c86b97dd9c3ee984bc1efba1d8db4f25623f87` |
+| `NTE_Drive_Calc_2.3.2_Multilingual_source.zip` | 7,478,833 | `29ef19f2566f63745177c4da05c311cb73dee3f7cffa342f4001d86b0ce601aa` |
+| Installed `NTE_Drive_Calc.exe` | 25,221,222 | `3a165259d6395050311d30816f34ac547b2b7646e8991e7acb68f36ff4ef384f` |
 | Official 2.3.1 `NTE_Drive_Calc.exe` used as the base | 21,320,661 | `5b8fa8d2b7580bacd494c0f71e76d7b05cf1bee4f9b94bb945993a2e1c69e8c3` |
 
 The files and hashes of earlier versions (2.3.1-global.1, 2.3.0-global.1) are in their releases under [Releases](../../releases) and in this document at their tags.
@@ -124,7 +124,7 @@ python build_tools/rebuild_exe_l10n.py      <official 2.3.1 NTE_Drive_Calc.exe> 
 python build_tools/verify_exe_l10n_g231.py  <official 2.3.1 NTE_Drive_Calc.exe> <output exe> src --removed=src.features.settings.updates --removed=src.ui.controllers.update_controller
 ```
 
-`--remove` / `--removed` mark the two update modules of the original as left out on purpose (any other missing module stops the build). A build with CPython 3.11.15 (Windows x64) has the SHA-256 of the distributed executable (`9355c146…09f3`). Another 3.11.x may compress differently and give a different hash; `verify_exe_l10n_g231.py` then confirms that the content matches this source. How the installer, the source zip and the release manifest to be signed are made is described in [build_tools/README.md](build_tools/README.md) (it needs the official 2.3.1 installer and Inno Setup 6). Only the maintainer's private key can sign a release manifest; that key is not in this repository (it is a signing key, not part of the corresponding source). To put another public key into an executable you build yourself, use `build_tools/pin_release_key.py`.
+`--remove` / `--removed` mark the two update modules of the original as left out on purpose (any other missing module stops the build). A build with CPython 3.11.15 (Windows x64) has the SHA-256 of the distributed executable (`3a165259…384f`). Another 3.11.x may compress differently and give a different hash; `verify_exe_l10n_g231.py` then confirms that the content matches this source. How the installer, the source zip and the release manifest to be signed are made is described in [build_tools/README.md](build_tools/README.md) (it needs the official 2.3.1 installer and Inno Setup 6). Only the maintainer's private key can sign a release manifest; that key is not in this repository (it is a signing key, not part of the corresponding source). To put another public key into an executable you build yourself, use `build_tools/pin_release_key.py`.
 
 These files are tables made by generators in `build_tools`: `src/services/team_rotation_data.py`, `team_form_actions.py`, `team_custom_actions.py` (`gen_team_*.py`), `team_resource_data.py` (`gen_team_resource_data.py`) and `puka_training_data.py` (`gen_puka_training_data.py`, input `build_tools/data/puka_training_levels.json`). Some of the generators' inputs (the game's static database and research notes) are not in this repository; here the generated files themselves may be edited. The header "GENERATED FILE - DO NOT EDIT" in some of these files was written for the author's working tree, where the generator inputs exist. Not all inputs are published, so in this repository the generated files are the form to modify.
 

@@ -17,7 +17,7 @@ python build_tools/verify_exe_l10n_g231.py  <official 2.3.1 NTE_Drive_Calc.exe> 
 
 With CPython 3.11.15 (Windows x64) a build of the `v2.3.1-global.1` tree (tag `v2.3.1-global.1`, with the tools of that tag) has the SHA-256 of that release's executable, `76b7d0112d548517a39b05239970086f45408662e675afbc6c0283d2616dd8d0`. Later trees give their own hash (listed in each release). Another 3.11.x may compress differently; `verify_exe_l10n_g231.py` then shows that the content still matches the source.
 
-From `2.3.1-global.2` the tree no longer contains the original project's two update modules; both commands then name them (any other missing module still stops the build):
+From `2.3.2` the tree no longer contains the original project's two update modules; both commands then name them (any other missing module still stops the build):
 
 ```powershell
 python build_tools/rebuild_exe_l10n.py      <official exe> src <output exe> --remove=src.features.settings.updates --remove=src.ui.controllers.update_controller
@@ -49,7 +49,7 @@ python build_tools/build_installer_g231.py --exe <built exe> --stage stage --out
 python build_tools/make_source_zip_g231.py . <commit> NTE_Drive_Calc_2.3.1_Multilingual_source.zip --exe-sha256 76b7d0112d548517a39b05239970086f45408662e675afbc6c0283d2616dd8d0 --date 2026-10-11T00:00:00
 ```
 
-From **v2.3.1-global.2** (the tools on `main`; `<version>` = e.g. `2.3.1-global.2`; the asset names carry the full version):
+From **v2.3.2** (the tools on `main`; `<version>` = e.g. `2.3.2`; the asset names carry the full version; v2.3.1-global.2 is reproduced with the tools of its own tag):
 
 ```powershell
 python build_tools/build_installer_g231.py --exe <built exe> --stage stage --out out --variant release --version <version> --tree . --official-exe <official 2.3.1 NTE_Drive_Calc.exe> --notes RELEASE_NOTES_<version>.md --emit-manifest --aux-dir build
@@ -58,12 +58,13 @@ python build_tools/make_source_zip_g231.py . <commit> NTE_Drive_Calc_<version>_M
 
 The installer's compiled bytes depend on the Inno Setup version and on the build time, so a rebuilt installer has another SHA-256 even from identical inputs; the files it installs are the same. The `--aux-dir` folder contains local paths (the generated `setup.iss`, logs): do not publish it.
 
-## In-app update releases (from 2.3.1-global.2)
+## In-app update releases (from 2.3.2)
 
-From `2.3.1-global.2` the program updates itself from the GitHub Releases of **this repository only**
+From `2.3.2` the program updates itself from the GitHub Releases of **this repository only**
 (`LuinDe/NTE-Drive-Calc-Global`); the original project's update channel is not used. Version numbers are Global's own:
-tags `v<major>.<minor>.<patch>-global.<n>` (`src/app/global_release.py` `GLOBAL_VERSION`), compared by that grammar
-only; drafts and prereleases are ignored. The program offers a release only when all of these hold: the tag is newer
+tags `v<major>.<minor>.<patch>` (`src/app/global_release.py` `GLOBAL_VERSION`; the releases before 2.3.2 carry a
+`-global.<n>` suffix, which is still read: versions are compared as (major, minor, patch, n) with n = 0 for a
+plain version, so 2.3.1-global.2 < 2.3.2 < 2.3.3), compared by that grammar only; drafts and prereleases are ignored. The program offers a release only when all of these hold: the tag is newer
 than the running build, the release is by `LuinDe`, it has exactly these assets at their `github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/<tag>/` URLs,
 GitHub reports a SHA-256 `digest` for each, and the manifest is signed by a pinned Ed25519 key. The signature is
 checked **before** the program announces anything (an unsigned or tampered release is never shown), and the release
@@ -71,12 +72,12 @@ notes are shown only when their SHA-256 is the one signed in the manifest (other
 releases page" instead of the body). Setup then runs silently **with administrator rights**: whoever holds the
 signing key can run code on every PC that updates, so keep the key offline and protected by its passphrase.
 
-| Asset (example for `v2.3.1-global.2`) | Made by |
+| Asset (example for `v2.3.2`) | Made by |
 |---|---|
-| `NTE_Drive_Calc_2.3.1-global.2_Multilingual_Setup.exe` | `build_installer_g231.py --variant release --version 2.3.1-global.2 --tree . --official-exe <official exe> --notes <body .md> --emit-manifest` |
-| `NTE_Drive_Calc_2.3.1-global.2_Multilingual_source.zip` | `make_source_zip_g231.py` |
-| `NTE_Drive_Calc_2.3.1-global.2_release.json` | `--emit-manifest` (binds tag, installer name, size, SHA-256, executable SHA-256 and the SHA-256 of the release notes) |
-| `NTE_Drive_Calc_2.3.1-global.2_release.json.sig` | `ssh-keygen -Y sign` (below) |
+| `NTE_Drive_Calc_2.3.2_Multilingual_Setup.exe` | `build_installer_g231.py --variant release --version 2.3.2 --tree . --official-exe <official exe> --notes <body .md> --emit-manifest` |
+| `NTE_Drive_Calc_2.3.2_Multilingual_source.zip` | `make_source_zip_g231.py` |
+| `NTE_Drive_Calc_2.3.2_release.json` | `--emit-manifest` (binds tag, installer name, size, SHA-256, executable SHA-256 and the SHA-256 of the release notes) |
+| `NTE_Drive_Calc_2.3.2_release.json.sig` | `ssh-keygen -Y sign` (below) |
 
 ### Release-signing key (once, by the maintainer, interactively)
 
@@ -126,7 +127,7 @@ python build_tools/pin_release_key.py . --check    # exit 0 = the tree pins exac
    ssh-keygen -Y verify -f allowed_signers -I nte-global-release -n nte-drive-calc-global-release -s NTE_Drive_Calc_<version>_release.json.sig < NTE_Drive_Calc_<version>_release.json
    ```
 6. `gh release create v<version> --draft ...` and upload the four assets (never `--clobber`, never move a tag; a mistake
-   becomes `-global.<n+1>`). The body needs the four sections `## 한국어`, `## English`, `## 日本語`, `## 中文` (the
+   becomes a new, higher version, for example `2.3.3`). The body needs the four sections `## 한국어`, `## English`, `## 日本語`, `## 中文` (the
    program shows the one of the user's language).
 7. When GitHub shows a `digest` for every asset: `verify_release_manifest.py --github v<version> --tree . --draft` → `OK`
    (runs the program's own release selection on the real API answer, verifies the downloaded files and compares the

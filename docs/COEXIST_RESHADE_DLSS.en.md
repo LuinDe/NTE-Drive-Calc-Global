@@ -225,7 +225,7 @@ According to RTSS's own help text, this option switches RTSS from its own hook-c
 
 **Alternative: turn RTSS off for HTGame.exe**: with **HTGame.exe** (not **Global**) selected in the RTSS window, setting **Application detection level** to **None** also avoids the conflict. With **Global** selected, it would turn RTSS off for every game. The RTSS overlay (FPS display and so on) then does not appear in this game.
 
-**In the calculator**: Global 2.3.1-global.2 and later versions check this setting when you press **Start native Loader** yourself, show a reminder, and list it as a yellow item under **Detection Details**. When auto sync starts the Loader by itself, no reminder window appears; it is listed only under **Detection Details**. The calculator only reads RTSS settings and never changes them. This RTSS fix applies to the official build, the Korean patch and Global alike (all three use the same Loader component).
+**In the calculator**: Global 2.3.2 and later versions check this setting when you press **Start native Loader** yourself, show a reminder, and list it as a yellow item under **Detection Details**. When auto sync starts the Loader by itself, no reminder window appears; it is listed only under **Detection Details**. The calculator only reads RTSS settings and never changes them. This RTSS fix applies to the official build, the Korean patch and Global alike (all three use the same Loader component).
 
 > [!NOTE]
 > The same error can also come from an outdated DLSS5 overlay add-on. If the game closes without RTSS, or still closes after you changed the RTSS setting, see [Keep DLSS5 add-ons up to date](#keep-dlss5-add-ons-up-to-date).
@@ -365,4 +365,4 @@ The steps use Global's English labels. The official build shows the Chinese labe
 
 ---
 
-This is an unofficial document. It is not affiliated with the original author, the game's developer or publisher, ReShade, RenoDX, NVIDIA, RTSS (RivaTuner Statistics Server) or MSI. Written on 2026-10-11 for calculator version 2.3.1; the in-game test results and the RTSS section were added on 2026-10-14. 2026-10-19: the calculator's RTSS reminder ships in Global 2.3.1-global.2.
+This is an unofficial document. It is not affiliated with the original author, the game's developer or publisher, ReShade, RenoDX, NVIDIA, RTSS (RivaTuner Statistics Server) or MSI. Written on 2026-10-11 for calculator version 2.3.1; the in-game test results and the RTSS section were added on 2026-10-14. 2026-10-20: the calculator's RTSS reminder ships in Global 2.3.2.

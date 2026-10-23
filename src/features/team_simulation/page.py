@@ -84,7 +84,7 @@ from PySide6.QtWidgets import QStyle, QStyleOptionComboBox, QStylePainter, QTool
 
 
 class _CharacterCombo(QComboBox):
-    """Character choice of a member card (2.3.1-global.2).  The card's avatar sits right next to it, so the closed
+    """Character choice of a member card (2.3.2).  The card's avatar sits right next to it, so the closed
     combo draws the name without the list icon (the popup list keeps the icons) and with tighter padding: names such
     as "라크리모사", "ダフォディル" or "Akane Rin" fit a 230 px card (they were clipped, e.g. "라크리모").  A name that
     still does not fit (a larger system font) ends with "…" and shows in full as the tooltip."""

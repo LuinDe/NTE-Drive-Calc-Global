@@ -24,21 +24,23 @@
 - adds a few features such as **Team Simulation (Beta)**, the **Arc Efficiency Table (Beta)**, the **awakening efficiency table (Beta)** and **Puka Boot Camp**, and
 - has **in-app updates that come only from this repository's releases**, separate from the original.
 
-This repository holds the modified source code (`src/`) and the build tools. The installer is available from [Releases](../../releases). The current version is **2.3.1-global.2** (based on the original 2.3.1).
+This repository holds the modified source code (`src/`) and the build tools. The installer is available from [Releases](../../releases). The current version is **Global 2.3.2**. Global's version number is now independent of the original's; Global 2.3.2 is based on the official 2.3.1.
 
 ![Arc Efficiency Table (Beta) — English](docs/images/arc_eff_en.png)
 
-## What is new in 2.3.1-global.2
+## What is new in 2.3.2
 
 A summary for users of the previous release (2.3.1-global.1). Details and known limits of each release are in [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
-- **If you use 2.3.1-global.1, install this version once by hand.** 2.3.1-global.1 has no updater. From this version on, new versions arrive inside the program.
+- **If you use 2.3.1-global.1 or 2.3.1-global.2, install this version once by hand.** 2.3.1-global.1 has no updater, and 2.3.1-global.2 (published briefly on 2026-10-19) does not recognise the new version format. From this version on, new versions arrive inside the program.
+- **Global's version number is now independent of the original's.** Global 2.3.2 is based on the official 2.3.1 and contains everything of 2.3.1-global.2.
 - **New: in-app updates (Global only)** — only this repository's releases are checked, and only releases carrying the maintainer's valid signature are installed. The original's update function is removed (see [Updates](#updates) below).
 - **Team Simulation: ultimate energy, Esper-Cycle gauge, cooldowns and a swap rule** — all 24 characters build up energy and gauge per hit and their cooldowns apply; a skill still on cooldown for 0.3 s or more hands over to the next character (item 2 below).
 - **New: free awakening choice and the awakening efficiency table** — awakening effects can be chosen in any order, and a table shows the DPS change of each effect (item 3 below).
 - **Akane Rin is calculated with the CN-release data** (item 5 below).
 - **New: Puka Boot Camp** — the account-wide progression of game version 1.4 in panels, marginal gains, Team Simulation and battle reports (item 6 below).
 - **New: RTSS (RivaTuner) compatibility notice** — before the Loader starts, it tells you about an RTSS setting that can make the game crash at start (item 10 below).
+- The "Workbench" header of the home page now shows **Akane Rin** instead of Raven.
 - **Fixes**: Chinese skill names in the Japanese Custom Input palette tooltips, the Japanese name of Chiz (小吱), long character names cut off in the team cards.
 - Team Simulation and the efficiency tables give different numbers than 2.3.1-global.1 for the same team (cooldown waits and swaps, awakening rules, Akane Rin's data).
 
@@ -63,7 +65,7 @@ A detailed, file-level list is in [CHANGES.md](CHANGES.md).
 - The interface language can be **中文 (the original text) / 한국어 / 日本語 / English**. Click the **language buttons at the bottom left** of the program: the language changes immediately while the program is running (no restart), and your choice is saved.
 - About 10,100 interface strings are translated per language. Names of characters, sets, Arcs, skills and monsters, effect descriptions and battle report texts are shown translated as well.
 - Korean uses the official names of the Korean game client. English and Japanese follow each language's client where the terms could be confirmed; names that could not be confirmed (for example content not yet released in that language) may be provisional translations or left in the original text.
-- Since 2.3.1-global.2 the Korean interface calls awakening (觉醒) "돌파"; English and Japanese keep "Awakening" / 「覚醒」.
+- Since 2.3.2 the Korean interface calls awakening (觉醒) "돌파"; English and Japanese keep "Awakening" / 「覚醒」.
 - The search boxes of the game database (characters, equipment, Arcs, monsters) accept Korean text and Korean initial consonants (Chinese search works as before).
 - The installer is in four languages too.
 
@@ -87,7 +89,7 @@ A detailed, file-level list is in [CHANGES.md](CHANGES.md).
   - An always-on arc bonus that was counted both in the stats and by the battle engine is counted once.
   - The conditional effects of "Crime and Punishment" and "Antipode of the Moon", whose values the battle engine cannot work out, are calculated from their description and the game-data values (shown as **Global supplement rule**; time stops are not counted in their durations).
 
-#### Ultimate energy, Esper-Cycle gauge and cooldowns (2.3.1-global.2)
+#### Ultimate energy, Esper-Cycle gauge and cooldowns (2.3.2)
 
 - For all 24 characters, **ultimate energy and the Esper-Cycle gauge build up per hit** from the game data, and **skill cooldowns** apply. Cooldowns come from the game data and community sources (prydwen.gg, GameWith); the cooldown clock is combat time without time stops. The explanation panel shows the source and confidence of every value.
 - Missing values are never guessed: cooldowns that could not be confirmed are not checked, and where no gauge data exists the old rule (gauge 100 at the start of loops 1 and 3) is used instead; the explanation says so.
@@ -97,7 +99,7 @@ A detailed, file-level list is in [CHANGES.md](CHANGES.md).
 - Custom Input has the check modes No check / Warn only (default) / Insert wait / Strict. "Strict" uses the same swap rule as the reviewed rotations.
 - Most reviewed teams give the same result. Fast teams with tight cooldowns (for example with Oneiroi) may swap more and deal less total damage.
 
-### 3. Free awakening choice and the awakening efficiency table — new in 2.3.1-global.2
+### 3. Free awakening choice and the awakening efficiency table — new in 2.3.2
 
 - In the game, awakening effects can be taken in any order (for example ③ → ⑤ → ①). The member cards of Team Simulation now toggle each of the six effects ("Awakening n/6"), and the resonances turn on at 3 and 6 awakenings whatever the chosen effects. "Awakening N = effects 1..N" is no longer assumed.
 - Saved teams and cycles open as before (a saved count alone is read as effects 1..N).
@@ -122,7 +124,7 @@ A detailed, file-level list is in [CHANGES.md](CHANGES.md).
 - **Open in Team Simulation** opens Team Simulation with that character wearing the selected arc.
 - How it is calculated: the character alone, the official graduation template with only the arc and its refinement swapped, the reviewed rotation, a Lv80 training dummy, the same engine, arc corrections and cooldown rules as Team Simulation (solo, so it waits). Arc effects that depend on support skills, teammates, team makeup, cycle intensity or break intensity count as 0. The assumptions are listed under "Notice" on the page and in [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
-### 5. Akane Rin: CN-release data (2.3.1-global.2)
+### 5. Akane Rin: CN-release data (2.3.2)
 
 - The bundled game data (2026-09-24) holds Akane Rin's pre-release values. After the CN release (2026-10-15), **only values on which at least two independent sources agree** replace them at run time. The game-data file itself is not changed, and the replacement is active only while the calculator's game data is exactly that 9-24 data.
 - Replaced: release status, awakening effects ①–⑥, Resonance 3 / 6, "Sparkling Star Fervor" (ATK +20 % for 20 s after each first-stage ultimate), when the second stage of the ultimate can be used, the exclusive arc "Antipode of the Moon" (Skill damage +28 % at R1, no stacks) and more — 46 fields.
@@ -130,7 +132,7 @@ A detailed, file-level list is in [CHANGES.md](CHANGES.md).
 - **Not verified** (the game-data value stays and the pages mark it): Lv80 base stats, skill multipliers, basic-attack conduction base values, the Cadenza Combo duration, five mechanics only one source describes, the exclusive arc's R1 crit rate and Lakshana bonus (sources disagree: 16 % vs 15 % / 20 %) and its other R2–R5 values. **Her E / Q cooldowns and ultimate energy are unknown.**
 - The battle report's analysis component (part of the original program, not modified) still computes with the pre-release data; records that contain Akane Rin show a one-line note.
 
-### 6. Puka Boot Camp — new in 2.3.1-global.2
+### 6. Puka Boot Camp — new in 2.3.2
 
 - **Puka Boot Camp**, the account-wide progression of game version 1.4 (Lv 0–20, applies to deployed characters), is part of the calculation. Enter the level on the **Furniture Bonus card of the character page** (default 0): ATK, DEF, HP, CRIT Rate, CRIT DMG, cycle intensity and break intensity are added to character panels, marginal gains, Team Simulation and newly recorded battle reports (+28 / +30 / +420 / +2.5 pp / +5 pp / +12 / +12 at Lv 20).
 - A battle report freezes the level when recording starts. Reports recorded before this feature count as Lv 0; nothing is applied retroactively (the card says so).
@@ -138,7 +140,7 @@ A detailed, file-level list is in [CHANGES.md](CHANGES.md).
 - **View at Puka Boot Camp max (Lv.20)** switches the graduation template of the Arc / Awakening Efficiency tables and of the graduation rate between Lv 0 and Lv 20.
 - The level table was built by cross-checking public sources (the official 1.4 notice, community tables). The break-intensity total (12) and whether ATK, DEF and HP are flat bonuses were not verified in game.
 
-### 7. In-app updates (Global only) — new in 2.3.1-global.2
+### 7. In-app updates (Global only) — new in 2.3.2
 
 The original's update function (checking the original's releases and Mirror酱, downloading the official installer, the update dialogs) is removed and replaced by **an updater that only checks this repository's releases**. Global is now developed and updated independently of the original. See [Updates](#updates) below.
 
@@ -150,7 +152,7 @@ In an imported battle report, the characters you also own are replaced with your
 
 The official 2.3.1 deploys `d3d12.dll` (the host) and `plugins\NTE_Plugin*.dll` into the game folder and cleans up the older `NTE_Capture.dll` and `dwmapi.dll`. This build replaces or deletes those files **only when they are confirmed (by SHA-256) to be this program's own files**. A file that cannot be confirmed (for example ReShade installed as `d3d12.dll`, or another mod's `dwmapi.dll` such as UE4SS) is neither overwritten nor deleted. In that case deployment stops with a message, and a clean-up leaves that file in place and tells you.
 
-### 10. RTSS (RivaTuner) compatibility notice — new in 2.3.1-global.2
+### 10. RTSS (RivaTuner) compatibility notice — new in 2.3.2
 
 - On the author's PC, RTSS (RivaTuner Statistics Server, installed with MSI Afterburner) running with its default hooking made the game crash right at start together with the 2.3.1 in-game component (D3D12 error `80004004 (E_ABORT)`).
 - This build **only reads** the RTSS settings. When it sees that risk, **Start native Loader** shows the fix (add an HTGame.exe profile in RTSS and turn on Setup → General → "Use Microsoft Detours API hooking"), and the environment check lists it under **Detection Details**. RTSS settings are never changed. In the reminder you can check again, continue or cancel, or turn the reminder off for the account.
@@ -175,7 +177,7 @@ The Python reference formula of the battle report replay still used a copy ratio
 
 ## Download and install
 
-1. Download `NTE_Drive_Calc_2.3.1-global.2_Multilingual_Setup.exe` from [Releases](../../releases). It contains the whole program, so you do not need to install the official version first. From this version on the file names carry the full Global version.
+1. Download `NTE_Drive_Calc_2.3.2_Multilingual_Setup.exe` from [Releases](../../releases). It contains the whole program, so you do not need to install the official version first.
 2. Close NTE Drive Calc if it is running.
 3. Run the installer and click "Yes" in the User Account Control (UAC) prompt.
    - The file is not code-signed, so the **"Windows protected your PC" (SmartScreen)** window may appear. Click "More info" → "Run anyway". Before running it you can check the file with the [SHA-256](#verifying-the-files-sha-256) values or the [signature](#verifying-the-signature-yourself) below.
@@ -190,15 +192,15 @@ After a first installation the program starts in the language you chose for setu
 - **User data is kept.** Accounts, settings, Drive and inventory data, battle report records, cultivation history, logs, saved rotations and the efficiency-table cache stay. User files in the `accounts`, `config`, `data`, `logs`, `migration` and `scanned_images` folders are neither deleted nor changed (like the official installer, it only rewrites the default file `config\stats.json` and the static-database backup `migration\game_static.previous.sqlite3`).
 - Backup files made by the Korean patch (`NTE_Drive_Calc.original.exe` and others) are not removed.
 - Installed over Global 2.3.0, a few files that 2.3.1 no longer uses (such as `_internal\NTE_Capture.dll`) stay in the program folder. An official 2.3.0 → 2.3.1 upgrade leaves the same files; they do no harm.
-- After installation the Windows "Installed apps" list shows "NTE Drive Calc 2.3.1 Multilingual Edition (Global)" with version 2.3.1-global.2 (when installed in English).
+- After installation the Windows "Installed apps" list shows "NTE Drive Calc 2.3.2 Multilingual Edition (Global)" with version 2.3.2 (when installed in English).
 
 ## Updates
 
 ### In-app updates (Global only)
 
-From 2.3.1-global.2 on, new Global versions can be installed from inside the program.
+From 2.3.2 on, new Global versions can be installed from inside the program.
 
-- **Updates come only from the releases of this repository (LuinDe/NTE-Drive-Calc-Global).** Global is developed and updated independently of the original and has its own version numbers, `v<major>.<minor>.<patch>-global.<n>`. No version request goes to the original's servers, and no in-app path installs the official build. New official versions of the original are not announced.
+- **Updates come only from the releases of this repository (LuinDe/NTE-Drive-Calc-Global).** Global is developed and updated independently of the original and has its own version numbers, independent of the original's: `v<major>.<minor>.<patch>` (for example `v2.3.2`). No version request goes to the original's servers, and no in-app path installs the official build. New official versions of the original are not announced.
 - When: at most once a day at start-up, and when you click **[Check for Updates] on the "Software Update" card in Settings**. The card shows the Global version, the original version it is based on (2.3.1, for information) and the fingerprint of the release-signing key.
 - When a new version exists, its version and notes are shown with **[Update Now] [Later] [Skip This Version]**. [Update Now] downloads and verifies the installer; then click [Install and Restart Now] or install when you quit. The program closes and the installer runs in the same folder with administrator rights, without the setup wizard (only its progress window shows); user data stays. With [Install and Restart Now] the program starts again afterwards.
 - Downloads are kept in `<install folder>\updates\` and cleaned up after the installation.
@@ -220,22 +222,22 @@ Untick **"Check for updates at startup (at most once a day)"** on the "Software 
 
 ### Coming from 2.3.1-global.1
 
-2.3.1-global.1 and older versions have no updater, so **install 2.3.1-global.2 once by hand** from [Releases](../../releases) (see [Download and install](#download-and-install)). Later Global versions then arrive inside the program.
+2.3.1-global.1 and older versions have no updater, so **install 2.3.2 once by hand** from [Releases](../../releases) (see [Download and install](#download-and-install)). 2.3.1-global.2, published briefly on 2026-10-19, does not recognise the new version format either: install 2.3.2 by hand the same way. Later Global versions then arrive inside the program.
 
 ### Verifying the signature yourself
 
 The in-app updater does this by itself. To check a downloaded installer by hand, use the OpenSSH `ssh-keygen` that comes with Windows 10/11.
 
 1. Download the installer, `NTE_Drive_Calc_<version>_release.json` and `NTE_Drive_Calc_<version>_release.json.sig` of a release into one folder.
-2. Open **Command Prompt** (cmd) in that folder and run the two lines below (PowerShell has no `<` redirection). The first writes an `allowed_signers` file with the maintainer's public key. The example is 2.3.1-global.2.
+2. Open **Command Prompt** (cmd) in that folder and run the two lines below (PowerShell has no `<` redirection). The first writes an `allowed_signers` file with the maintainer's public key. The example is 2.3.2.
 
 ```bat
 echo nte-global-release namespaces="nte-drive-calc-global-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDrNqNVxLCFuc+fq7jN0vTL2Aphh+VzGkOmQZf74TscN> allowed_signers
-ssh-keygen -Y verify -f allowed_signers -I nte-global-release -n nte-drive-calc-global-release -s NTE_Drive_Calc_2.3.1-global.2_release.json.sig < NTE_Drive_Calc_2.3.1-global.2_release.json
+ssh-keygen -Y verify -f allowed_signers -I nte-global-release -n nte-drive-calc-global-release -s NTE_Drive_Calc_2.3.2_release.json.sig < NTE_Drive_Calc_2.3.2_release.json
 ```
 
 3. `Good "nte-drive-calc-global-release" signature for nte-global-release with ED25519 key SHA256:/fAeeg67muvrTrfFKosRIJGZd58nxmO9hX/q82d05XY` means the manifest was signed with the maintainer's key. If it prints `Could not verify signature`, do not use the files and report it in [Issues](../../issues).
-4. Open the manifest in Notepad and check that `sha256` and `size` under `installer` match the downloaded installer (`certutil -hashfile NTE_Drive_Calc_2.3.1-global.2_Multilingual_Setup.exe SHA256`).
+4. Open the manifest in Notepad and check that `sha256` and `size` under `installer` match the downloaded installer (`certutil -hashfile NTE_Drive_Calc_2.3.2_Multilingual_Setup.exe SHA256`).
 
 ## Going back to the official build
 
@@ -320,15 +322,15 @@ To use the calculator's native features together with ReShade (`d3d12.dll`) and 
 
 | File | Size (bytes) | SHA-256 |
 |---|---:|---|
-| `NTE_Drive_Calc_2.3.1-global.2_Multilingual_Setup.exe` (installer) | 184,851,232 | `8d6ea7de21b76e6a44eadb7f372f4551ce0c010a1a4df32eccfec0a2b99a209a` |
-| `NTE_Drive_Calc_2.3.1-global.2_Multilingual_source.zip` (source code) | 7,497,484 | `75cdf8f2d8c32cafc240c1abf9d0da1934fc7409f929d47055a61a46b6479ce1` |
-| Installed `NTE_Drive_Calc.exe` | 25,220,941 | `9355c146beb984e864de739998d85da6a24772838d6007ed866de534517509f3` |
+| `NTE_Drive_Calc_2.3.2_Multilingual_Setup.exe` (installer) | 184,850,846 | `c9faeb139a4dbad0c2d978b847c86b97dd9c3ee984bc1efba1d8db4f25623f87` |
+| `NTE_Drive_Calc_2.3.2_Multilingual_source.zip` (source code) | 7,478,833 | `29ef19f2566f63745177c4da05c311cb73dee3f7cffa342f4001d86b0ce601aa` |
+| Installed `NTE_Drive_Calc.exe` | 25,221,222 | `3a165259d6395050311d30816f34ac547b2b7646e8991e7acb68f36ff4ef384f` |
 | (reference) Official 2.3.1 `NTE_Drive_Calc.exe` this build is based on | 21,320,661 | `5b8fa8d2b7580bacd494c0f71e76d7b05cf1bee4f9b94bb945993a2e1c69e8c3` |
 
-The installer's SHA-256 is also in the signed manifest `NTE_Drive_Calc_2.3.1-global.2_release.json` (see [Verifying the signature yourself](#verifying-the-signature-yourself)). To check in PowerShell:
+The installer's SHA-256 is also in the signed manifest `NTE_Drive_Calc_2.3.2_release.json` (see [Verifying the signature yourself](#verifying-the-signature-yourself)). To check in PowerShell:
 
 ```powershell
-Get-FileHash .\NTE_Drive_Calc_2.3.1-global.2_Multilingual_Setup.exe -Algorithm SHA256
+Get-FileHash .\NTE_Drive_Calc_2.3.2_Multilingual_Setup.exe -Algorithm SHA256
 Get-FileHash "C:\Program Files\NTE Drive Calc\NTE_Drive_Calc.exe" -Algorithm SHA256
 ```
 
@@ -338,14 +340,14 @@ The files and hashes of earlier releases (2.3.1-global.1, Global 2.3.0) are on t
 
 [`src/`](src) in this repository is the source of all `src.*` modules inside the distributed executable. The build tools are in [`build_tools/`](build_tools) (see [build_tools/README.md](build_tools/README.md)).
 
-The executable is not repackaged from scratch. It is made by **replacing only the `src.*` modules in the PYZ archive of the official 2.3.1 executable with a compile of this source**; everything else is kept byte for byte. The executable embeds `python311.dll`, so **Python 3.11** is required. From 2.3.1-global.2 the original's two update modules are not in the source; `--remove` / `--removed` say that they are left out on purpose.
+The executable is not repackaged from scratch. It is made by **replacing only the `src.*` modules in the PYZ archive of the official 2.3.1 executable with a compile of this source**; everything else is kept byte for byte. The executable embeds `python311.dll`, so **Python 3.11** is required. From 2.3.2 the original's two update modules are not in the source; `--remove` / `--removed` say that they are left out on purpose.
 
 ```powershell
 python build_tools/rebuild_exe_l10n.py      <official 2.3.1 NTE_Drive_Calc.exe> src <output exe> --remove=src.features.settings.updates --remove=src.ui.controllers.update_controller
 python build_tools/verify_exe_l10n_g231.py  <official 2.3.1 NTE_Drive_Calc.exe> <output exe> src --removed=src.features.settings.updates --removed=src.ui.controllers.update_controller
 ```
 
-The official executable used as the base has the SHA-256 `5b8fa8d2…e8c3` (the file installed by the installer of the original's release `2.3.1`, built from original commit `0e7a6b4`). A build with CPython 3.11.15 (Windows x64) has the same SHA-256 as the distributed executable (`9355c146…09f3`). Another 3.11.x may compress differently and give a different hash; in that case `verify_exe_l10n_g231.py` confirms that the content matches this source.
+The official executable used as the base has the SHA-256 `5b8fa8d2…e8c3` (the file installed by the installer of the original's release `2.3.1`, built from original commit `0e7a6b4`). A build with CPython 3.11.15 (Windows x64) has the same SHA-256 as the distributed executable (`3a165259…384f`). Another 3.11.x may compress differently and give a different hash; in that case `verify_exe_l10n_g231.py` confirms that the content matches this source.
 
 `src/app/global_release.py` holds the maintainer's release-signing public key. If you build and distribute your own releases, pin your own public key with `build_tools/pin_release_key.py` (the private key is not in this repository). How the installer, the source zip and the release manifest are made is described in [build_tools/README.md](build_tools/README.md).
 
@@ -355,7 +357,7 @@ The notice about the corresponding source is in [SOURCE_OFFER.md](SOURCE_OFFER.m
 
 - NTE Drive Calc is distributed under the **GNU AGPL-3.0**. This build is a derivative work of it and is under the same license. Full text: [LICENSE](LICENSE); notices: [NOTICE](NOTICE)
 - Original copyright: **NTE Drive Calc contributors** ([hxwd94666](https://github.com/hxwd94666)) — <https://github.com/hxwd94666/NTE-Drive-Calculator>
-- Modifications: [LuinDe](https://github.com/LuinDe), 2026-10-19 (2.3.1-global.2, based on original commit `0e7a6b4` = official 2.3.1; the original's tag `2.3.1` points to an older commit). 2.3.1-global.1: 2026-10-11; first version, Global 2.3.0: 2026-10-05.
+- Modifications: [LuinDe](https://github.com/LuinDe), 2026-10-20 (Global 2.3.2, based on original commit `0e7a6b4` = official 2.3.1; the original's tag `2.3.1` points to an older commit). 2.3.1-global.2 (published briefly): 2026-10-19; 2.3.1-global.1: 2026-10-11; first version, Global 2.3.0: 2026-10-05.
 - nte-core, the in-game components and loader, ViGEmBus and the other components bundled in the installer are separate components under their own licenses and were not modified. For their origin and terms, see [NOTICE](NOTICE) and `third_party/` in the original repository.
 
 ## Disclaimer

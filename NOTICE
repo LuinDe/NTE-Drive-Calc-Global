@@ -39,7 +39,8 @@ authors. As required by section 5(a) of the GNU Affero General Public License
 version 3, the work carries this notice that it was modified:
 
   Modified by:    LuinDe (https://github.com/LuinDe)
-  Date:           2026-10-19 (this version, Global 2.3.1-global.2)
+  Date:           2026-10-20 (this version, Global 2.3.2)
+                  2026-10-19 (Global 2.3.1-global.2, replaced by 2.3.2)
                   2026-10-11 (Global 2.3.1, v2.3.1-global.1)
                   2026-10-05 (first version, Global 2.3.0)
   Based on:       NTE Drive Calc 2.3.1 (upstream commit 0e7a6b4; the upstream
@@ -90,8 +91,9 @@ Modifications in this build (details and file pointers: CHANGES.md):
   config/templates/guide/1.png - 7.png.
 - An installer for the modified build and the scripts that produce the
   executable, the installer and the source zip: build_tools/.
-- Since 2.3.1-global.2 (2026-10-19; the Global version numbers are this build's
-  own, v<major>.<minor>.<patch>-global.<n>):
+- Since Global 2.3.2 (2026-10-20; first published on 2026-10-19 as
+  2.3.1-global.2; the Global version numbers are this build's own,
+  v<major>.<minor>.<patch>, independent of the original's):
   - The original's update function is removed: src/features/settings/updates.py
     and src/ui/controllers/update_controller.py (version check against the
     original project and Mirror酱, download and opening of the official
@@ -132,6 +134,8 @@ Modifications in this build (details and file pointers: CHANGES.md):
     src/services/global_live_overlay.py, global_live_overlay_data.py and
     changes in src/storage/sqlite/static_game_data_dao.py and
     static_catalog_character_queries.py.
+  - The home page's work-space header shows Akane Rin (明音凛) instead of
+    Raven (黑羽): src/features/home/page.py.
 
 Files of the original project outside src/ (main.py, assets, data, native
 components, third_party, ...) are not modified and are not part of this
