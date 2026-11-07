@@ -15,7 +15,7 @@ BASE_HASHES = {
 }
 UI_FILES = (
     ("characters", "1090", "1090.png", 256, 256),
-    ("character_arts", "1090", "1090.webp", 1000, 1185),
+    ("character_arts", "1090", "1090_art.png", 1000, 1185),
     ("fork_items", "fork_elyms", "fork_elyms.png", 256, 256),
 )
 

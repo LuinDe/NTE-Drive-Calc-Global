@@ -1,3 +1,7 @@
+# Global 2.3.6
+
+[시작 시 캐릭터 카탈로그 오류 수정 · 한국어 / English / 日本語 / 中文](RELEASE_NOTES_2.3.6.md)
+
 # Global 2.3.5
 
 [엘림 가방 동기화 수정 · 한국어 / English / 日本語 / 中文](RELEASE_NOTES_2.3.5.md)

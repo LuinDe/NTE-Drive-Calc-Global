@@ -83,13 +83,13 @@ APP_EXE_NAME = "NTE_Drive_Calc.exe"
 OFFICIAL_APP_ID = "D7DA28BE-8A19-4E05-9216-3F16C4C2C820"      # upstream build_installer.py APP_ID
 SANDBOX_APP_ID = "5B0C6E1A-7F2D-4C39-8E54-1D9A3F6B2C70"       # test-only identity, never the official one
 SANDBOX_DEFAULT_DIR = r"C:\Temp\nte_g231_setup_sandbox"
-DEFAULT_VERSION = "2.3.5"                                      # Global grammar: <major>.<minor>.<patch>[-global.<n>]
+DEFAULT_VERSION = "2.3.6"                                      # Global grammar: <major>.<minor>.<patch>[-global.<n>]
 # the grammar of src/app/global_release.py (_PLAIN / _VERSION_CORE): fullmatch only, ASCII digits, no leading zeros
 _PLAIN = r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
 _VERSION_CORE = _PLAIN + r"(?:-global\.([1-9][0-9]*))?"
 GLOBAL_VERSION_RE = re.compile(_VERSION_CORE, re.ASCII)
 GLOBAL_TAG_RE = re.compile(r"v" + _VERSION_CORE, re.ASCII)
-PREVIOUS_RELEASE_VERSION = "2.3.4"                    # last published release: --version must be newer
+PREVIOUS_RELEASE_VERSION = "2.3.5"                    # last published release: --version must be newer
 UPSTREAM_BASE = "2.3.1"                                        # official version this build is based on (src/app/version.py)
 MANIFEST_FORMAT = 1                                            # src/services/global_update/verify.py parse_manifest
 MANIFEST_PRODUCT = "NTE-Drive-Calc-Global"
@@ -642,6 +642,17 @@ def release_exe_gate(*, tree: Path, exe: Path, official_exe: Path | None, payloa
     if official_exe is None or not official_exe.is_file():
         raise BuildError("RELEASE GATE: a release build needs --official-exe <official 2.3.1 NTE_Drive_Calc.exe> "
                          "to verify that --exe was built from --tree")
+    catalog_check = subprocess.run(
+        [sys.executable, "-c",
+         "import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); "
+         "from src.integrations.role_catalog_release import read_role_catalog; "
+         "read_role_catalog(Path(sys.argv[2]))",
+         str(tree), str(payload_data / "role_catalog")],
+        capture_output=True, text=True, encoding="utf-8", errors="replace", check=False,
+    )
+    if catalog_check.returncode != 0:
+        raise BuildError("RELEASE GATE: the application cannot load the staged character catalog\n"
+                         + (catalog_check.stdout + catalog_check.stderr)[-2000:])
     removed = [f"--removed=src.{m.replace('/', '.')}" for m in REMOVABLE_UPSTREAM_MODULES
                if not (tree / "src" / f"{m}.py").is_file()]
     verifier = TOOLS_DIR / "verify_exe_l10n_g231.py"
@@ -658,7 +669,7 @@ def release_exe_gate(*, tree: Path, exe: Path, official_exe: Path | None, payloa
     except (OSError, ValueError) as exc:
         raise BuildError(f"RELEASE GATE: native Core bundle verification failed: {exc}") from exc
     return {"exe_verified": completed.stdout.strip().splitlines()[-1], "test_hooks": 0,
-            "native_core_sha256": core_sha256}
+            "native_core_sha256": core_sha256, "role_catalog_verified": True}
 
 
 def release_key_gate(tree: Path | None, pubkey: Path, reject_keys=()) -> dict:
@@ -1077,6 +1088,7 @@ Source: "{stage / "drivers" / VIGEM_DEST_NAME}"; DestDir: "{{app}}\\drivers"; De
 {docs_lines}
 
 [InstallDelete]
+Type: files; Name: "{{app}}\\_internal\\data\\role_catalog\\game_ui\\character_arts\\1090.webp"
 {stale_runtime_delete_lines}
 {stale_shortcut_delete_lines(sandbox)}
 

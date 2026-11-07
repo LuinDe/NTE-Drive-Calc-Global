@@ -1,5 +1,7 @@
 # build_tools
 
+Global 2.3.6 uses PNG for Elyms' full-body artwork. The release installer gate also runs `read_role_catalog` from the application source on the staged catalog. Run `verify_elyms.py` to verify the catalog, decode the three Elyms images with Qt, and exercise equipment allocation before release.
+
 For Global 2.3.3, make the stage before verifying the executable. Pass the staged `_internal/data` as the fourth positional argument to verify_exe_l10n_g231.py. The release installer gate checks that staged database. [CN 1.5.4 Elyms data, sources and tests](ELYMS.md).
 
 Global 2.3.5 also updates the embedded native inventory mappings. Make a fresh stage with `make_stage_g231.py` and keep the original installer's extracted `_internal` folder beside the original executable passed to `--official-exe`. The release gate independently regenerates the Core, its source and compatibility records, and its component manifest from those original files and the staged catalog. It verifies each result against the staged bytes before compiling the installer.

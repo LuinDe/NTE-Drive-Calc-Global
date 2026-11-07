@@ -15,12 +15,26 @@ def main() -> None:
     os.environ["NTE_GAME_STATIC_DB"] = str(db)
     os.environ["NTE_KO_PATCH_LANG"] = "zh"
 
+    from src.integrations.role_catalog_release import read_role_catalog, validate_role_assets
     from src.optimizer.allocation_kernel import AllocationKernel
     from src.services.character_weight_service import ensure_account_character_weights, save_account_character_weights
     from src.services.official_role_page_service import load_official_role_detail
     from src.solver.orchestrator import NTEPipelineOrchestrator
     from src.storage.sqlite.static_game_data_dao import StaticGameDataDao
     from src.storage.sqlite.user_data_dao import UserDataDao
+
+    catalog = read_role_catalog(root / "data" / "role_catalog")
+    assets = validate_role_assets(catalog.asset_root, catalog.dataset_id, catalog.sha256)
+    from PySide6.QtGui import QImage
+
+    for group, key, size in (("characters", "1090", (256, 256)),
+                             ("character_arts", "1090", (1000, 1185)),
+                             ("fork_items", "fork_elyms", (256, 256))):
+        path = catalog.asset_root / assets[group][key]
+        assert path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"), path
+        image = QImage(str(path))
+        assert not image.isNull() and (image.width(), image.height()) == size, path
+    print("Character catalog OK: runtime validation and all three Elyms PNG images decoded by Qt.")
 
     with TemporaryDirectory() as temp:
         account = Path(temp) / "test.sqlite3"

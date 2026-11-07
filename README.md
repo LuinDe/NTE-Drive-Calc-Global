@@ -1,6 +1,6 @@
 # NTE Drive Calc Global
 
-**v2.3.5에서 엘림의 가방 동기화 오류를 수정했습니다.** v2.3.4 사용자는 프로그램 안에서 업데이트할 수 있습니다. v2.3.3 이하에서는 서명 키 전환을 위해 한 번 [v2.3.5 설치 파일](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/v2.3.5/NTE_Drive_Calc_2.3.5_Multilingual_Setup.exe)을 직접 실행해 주세요.
+**v2.3.6에서 시작 시 캐릭터 카탈로그 오류를 수정했습니다.** v2.3.3~v2.3.5에서 이 오류로 실행할 수 없다면 설치 파일을 직접 받아 기존 설치 위치에 설치해 주세요. 계정·가방 데이터를 유지하며 업데이트하고, 엘림 가방 동기화 수정도 적용합니다. [v2.3.6 설치 파일](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/v2.3.6/NTE_Drive_Calc_2.3.6_Multilingual_Setup.exe)
 
 
 

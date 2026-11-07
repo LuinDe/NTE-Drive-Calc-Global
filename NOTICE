@@ -140,6 +140,9 @@ Modifications in this build (details and file pointers: CHANGES.md):
   - The home page's work-space header shows Akane Rin (明音凛) instead of
     Raven (黑羽): src/features/home/page.py.
 
+Global 2.3.6 converts the supplied Elyms full-body artwork to PNG for the
+runtime character catalog. The decoded RGBA pixels are preserved.
+
 Global 2.3.5 extends the two embedded Core catalogs with Elyms (ID 1090).
 The corresponding resource adaptation is in build_tools/elyms_core.py.
 

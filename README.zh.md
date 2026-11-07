@@ -1,6 +1,6 @@
 # NTE Drive Calc Global
 
-**v2.3.5 修复了曳尔沐的原生背包同步。** v2.3.4 可在应用内更新。v2.3.3 及更早版本用户请先[手动运行 v2.3.5 安装程序](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/v2.3.5/NTE_Drive_Calc_2.3.5_Multilingual_Setup.exe)以切换签名密钥。
+**v2.3.6修复启动时的角色目录错误。** v2.3.3～v2.3.5出现此错误时，请下载安装程序并安装到现有目录。更新保留账号和背包数据，并包含曳尔沐背包同步修复。[v2.3.6 Windows安装程序](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/v2.3.6/NTE_Drive_Calc_2.3.6_Multilingual_Setup.exe)
 
 
 [한국어](README.md) | [English](README.en.md) | [日本語](README.ja.md) | **中文**

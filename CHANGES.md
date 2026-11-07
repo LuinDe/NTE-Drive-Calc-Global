@@ -1,5 +1,7 @@
 # Changes from the original / 원본과 다른 점
 
+Global 2.3.6 converts Elyms' full-body artwork to PNG so the runtime character catalog can load during startup. The installer release gate now runs the application's catalog validator. The Elyms regression check also decodes all three character and Arc images with Qt. [Release notes](RELEASE_NOTES_2.3.6.md).
+
 Global 2.3.5 adds Elyms (1090) to the native Core’s embedded character and equipment mappings so inventory sync can save her equipped items. [Release notes](RELEASE_NOTES_2.3.5.md).
 
 Global 2.3.4 distributes the Elyms update with a new Ed25519 release key. Existing installations require one manual upgrade. [Release notes](RELEASE_NOTES_2.3.4.md).

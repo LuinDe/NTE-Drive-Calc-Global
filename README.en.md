@@ -1,6 +1,6 @@
 # NTE Drive Calc Global
 
-**v2.3.5 fixes native inventory sync for Elyms.** Update in-app from v2.3.4. On v2.3.3 or earlier, [run the v2.3.5 installer](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/v2.3.5/NTE_Drive_Calc_2.3.5_Multilingual_Setup.exe) once to switch signing keys.
+**v2.3.6 fixes the character catalog startup error.** If v2.3.3–v2.3.5 fails to start with this error, download the installer and install into the existing location. The upgrade preserves account and inventory data and includes the Elyms inventory sync fix. [v2.3.6 Windows installer](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/v2.3.6/NTE_Drive_Calc_2.3.6_Multilingual_Setup.exe)
 
 [한국어](README.md) | **English** | [日本語](README.ja.md) | [中文](README.zh.md)
 

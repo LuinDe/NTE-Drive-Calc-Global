@@ -1,6 +1,6 @@
 # NTE Drive Calc Global
 
-**v2.3.5 でイェルムの所持品同期を修正しました。** v2.3.4 からはアプリ内で更新できます。v2.3.3 以前は署名鍵の切り替えのため、今回のみ [v2.3.5 のインストーラー](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/v2.3.5/NTE_Drive_Calc_2.3.5_Multilingual_Setup.exe)を手動で実行してください。
+**v2.3.6で起動時のキャラクターカタログエラーを修正しました。** v2.3.3～v2.3.5でこのエラーが出る場合は、インストーラーを既存のインストール先に実行してください。アカウントと所持品データを引き継ぎ、イェルムの所持品同期修正も適用します。[v2.3.6 Windowsインストーラー](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/v2.3.6/NTE_Drive_Calc_2.3.6_Multilingual_Setup.exe)
 
 
 [한국어](README.md) | [English](README.en.md) | **日本語** | [中文](README.zh.md)
