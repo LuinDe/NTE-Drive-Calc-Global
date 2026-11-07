@@ -1,0 +1,469 @@
+# 构建 Windows 可执行程序的打包脚本。
+"""
+NTE Drive Calc - PyInstaller 打包脚本
+
+用法:
+    python build_exe.py              # 单目录模式（推荐）
+    python build_exe.py --onefile    # 单文件模式
+"""
+
+import importlib.util
+import hashlib
+import json
+import os
+import shutil
+import sys
+from contextlib import contextmanager
+from pathlib import Path
+
+import PyInstaller.__main__
+from PyInstaller.utils.hooks import (
+    collect_data_files,
+    collect_dynamic_libs,
+    collect_submodules,
+    copy_metadata,
+)
+
+from tools import build_cli
+from tools.release.native_component_bundle_build import native_component_build_inputs
+from tools.release.pyinstaller_native_dependencies import declared_native_proxies_only
+from tools.release.game_component_bundle_build import (
+    prepare_component_bundle, validate_packaged_component_bundle,
+)
+from tools.release.runtime_pruning import prune_unused_runtime_binaries, validate_pruned_runtime
+from src.integrations.ocr_model_resources import (
+    build_source_ocr_models,
+    validate_packaged_ocr_models,
+)
+
+ROOT = Path(__file__).parent.resolve()
+DIST = ROOT / "dist"
+BUILD = ROOT / "build"
+SPEC = ROOT / "NTE_Drive_Calc.spec"
+PACKAGE_NAME = "NTE_Drive_Calc"
+PACKAGE_BUILD_DIR = BUILD / PACKAGE_NAME
+PACKAGE_ONEDIR_DIR = DIST / PACKAGE_NAME
+PACKAGE_ONEFILE_EXE = DIST / f"{PACKAGE_NAME}.exe"
+THIRD_PARTY_DIR = ROOT / "third_party"
+SQLITE_SCHEMA_DIR = ROOT / "src" / "storage" / "sqlite" / "schema"
+STATIC_DATABASE_PATH = ROOT / "data" / "game_static.sqlite3"
+STATIC_MANIFEST_PATH = ROOT / "data" / "manifest.json"
+STATIC_MIGRATION_DATA_DIR = ROOT / "data" / "migrations"
+SHARED_DATABASE_SEED_PATH = ROOT / "data" / "app_shared.sqlite3"
+CONFIG_RELEASE_FILES = (
+    "gameplay_effect_semantics.json",
+    "global_ui_preferences.json",
+    "stats.json",
+    "workshop_weight_template.json",
+)
+CONFIG_RELEASE_DIRECTORIES = ("github", "templates")
+ANALYSIS_CORE_PATH = THIRD_PARTY_DIR / "analysis-core" / "bin" / "nte-analysis-core.exe"
+ANALYSIS_CORE_MANIFEST_PATH = THIRD_PARTY_DIR / "analysis-core" / "component.json"
+ANALYSIS_CORE_RELEASE_FILES = ("LICENSE", "SOURCE.md", "THIRD_PARTY_NOTICES.txt")
+
+SYSTEM_ICU_SHADOW_DLL = "icuuc.dll"
+FORBIDDEN_AMBIENT_ICU_DLLS = ("icuuc.dll", "icudt78.dll")
+FORBIDDEN_RUNTIME_CACHE_NAMES = ("NTE_SDK.bin", "NTE_SDK.checksum")
+
+
+def _is_same_path(left: Path, right: Path) -> bool:
+    try:
+        return left.resolve() == right.resolve()
+    except OSError:
+        return False
+
+
+@contextmanager
+def _without_ambient_system_icu_on_path():
+    """Prevent build-tool DLLs from shadowing the Windows system ICU runtime."""
+
+    original = os.environ.get("PATH")
+    system_root = Path(os.environ.get("SystemRoot", r"C:\Windows"))
+    system32 = system_root / "System32"
+    kept: list[str] = []
+    removed_count = 0
+    for raw_entry in (original or "").split(os.pathsep):
+        if not raw_entry:
+            continue
+        entry = Path(os.path.expandvars(raw_entry)).expanduser()
+        shadows_system_icu = (entry / SYSTEM_ICU_SHADOW_DLL).is_file()
+        if shadows_system_icu and not _is_same_path(entry, system32):
+            removed_count += 1
+            continue
+        kept.append(raw_entry)
+
+    if removed_count:
+        build_cli.info(
+            f"[BUILD] 已隔离 {removed_count} 个携带外部 ICU DLL 的 PATH 目录"
+        )
+    os.environ["PATH"] = os.pathsep.join(kept)
+    try:
+        yield
+    finally:
+        if original is None:
+            os.environ.pop("PATH", None)
+        else:
+            os.environ["PATH"] = original
+
+
+def _validate_no_ambient_icu_dlls(output: Path) -> None:
+    """Reject a package that would override Qt's Windows system ICU dependency."""
+
+    if not output.is_dir():
+        return
+    internal = output / "_internal"
+    found = [name for name in FORBIDDEN_AMBIENT_ICU_DLLS if (internal / name).is_file()]
+    if found:
+        joined = ", ".join(found)
+        raise RuntimeError(f"打包产物混入外部 ICU DLL，已拒绝发布：{joined}")
+
+
+def _validate_no_runtime_caches(output: Path) -> None:
+    """Reject local SDK caches that must be generated on the user's machine."""
+
+    if not output.is_dir():
+        return
+    found = [
+        path.relative_to(output)
+        for name in FORBIDDEN_RUNTIME_CACHE_NAMES
+        for path in output.rglob(name)
+    ]
+    if found:
+        joined = "、".join(str(path) for path in found)
+        raise RuntimeError(f"打包产物混入本机运行时缓存，已拒绝发布：{joined}")
+
+
+def _validate_analysis_component(binary: Path, manifest_path: Path) -> None:
+    """Require the battle-page-capable analysis component before packaging."""
+
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise RuntimeError("独立分析组件清单无效") from error
+    capabilities = manifest.get("capabilities") if isinstance(manifest, dict) else None
+    digest = hashlib.sha256(binary.read_bytes()).hexdigest()
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("engine") != "nte-analysis-core"
+        or manifest.get("engine_version") != "0.3.0"
+        or manifest.get("sha256") != digest
+        or not isinstance(capabilities, list)
+        or "battle_page_v1" not in capabilities
+        or "main_static_catalog_v1" not in capabilities
+    ):
+        raise RuntimeError("独立分析组件缺少战报数据库直读能力或哈希不匹配")
+
+
+def _running_in_automation() -> bool:
+    return build_cli.running_in_automation()
+
+
+def _remove_package_artifact(path: Path) -> None:
+    """Remove only this package's PyInstaller output, never unrelated build worktrees."""
+    if path.is_dir():
+        shutil.rmtree(path)
+    elif path.exists():
+        path.unlink()
+
+
+onefile = "--onefile" in sys.argv
+
+args = [
+    str(ROOT / "main.py"),
+    f"--name={PACKAGE_NAME}",
+    "--windowed" if "--console" not in sys.argv else "--console",
+    "--clean",
+    "--noconfirm",
+]
+
+if onefile:
+    args.append("--onefile")
+else:
+    args.append("--onedir")
+
+if sys.platform == "win32":
+    args.append("--uac-admin")
+
+config_dir = ROOT / "config"
+assets_dir = ROOT / "assets"
+icon_path = assets_dir / "app_icon.ico"
+sep = ";" if sys.platform == "win32" else ":"
+if assets_dir.exists():
+    args.append(f"--add-data={assets_dir}{sep}assets")
+if icon_path.exists():
+    args.append(f"--icon={icon_path}")
+
+
+def _append_add_data(src: str | Path, dst: str):
+    args.append(f"--add-data={Path(src)}{sep}{dst}")
+
+
+def _append_add_binary(src: str | Path, dst: str):
+    args.append(f"--add-binary={Path(src)}{sep}{dst}")
+
+
+# 发行配置采用显式白名单，避免把 config 下的账号数据或运行时 SDK 缓存带入安装包。
+for release_name in CONFIG_RELEASE_FILES:
+    release_path = config_dir / release_name
+    if not release_path.is_file():
+        raise FileNotFoundError(f"打包缺少发行配置文件：{release_path}")
+    _append_add_data(release_path, "config")
+for release_name in CONFIG_RELEASE_DIRECTORIES:
+    release_path = config_dir / release_name
+    if not release_path.is_dir():
+        raise FileNotFoundError(f"打包缺少发行配置目录：{release_path}")
+    _append_add_data(release_path, f"config/{release_name}")
+
+
+def _first_existing_file(*candidates: str | Path | None) -> Path | None:
+    for candidate in candidates:
+        if not candidate:
+            continue
+        path = Path(candidate).expanduser().resolve()
+        if path.is_file():
+            return path
+    return None
+
+
+def _required_build_file(label: str, *candidates: str | Path | None) -> Path:
+    path = _first_existing_file(*candidates)
+    if path is None:
+        checked = "、".join(str(candidate) for candidate in candidates if candidate)
+        raise FileNotFoundError(f"打包缺少 {label}；已检查：{checked}")
+    return path
+
+
+# 用户数据库首次运行时需要 SQL 结构文件；PyInstaller 不会自动收集非 Python 文件。
+if not SQLITE_SCHEMA_DIR.is_dir():
+    raise FileNotFoundError(f"SQLite schema 目录不存在：{SQLITE_SCHEMA_DIR}")
+_append_add_data(SQLITE_SCHEMA_DIR, "src/storage/sqlite/schema")
+
+
+# The optional display feature still ships a complete, hash-checked frame sampler.
+presentmon_dir = THIRD_PARTY_DIR / "presentmon"
+presentmon_manifest = json.loads(_required_build_file("PresentMon manifest", presentmon_dir / "component.json").read_text(encoding="utf-8"))
+presentmon_exe = _required_build_file("PresentMon console", presentmon_dir / "PresentMon.exe")
+if hashlib.sha256(presentmon_exe.read_bytes()).hexdigest() != presentmon_manifest["sha256"]:
+    raise ValueError("PresentMon 组件哈希不符")
+_append_add_binary(presentmon_exe, "third_party/presentmon")
+for notice in ("component.json", "LICENSE.txt", "SOURCE.md"):
+    _append_add_data(_required_build_file(notice, presentmon_dir / notice), "third_party/presentmon")
+
+# Independent analysis component; never substitute the capture executable.
+analysis_core_path = _required_build_file("nte-analysis-core.exe", ANALYSIS_CORE_PATH)
+analysis_manifest_path = _required_build_file(
+    "analysis component manifest",
+    ANALYSIS_CORE_MANIFEST_PATH,
+)
+_validate_analysis_component(analysis_core_path, analysis_manifest_path)
+_append_add_binary(analysis_core_path, ".")
+_append_add_data(analysis_manifest_path, "analysis-core-meta")
+for analysis_notice in ANALYSIS_CORE_RELEASE_FILES:
+    _append_add_data(
+        _required_build_file(
+            analysis_notice,
+            THIRD_PARTY_DIR / "analysis-core" / analysis_notice,
+        ),
+        "licenses/analysis-core",
+    )
+
+
+# 发行版静态数据库直接随源码仓库维护，确保本地构建和 GitHub Release 使用同一数据集。
+static_database_path = _required_build_file("发行版静态数据库", STATIC_DATABASE_PATH)
+_append_add_data(static_database_path, "data")
+static_manifest_path = _required_build_file("发行版静态数据库清单", STATIC_MANIFEST_PATH)
+_append_add_data(static_manifest_path, "data")
+from src.integrations.role_catalog_release import resolve_role_catalog, validate_role_assets
+role_catalog = resolve_role_catalog(static_database_path)
+if role_catalog is None:
+    raise FileNotFoundError("发行构建需要完整图鉴与统一界面图片，请先晋升 data/role_catalog")
+role_assets = validate_role_assets(role_catalog.asset_root, role_catalog.dataset_id, role_catalog.sha256)
+for relative in ("game_static.sqlite3", "manifest.json", "game_ui/manifest.json",
+                 *("game_ui/" + path for path in role_assets["files"])):
+    source = role_catalog.database_path.parent / relative
+    _append_add_data(source, (Path("data/role_catalog") / Path(relative).parent).as_posix())
+if not STATIC_MIGRATION_DATA_DIR.is_dir():
+    raise FileNotFoundError(f"静态数据迁移基线目录不存在：{STATIC_MIGRATION_DATA_DIR}")
+_append_add_data(STATIC_MIGRATION_DATA_DIR, "data/migrations")
+shared_database_seed_path = _required_build_file(
+    "公共额外形状默认库",
+    SHARED_DATABASE_SEED_PATH,
+)
+_append_add_data(shared_database_seed_path, "data")
+build_cli.info(f"[DATA] 已加入静态数据库：{static_database_path}")
+build_cli.info(f"[DATA] 已加入公共额外形状默认库：{shared_database_seed_path}")
+
+
+# 随包携带第三方声明，二进制实际位置可变但许可信息必须可审计。
+for notice_path in (
+    ROOT / "LICENSE",
+    ROOT / "NOTICE",
+    THIRD_PARTY_DIR / "vigembus" / "NOTICE.md",
+    THIRD_PARTY_DIR / "vigembus" / "LICENSE-BSD-3-Clause.txt",
+):
+    if notice_path.is_file():
+        _append_add_data(notice_path, "licenses")
+component_bundle = prepare_component_bundle(
+    application_root=ROOT, inputs=native_component_build_inputs(ROOT),
+    output_parent=BUILD / "component-bundles",
+)
+
+for item in component_bundle.inputs:
+    destination = Path(item.destination)
+    append = _append_add_binary if destination.name in {"nte-core.exe", "nte-mod-loader.exe"} else _append_add_data
+    append(item.source, destination.parent.as_posix())
+_append_add_data(component_bundle.manifest_path, ".")
+
+
+def _find_package_dir(package_name: str) -> Path | None:
+    spec = importlib.util.find_spec(package_name)
+    if spec is None or spec.origin is None:
+        return None
+    return Path(spec.origin).parent
+
+
+hidden_imports = [
+    "cv2", "cv2.mat_wrapper",
+    "numpy", "numpy._core", "numpy.linalg",
+    "rapidocr_openvino", "rapidocr_onnxruntime", "onnxruntime",
+    "openvino", "openvino.runtime",
+    "mss", "keyboard", "pyautogui", "vgamepad",
+    "scipy", "scipy.optimize", "scipy.sparse", "scipy.spatial",
+    "pydantic", "loguru", "pypinyin",
+    "PIL", "PIL.Image",
+    "json", "hashlib", "difflib", "re", "copy", "itertools", "collections",
+    "pathlib", "logging", "shutil",
+    "src.scanner.gamepad_controller",
+]
+
+for pkg_name in ("rapidocr_openvino", "rapidocr_onnxruntime"):
+    try:
+        hidden_imports.extend(collect_submodules(pkg_name))
+    except Exception as exc:
+        build_cli.warn(f"收集 {pkg_name} hidden imports 失败，按基础 hook 继续: {exc}")
+
+for imp in hidden_imports:
+    args.append(f"--hidden-import={imp}")
+
+excludes = [
+    # 科学计算/ML（完全不用）
+    "matplotlib", "pandas", "torch", "tensorflow", "jupyter", "IPython", "sympy",
+    "sklearn",
+    # tkinter（用 PySide6）
+    "tkinter", "_tkinter",
+    # onnxruntime 未使用的 execution provider
+    "onnxruntime.transformers",
+    # PySide6 未使用子模块
+    "PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtPdf",
+    "PySide6.QtVirtualKeyboard", "PySide6.QtWebEngine",
+    "PySide6.QtMultimedia", "PySide6.QtMultimediaWidgets",
+    "PySide6.QtBluetooth", "PySide6.QtNfc",
+    "PySide6.QtSensors", "PySide6.QtSerialPort",
+    "PySide6.QtWebChannel", "PySide6.QtWebSockets",
+    "PySide6.QtSql", "PySide6.QtTest", "PySide6.QtXml",
+    "PySide6.QtPrintSupport", "PySide6.QtHelp",
+    "PySide6.QtPositioning", "PySide6.QtLocation",
+    "PySide6.QtRemoteObjects", "PySide6.QtScxml",
+    "PySide6.QtStateMachine", "PySide6.QtTextToSpeech",
+    "PySide6.Qt3DCore", "PySide6.Qt3DInput",
+    "PySide6.Qt3DRender", "PySide6.Qt3DAnimation",
+    "PySide6.Qt3DExtras", "PySide6.Qt3DLogic",
+    "PySide6.QtCharts", "PySide6.QtDataVisualization",
+    "PySide6.QtGraphs", "PySide6.QtGrpc",
+    "PySide6.QtHttpServer", "PySide6.QtQuick3D",
+    "PySide6.QtQuickControls2", "PySide6.QtQuickWidgets",
+    "PySide6.QtSpatialAudio", "PySide6.QtSvgWidgets",
+    "PySide6.QtSvg", "PySide6.QtUiTools",
+    "PySide6.QtDesigner", "PySide6.QtOpenGL",
+    "PySide6.QtOpenGLWidgets", "PySide6.QtNetwork",
+    "PySide6.QtNetworkAuth", "PySide6.QtDBus",
+    "PySide6.QtConcurrent",
+    # PIL 未使用
+    "PIL.ImageTk",
+]
+
+for exc in excludes:
+    args.append(f"--exclude-module={exc}")
+
+# RapidOCR 包只收集配置和字典；两个后端共用一套经哈希校验的模型。
+for ocr_pkg_name in ("rapidocr_openvino", "rapidocr_onnxruntime"):
+    try:
+        for src, dst in collect_data_files(ocr_pkg_name, excludes=["models/*"]):
+            _append_add_data(src, dst)
+        for src, dst in copy_metadata(ocr_pkg_name):
+            _append_add_data(src, dst)
+    except Exception:
+        build_cli.warn(f"收集 {ocr_pkg_name} 数据文件失败，OCR 包可能未安装，继续打包: {ocr_pkg_name}")
+
+for model_path in build_source_ocr_models().values():
+    _append_add_data(model_path, "assets/ocr/models")
+
+# OpenVINO runtime: complete libs, cache.json, and package metadata.
+# A hand-written DLL list is fragile and can miss plugin/data files.
+try:
+    for src, dst in collect_dynamic_libs("openvino"):
+        _append_add_binary(src, dst)
+    for src, dst in collect_data_files("openvino", includes=["libs/cache.json"]):
+        _append_add_data(src, dst)
+    for src, dst in copy_metadata("openvino"):
+        _append_add_data(src, dst)
+except Exception:
+    build_cli.warn("收集 OpenVINO runtime 文件失败，继续打包；若运行 OCR 异常请检查依赖安装")
+
+# ONNX Runtime / DirectML runtime: required when a discrete GPU is available.
+try:
+    for src, dst in collect_dynamic_libs("onnxruntime"):
+        _append_add_binary(src, dst)
+    for package_name in ("onnxruntime-directml", "onnxruntime"):
+        try:
+            for src, dst in copy_metadata(package_name):
+                _append_add_data(src, dst)
+        except Exception:
+            build_cli.warn(f"收集 {package_name} metadata 失败，继续打包")
+except Exception:
+    build_cli.warn("收集 ONNX Runtime / DirectML 文件失败，继续打包；独显加速可能不可用")
+
+# ViGEmClient.dll（虚拟手柄）
+vg_path = _find_package_dir("vgamepad")
+if vg_path is not None:
+    vigem_dll = vg_path / "win" / "vigem" / "client" / "x64" / "ViGEmClient.dll"
+    if vigem_dll.exists():
+        args.append(f"--add-binary={vigem_dll}{sep}vgamepad/win/vigem/client/x64")
+
+# UPX 压缩（如果可用）
+args.append("--upx-dir=.")
+args.extend(["--upx-exclude=nte-core.exe", "--upx-exclude=nte-mod-loader.exe",
+             "--upx-exclude=NTE_Capture.dll", "--upx-exclude=d3d12.dll"])
+
+build_cli.info(f"[BUILD] Mode: {'Single File' if onefile else 'Single Dir'}")
+for path in (PACKAGE_BUILD_DIR, PACKAGE_ONEDIR_DIR, PACKAGE_ONEFILE_EXE):
+    _remove_package_artifact(path)
+if SPEC.exists():
+    SPEC.unlink()
+with _without_ambient_system_icu_on_path(), declared_native_proxies_only():
+    PyInstaller.__main__.run(args)
+
+output = PACKAGE_ONEDIR_DIR
+if onefile:
+    output = PACKAGE_ONEFILE_EXE
+
+if output.exists():
+    if not onefile:
+        removed_runtime = prune_unused_runtime_binaries(output / "_internal")
+        validate_pruned_runtime(output / "_internal")
+        build_cli.info(
+            "[SIZE] 已裁剪可选运行库："
+            f"{sum(removed_runtime.values()) / (1024 * 1024):.1f} MiB 展开体积"
+        )
+        validate_packaged_component_bundle(output / "_internal")
+        validate_packaged_ocr_models(output / "_internal")
+    _validate_no_ambient_icu_dlls(output)
+    _validate_no_runtime_caches(output)
+    size_mb = sum(
+        f.stat().st_size for f in output.rglob("*") if f.is_file()
+    ) / (1024 * 1024)
+    build_cli.ok(f"Build complete: {output}")
+    build_cli.info(f"[SIZE] {size_mb:.1f} MB")
+else:
+    build_cli.fail("Build failed.")
+    sys.exit(1)

@@ -1,15 +1,9 @@
-# Text files written for this repository are stored with LF line endings.
-* text=auto eol=lf
-
-# The source tree of the released executable and the build scripts are stored
-# byte for byte, exactly as in the tree the release was built from and as in the
-# release's source zip (some of these files use CRLF line endings).
-src/** -text
-build_tools/** -text
-
-# Binary files.
-*.png binary
-*.jpg binary
-*.ico binary
-*.exe binary
-*.zip binary
+# Preserve exact imported upstream and installed notice bytes used by the manifests.
+/main.py -text
+/pyproject.toml -text
+/uv.lock -text
+/build_exe.py -text
+/build_installer.py -text
+/tools/** -text
+/native/** -text
+/license_records/** -text

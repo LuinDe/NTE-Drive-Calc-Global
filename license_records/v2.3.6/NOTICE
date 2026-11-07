@@ -1,0 +1,25 @@
+NTE Drive Calc
+Copyright 2026 NTE Drive Calc contributors
+
+This product includes components with separate license terms:
+
+- nte-core, supplied by the kongbaiz/nte-dps-toolkit collaboration project,
+  is distributed under AGPL-3.0. Its binary, license, source location and
+  third-party notices are in third_party/nte-core/.
+- config/gameplay_effect_semantics.json is adapted from the same AGPL-3.0
+  collaboration project's localized GameplayEffect semantic table.
+- The native capture runtime and D3D entry are distributed with their license,
+  source attribution and dependency notices in third_party/native-capture/.
+- The optional nte-mod-loader.exe is supplied by the same project under
+  AGPL-3.0 and includes MinHook (BSD-2-Clause) and Simple Manual Map Injector
+  (MIT). Its binary, source record and dependency notices are in
+  third_party/mod-loader/.
+- ViGEmBus is distributed under BSD-3-Clause. Its license and attribution are
+  in third_party/vigembus/.
+- Npcap is not bundled. The application only links users to its official
+  installer; any future bundled redistribution requires a separate Npcap OEM
+  redistribution authorization.
+
+Neverness To Everness / 异环 names, characters, artwork, logos and other game
+materials are property of their respective rights holders. NTE Drive Calc is
+an unofficial, unaffiliated player tool.

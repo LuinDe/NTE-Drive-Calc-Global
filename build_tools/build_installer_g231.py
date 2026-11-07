@@ -314,7 +314,7 @@ NOTICE = {
 NTE Drive Calc Global {global_version} - NTE Drive Calc {version} 다국어판 (비공식 빌드)
 
 이 설치 프로그램은 NTE Drive Calc {version} 의 비공식 다국어(한국어 / English / 日本語 / 简体中文) 빌드를 설치합니다.
-원 프로그램 제작자(NTE Drive Calc contributors)가 배포하는 공식 빌드가 아니며, 공식 지원 대상이 아닙니다.
+원 프로그램 제작자(WuDu / hxwd94666 및 NTE Drive Calc contributors)가 배포하는 공식 빌드가 아니며, 공식 지원 대상이 아닙니다.
 원 프로젝트: {upstream_url}
 이 빌드: {project_url}
 
@@ -327,13 +327,13 @@ NTE Drive Calc Global {global_version} - NTE Drive Calc {version} 다국어판 (
 
 라이선스: GNU AGPL-3.0
 라이선스 전문과 소스 코드 안내는 설치 폴더의 {docs} 폴더(LICENSE.txt, SOURCE_OFFER.txt, README.txt)에 들어 있습니다.
-이 빌드에 대응하는 전체 소스 코드는 이 설치 파일과 함께 배포되는 {source_zip} 에 있습니다.
+공개 Calc/Global 소스와 수정 자료: {source_zip}. 배포된 Core·analysis Core·Loader·캡처 DLL의 정확한 전체 대응 소스는 아직 확보되지 않았습니다. 소스 제공 범위와 남은 항목은 SOURCE_OFFER.txt 및 저장소의 SOURCE_OFFER.md를 확인하세요.
 """,
     "en": """\
 NTE Drive Calc Global {global_version} - Multilingual Edition of NTE Drive Calc {version} (unofficial build)
 
 This installer sets up an unofficial multilingual (Korean / English / Japanese / Simplified Chinese) build of NTE Drive Calc {version}.
-It is NOT an official build published by the original authors (NTE Drive Calc contributors) and is not supported by them.
+It is NOT an official build published by the original authors (WuDu / hxwd94666 and NTE Drive Calc contributors) and is not supported by them.
 Original project: {upstream_url}
 This build: {project_url}
 
@@ -346,13 +346,13 @@ This build: {project_url}
 
 License: GNU AGPL-3.0
 The full license text and the source code notice are installed into the {docs} folder of the installation directory (LICENSE.txt, SOURCE_OFFER.txt, README.txt).
-The complete corresponding source code of this build is distributed together with this installer as {source_zip}.
+Public Calc/Global source and adaptations: {source_zip}. Exact complete Corresponding Source for the distributed Core, analysis Core, Loader and capture DLLs has not been obtained. See SOURCE_OFFER.txt and the repository SOURCE_OFFER.md for coverage and remaining gaps.
 """,
     "ja": """\
 NTE Drive Calc Global {global_version} - NTE Drive Calc {version} 多言語版（非公式ビルド）
 
 このインストーラーは NTE Drive Calc {version} の非公式多言語（韓国語 / English / 日本語 / 簡体字中国語）ビルドをインストールします。
-原作者（NTE Drive Calc contributors）が配布する公式ビルドではなく、公式サポートの対象外です。
+原作者（WuDu / hxwd94666 および NTE Drive Calc contributors）が配布する公式ビルドではなく、公式サポートの対象外です。
 元のプロジェクト: {upstream_url}
 このビルド: {project_url}
 
@@ -365,13 +365,13 @@ NTE Drive Calc Global {global_version} - NTE Drive Calc {version} 多言語版�
 
 ライセンス: GNU AGPL-3.0
 ライセンス全文とソースコードの案内は、インストール先の {docs} フォルダー（LICENSE.txt、SOURCE_OFFER.txt、README.txt）に入っています。
-このビルドに対応する完全なソースコードは、このインストーラーと一緒に配布される {source_zip} に含まれています。
+公開 Calc/Global ソースと変更資料: {source_zip}。配布された Core・analysis Core・Loader・キャプチャ DLL の正確で完全な対応ソースは未確保です。範囲と未解決事項は SOURCE_OFFER.txt およびリポジトリの SOURCE_OFFER.md を確認してください。
 """,
     "zh": """\
 NTE Drive Calc Global {global_version} - NTE Drive Calc {version} 多语言版（非官方构建）
 
 本安装程序将安装 NTE Drive Calc {version} 的非官方多语言（韩语 / English / 日语 / 简体中文）构建。
-它不是原作者（NTE Drive Calc contributors）发布的官方构建，也不在官方支持范围内。
+它不是原作者（WuDu / hxwd94666 及 NTE Drive Calc contributors）发布的官方构建，也不在官方支持范围内。
 原项目：{upstream_url}
 本构建：{project_url}
 
@@ -384,51 +384,54 @@ NTE Drive Calc Global {global_version} - NTE Drive Calc {version} 多语言版�
 
 许可证：GNU AGPL-3.0
 许可证全文与源代码说明位于安装目录的 {docs} 文件夹（LICENSE.txt、SOURCE_OFFER.txt、README.txt）。
-与本构建对应的完整源代码随本安装程序一同分发，文件名为 {source_zip}。
+公开 Calc/Global 源码及修改材料：{source_zip}。所分发 Core、analysis Core、Loader 与捕获 DLL 的精确完整对应源码尚未取得。范围及缺口请参阅 SOURCE_OFFER.txt 和仓库的 SOURCE_OFFER.md。
 """,
 }
 
 SOURCE_OFFER = """\
-NTE Drive Calc Global {global_version} - NTE Drive Calc {version} 다국어판 (비공식) - 대응 소스 코드 안내
-NTE Drive Calc Global {global_version} - Multilingual Edition of NTE Drive Calc {version} (unofficial) - Corresponding Source
+NTE Drive Calc Global {global_version} — public source coverage / 소스 제공 범위 / 源码范围 / ソースの範囲
+
+Original author: WuDu / hxwd94666 and NTE Drive Calc contributors
+Author profile: https://github.com/hxwd94666
+Original project: {upstream_url}
+Global maintainer: LuinDe — {project_url}
+Upstream baseline: {upstream_commit} (Calc {version})
+Public source archive: {source_zip}
+Application executable: {exe_name}
+Application executable SHA-256: {exe_sha256}
 
 [한국어]
-- 이 프로그램은 GNU AGPL-3.0 으로 배포되는 NTE Drive Calc {version} 의 비공식 다국어 빌드(파생물)입니다.
-  원저작자: NTE Drive Calc contributors (hxwd94666). 원 프로젝트: {upstream_url}
-- 기반: 원 프로젝트 커밋 {upstream_commit} (공식 {version}).
-- 이 빌드의 저장소: {project_url}
-- 변경점 요약: 사용자 표시 문자열의 다국어화(중국어 원문 + 한국어/영어/일본어 번역 테이블, 프로그램 안에서
-  언어 전환), 게임 데이터 이름·설명의 표시 계층 번역, 팀 시뮬레이션(Beta)과 아크 효율표 기능 추가, 게임 폴더
-  보호(다른 프로그램의 d3d12.dll 등을 덮어쓰거나 지우지 않음), "사용 방법" 튜토리얼 이미지 한국어판.
-  자세한 내용은 소스 zip 과 저장소의 CHANGES.md 를 보십시오.
-- 이 빌드에 대응하는 전체 소스 코드는 이 설치 파일과 함께 배포되는 zip 파일에 들어 있습니다:
-      {source_zip}
-  zip 파일을 받지 못했다면 위 저장소의 릴리스 페이지에서 받거나, 이 설치 파일을 받은 곳(배포자)에게 요청하십시오.
-- 실행 파일({exe_name})은 공식 PyInstaller 패키지의 PYZ 아카이브에서 src.* 모듈만 위 소스로 교체한 것입니다.
-  설치 프로그램에는 공식 {version} 기반 구성 요소, 튜토리얼 이미지 7장, 엘림의 CN 1.5.4 데이터·이미지와 가방 동기화용 Core 매핑이 들어 있습니다.
-  실행 파일 SHA-256: {exe_sha256}
-- 라이선스 전문: 같은 폴더의 LICENSE.txt. 함께 들어 있는 제3자 구성 요소의 라이선스는 _internal\\licenses 폴더.
+비공식 다국어 파생 프로젝트입니다. 애플리케이션은 GNU AGPL-3.0을 따르며, 함께 배포되는 구성 요소에는 각 라이선스가 적용됩니다.
+ZIP에는 Global src/, 공개 원본 진입점·의존성·빌드 도구, 공개 native/ 프로토타입, 엘림 자료와 Core 리소스 수정 스크립트가 들어 있습니다.
+배포된 Core·analysis Core·Loader(AGPL)와 캡처 DLL 5개(GPL)의 정확한 전체 대응 소스는 아직 확보되지 않았습니다. 공개 프로토타입·해시·수정 스크립트는 그 대체물이 아닙니다.
+일부 생성기 입력과 전체 게임 자료도 제공되지 않습니다. 게임 자료는 각 권리자의 권리를 따릅니다. ZIP만으로 전체 배포본을 소스부터 독립 빌드할 수 있다고 보증하지 않습니다.
+이 문서는 모든 재배포 조건을 충족했다는 선언이나 향후 소스 제공을 보증하는 서면 제안이 아닙니다.
+
+[中文]
+本项目是非官方多语言衍生版本。应用程序遵循 GNU AGPL-3.0，捆绑组件遵循各自许可。
+ZIP 包含 Global src/、公开原本入口与依赖及构建工具、公开 native/ 原型、曳尔沐资料及 Core 资源修改脚本。
+所分发 Core、analysis Core、Loader（AGPL）和 5 个捕获 DLL（GPL）的精确完整对应源码尚未取得。原型、哈希和修改脚本不能替代这些源码。
+部分生成器输入和完整游戏资料也未提供。游戏资料属于各权利人。不保证仅凭此 ZIP 即可从源码独立构建整个发行版。
+本文不声明已满足全部再分发条件，也不是保证日后提供源码的书面要约。
 
 [English]
-- This program is an unofficial multilingual build (a derivative work) of NTE Drive Calc {version}, which is
-  distributed under the GNU AGPL-3.0. Original authors: NTE Drive Calc contributors (hxwd94666).
-  Original project: {upstream_url}
-- Based on: original project commit {upstream_commit} (official {version}).
-- Repository of this build: {project_url}
-- Summary of changes: localisation of user-visible strings (Chinese source text plus Korean/English/Japanese
-  translation tables, in-app language switching), display-layer translation of game data names and
-  descriptions, added Team Simulation (Beta) and Arc Efficiency features, game-folder protection (a d3d12.dll or
-  other file of another program in the game folder is never overwritten or deleted), Korean "how to use" tutorial
-  images. See the source zip and CHANGES.md in the repository for details.
-- The complete corresponding source code of this build is distributed together with this installer as a zip file:
-      {source_zip}
-  If you did not receive the zip file, download it from the releases page of the repository above or ask whoever
-  gave you this installer for it.
-- The executable ({exe_name}) is the official PyInstaller package with only the src.* modules of its PYZ archive
-  replaced by the sources above. The installer includes the {version} runtime, seven localized tutorial images,
-  and the CN 1.5.4 Elyms catalogs, artwork and native Core inventory mapping.
-  Executable SHA-256: {exe_sha256}
-- Full license text: LICENSE.txt in this folder. Licenses of bundled third-party components: _internal\\licenses.
+This is an unofficial multilingual derivative. The application follows GNU AGPL-3.0; bundled components retain their own licenses.
+The ZIP includes Global src/, public upstream bootstrap/dependency/build files, the public native/ prototype, Elyms materials and Core resource adaptation scripts.
+Exact complete Corresponding Source for the distributed Core, analysis Core and Loader (AGPL) and five capture DLLs (GPL) has not been obtained. Prototypes, hashes and adaptation scripts are not substitutes.
+Some generator inputs and the full game materials are also not supplied. Game materials belong to their respective rights holders. A standalone build of the entire distribution from this ZIP alone is not promised.
+This notice does not establish compliance with all redistribution conditions and is not a written offer guaranteeing future source delivery.
+
+[日本語]
+非公式の多言語派生プロジェクトです。アプリケーションは GNU AGPL-3.0 に従い、同梱コンポーネントには各ライセンスが適用されます。
+ZIP には Global src/、公開原本の入口・依存・ビルド情報、公開 native/ 試作コード、イェルム資料と Core リソース変更スクリプトを含みます。
+配布された Core・analysis Core・Loader（AGPL）とキャプチャ DLL 5 個（GPL）の正確で完全な対応ソースは未確保です。試作コード・ハッシュ・変更スクリプトは代替になりません。
+一部生成器の入力と全ゲーム資料も未提供です。ゲーム資料の権利は各権利者に帰属します。この ZIP だけで配布版全体をソースから独立ビルドできるとは保証していません。
+本書は全再配布条件の充足を宣言するものでも、将来のソース提供を保証する書面による申し出でもありません。
+
+Detailed scope and remaining gaps: {project_url}/blob/main/SOURCE_OFFER.md
+Build instructions: build_tools/README.md in the source archive.
+Application license: LICENSE / LICENSE.txt. Installed component notices: _internal/licenses.
+Preserved component notice records: license_records/v2.3.6 in the source archive (records are not source code).
 """
 
 README = """\
@@ -437,7 +440,7 @@ NTE Drive Calc Global {global_version} - NTE Drive Calc {version} 다국어판 (
 
 [한국어]
 이 폴더는 NTE Drive Calc {version} 비공식 다국어판(NTE Drive Calc Global) 설치 프로그램이 만든 것입니다.
-원 프로그램 제작자(NTE Drive Calc contributors)가 배포하는 공식 빌드가 아니며, 공식 지원 대상이 아닙니다.
+원 프로그램 제작자(WuDu / hxwd94666 및 NTE Drive Calc contributors)가 배포하는 공식 빌드가 아니며, 공식 지원 대상이 아닙니다.
 원 프로젝트: {upstream_url}
 이 빌드: {project_url}
 

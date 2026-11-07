@@ -1,0 +1,735 @@
+{
+  "source_repository": "https://github.com/hxwd94666/NTE-Drive-Calculator",
+  "source_commit": "0e7a6b4e8e61d7a288e520bbc192a411d68c2fb1",
+  "source_version": "2.3.1",
+  "restored_on": "2026-11-07",
+  "scope": "Public Calc bootstrap, dependency/build metadata, tools and public counterfactual prototype. This does not include the private source of the distributed Core/DLL/Loader/analysis Core or game assets.",
+  "files": [
+    {
+      "path": "build_exe.py",
+      "git_blob": "2cb7230cdb7bd1822a33a5c1379ed83138e2848c",
+      "bytes": 18318,
+      "sha256": "289b711154d57013f142f7ec60e2a1beaec19faeb4c065e6fcd05577d28e1c60"
+    },
+    {
+      "path": "build_installer.py",
+      "git_blob": "f4dab680a9c5ef05262c228e9635be0509bbb948",
+      "bytes": 22109,
+      "sha256": "4efbd33684f0957b7888d3408a730992baa0725e788e723ccd04830f555b945a"
+    },
+    {
+      "path": "main.py",
+      "git_blob": "0deebb01998e0ca8d1d05e434d85f69f58772bcf",
+      "bytes": 2321,
+      "sha256": "1efc27123649712a99f429139c0898fae47ad5293f3a5a6f2b294c3c4994681d"
+    },
+    {
+      "path": "native/counterfactual-core/CMakeLists.txt",
+      "git_blob": "d2a5a1bfbdce43d823291d6c35ff157a2ba5150b",
+      "bytes": 1258,
+      "sha256": "fcb0b977d5ebd852d1c323f60d5ad640750fde1042b8cc6b441fc3d39ada580b"
+    },
+    {
+      "path": "native/counterfactual-core/README.md",
+      "git_blob": "d790db2679b7e5c68a95ec41745334c1f6f0e173",
+      "bytes": 2970,
+      "sha256": "7d7beaf6d1adcc5e1213c5025e53e314f6a0f1affa14b0c6dc30adf4817c6964"
+    },
+    {
+      "path": "native/counterfactual-core/contract/counterfactual-request-v1.schema.json",
+      "git_blob": "e18cb931960a56c1f352149f285599feed7bfa21",
+      "bytes": 4620,
+      "sha256": "32dca90ec8495727aedde1a6ac62ec80a0bad11fdfa2644ceecc6db181b0d016"
+    },
+    {
+      "path": "native/counterfactual-core/contract/counterfactual-response-v1.schema.json",
+      "git_blob": "383077280859966d08fda0157bde46ee35f67541",
+      "bytes": 2134,
+      "sha256": "2679beab6fd57dc1286e15393527e901bb3c199090bf9ac79f44d6315c744368"
+    },
+    {
+      "path": "native/counterfactual-core/include/counterfactual/engine.hpp",
+      "git_blob": "776838687ac355fb05969bdce1dbde909abeb85d",
+      "bytes": 169,
+      "sha256": "9a924245f5a9a6d1df7adecf0c1a243dc8995b794e691c1dd79e0f70d85ad1ea"
+    },
+    {
+      "path": "native/counterfactual-core/include/counterfactual/json.hpp",
+      "git_blob": "9be37463f74b17643f185f7c49e5a848e526d7da",
+      "bytes": 1547,
+      "sha256": "0b261d410b4367352bb7cee569bb6494f406b7f9e7e6f1d9a7697c5316473c61"
+    },
+    {
+      "path": "native/counterfactual-core/include/counterfactual/model.hpp",
+      "git_blob": "b61a3d26aa25b1b02e352825b87f625c880a819e",
+      "bytes": 2837,
+      "sha256": "22e22f19c8219129d20cbbaea733376d416953a3bfe7182e883b0f19554fbea4"
+    },
+    {
+      "path": "native/counterfactual-core/src/engine.cpp",
+      "git_blob": "13c0bcc1bd4d947b73ccf8a45f3272fe7898e08c",
+      "bytes": 18591,
+      "sha256": "5db9a273fcde589e905d329ee90c9c6a0af24496ebd443953d4efeed30f7c518"
+    },
+    {
+      "path": "native/counterfactual-core/src/json.cpp",
+      "git_blob": "6effe1f3c46305132b946b2dde41e2d42442e757",
+      "bytes": 9744,
+      "sha256": "caa3dc576a2288271f11c3f3fbfc88fa9c763714a6a147fceb169e7374bcb6e3"
+    },
+    {
+      "path": "native/counterfactual-core/src/main.cpp",
+      "git_blob": "759ad8c1663fcd27767bea6e890a2d97ba3fafb8",
+      "bytes": 1154,
+      "sha256": "163e161ee0a925ab73168fd0effbe8076f76f15339c6fadd96c1e2335a5748a2"
+    },
+    {
+      "path": "native/counterfactual-core/src/model.cpp",
+      "git_blob": "421fe5bb35f06b19b1a7c029f34d6ec009ea585b",
+      "bytes": 12394,
+      "sha256": "e9891fef45c866105cd568f0262316e19ee50318f476d2996c3009a7c1bc0fcf"
+    },
+    {
+      "path": "native/counterfactual-core/tests/fixtures/ordinary-buffs.oracle.json",
+      "git_blob": "449d51336f9aff4bf764fd34bc6a81e520cd4093",
+      "bytes": 14992,
+      "sha256": "e445c21b1fa46560440a742744a7533ff01f20042f1a0b35a159dfe1cb5328d8"
+    },
+    {
+      "path": "native/counterfactual-core/tests/fixtures/ordinary-buffs.request.json",
+      "git_blob": "d7ac9faca1d4c3d7d7eb6d0d0548ab23ef6f5301",
+      "bytes": 9542,
+      "sha256": "138493cdfd27febac80e712ee60c377419fb4086ba7d222ce4c7780f01c2acd9"
+    },
+    {
+      "path": "native/counterfactual-core/tests/test_main.cpp",
+      "git_blob": "bf98ed9054e56c5b2fb83f5792f36b328a052dc0",
+      "bytes": 14097,
+      "sha256": "68b058b025c0613e65283befce47dacfa87ec4e7a26f9a2b6a17a2e06afee3f7"
+    },
+    {
+      "path": "pyproject.toml",
+      "git_blob": "84f549da9bc82040b4760ab2420b44292764d72d",
+      "bytes": 3133,
+      "sha256": "6580bbf948454b7a899e5d64af731aa04b31d67e145b353e1ec78f12f772c550"
+    },
+    {
+      "path": "tools/__init__.py",
+      "git_blob": "b9ff571d7bed89dad1d8050543fa1777d15dc7d2",
+      "bytes": 60,
+      "sha256": "7d7723a3fe355061954743eef1089bafd06aa0435dc25591cbc2435c9a972d9a"
+    },
+    {
+      "path": "tools/battle_report/__init__.py",
+      "git_blob": "58d00d222efca2ff27190f0a9e8f017e2b852a87",
+      "bytes": 96,
+      "sha256": "84605ae65deddc7e70fe8e09f210d2a000e6fe36bfc2bc2fb4875ae1f6d3e7ba"
+    },
+    {
+      "path": "tools/battle_report/benchmark_native_analysis.py",
+      "git_blob": "cdf23c0b0f8690215934ae1f6c38771087421e1d",
+      "bytes": 21714,
+      "sha256": "1d77e98a4b4a6eb122a5f3b19a639ff9ff7873e3cdd0608464d7dfda3cb70593"
+    },
+    {
+      "path": "tools/battle_report/compare_frozen_analysis_sources.py",
+      "git_blob": "ee35066a8221587e2b057886ffe1bba517f89e78",
+      "bytes": 9779,
+      "sha256": "ac28627da545f9db2a219fccecdd1fd2f04ce8671bf9c048c21f2a1a452b765c"
+    },
+    {
+      "path": "tools/battle_report/evaluate_existing_reports.py",
+      "git_blob": "50a5250545ce49c103acfb7f79f037e430304c42",
+      "bytes": 24250,
+      "sha256": "5b5149d898b16d6e5f58d4d9ef9d46b95b6f8dd16b395ed799e3d8d17b942cc6"
+    },
+    {
+      "path": "tools/battle_report/evaluate_native_analysis.py",
+      "git_blob": "daa182165f7a376f27ebb2e60957c82f6f3341fa",
+      "bytes": 20045,
+      "sha256": "2c59c5551ae7dab9e7cccb63289f9d4ce386a1f3b4602a77df80d0b67d58898c"
+    },
+    {
+      "path": "tools/battle_report/evaluate_native_analysis_assembly.py",
+      "git_blob": "06327f1624bfe171aa1e4bdca636e511ea21ae6f",
+      "bytes": 4622,
+      "sha256": "d880ef30dcdeece84910ab03f5c62f0e1d6da21ae0c05c7bc8023fecbaabae52"
+    },
+    {
+      "path": "tools/battle_report/evaluate_native_application_parts.py",
+      "git_blob": "1a466c3affa308ab2bea9b832c224302d5de2286",
+      "bytes": 5099,
+      "sha256": "62eb444783a3fdfdd24f26b4989066509819f1e241225b5b92ede8a4d9415a42"
+    },
+    {
+      "path": "tools/battle_report/evaluate_native_database_reader.py",
+      "git_blob": "469f27bdce51b0681a3a52d32d904bb98cc1641f",
+      "bytes": 3011,
+      "sha256": "a441d9ae229970cfa08384783beb6cd9f70c29fc7712c2a69f86efae5a0c7a20"
+    },
+    {
+      "path": "tools/battle_report/evaluate_native_hit_details.py",
+      "git_blob": "b89c7cb22d2067bccfed608bd76341c0df10b8a0",
+      "bytes": 8274,
+      "sha256": "6bf239eaceef76012e03a404fdec120c2205ec3c46d555fd75fc545aaca5b9b6"
+    },
+    {
+      "path": "tools/battle_report/evaluate_native_page_hit.py",
+      "git_blob": "edbede568770644c93808ff02097cd4ae7381834",
+      "bytes": 9284,
+      "sha256": "8f0a00c2d95ce262891ec088ef9940668e76f9eb6b148ce29c4d262da23c522e"
+    },
+    {
+      "path": "tools/battle_report/evaluate_native_page_suite.py",
+      "git_blob": "3d4a09bb64da45363964db23369bfa4c08a4825f",
+      "bytes": 4848,
+      "sha256": "261f368de35079e138de1603203ce7e395f4a7f75941c5753c0478f8accb2df1"
+    },
+    {
+      "path": "tools/battle_report/export_native_analysis_contract.py",
+      "git_blob": "0e27c1ad9c50eb37523937ee78cbfe702361bbca",
+      "bytes": 2569,
+      "sha256": "f35ba691dd2d35f427f0fe1652d51c1cb24cf45a43371117a1c93ca611486657"
+    },
+    {
+      "path": "tools/battle_report/replay_native_evidence.ps1",
+      "git_blob": "1e2ca78a02ecf4a737e2d83db02bc7c417ad2b05",
+      "bytes": 1981,
+      "sha256": "373290a826da05aea376517a09e6c4014453370d3cf5484ab3c07555ee34b02e"
+    },
+    {
+      "path": "tools/battle_report/validate_native_buff_remove.py",
+      "git_blob": "02bebc4c5baec171f2260aacb0dd519b055a3a8e",
+      "bytes": 4388,
+      "sha256": "b6d22746de54a30302e0f96a8acff948f6bf2783c79057e568f2d03a05734c38"
+    },
+    {
+      "path": "tools/battle_report/validate_native_marginal.py",
+      "git_blob": "59fb85d962b30a71f28f3575ad209aac1331f27d",
+      "bytes": 2556,
+      "sha256": "6ea9e34404be9950a8101e1edf09d3bfe1a349ab66f65662d2fed4bd6a936510"
+    },
+    {
+      "path": "tools/battle_report/validate_native_replay.py",
+      "git_blob": "e099c6f0c8dd5cdb031dd647c69cc4c225462e37",
+      "bytes": 5232,
+      "sha256": "8cc92d96d20a84ff9ebef5aaa257869b723c5da89976e41c8d631b1dc8929a2e"
+    },
+    {
+      "path": "tools/battle_reports/recover_native_character_profiles.py",
+      "git_blob": "b1798884c086e809eb56c581257e12faea731b8d",
+      "bytes": 8402,
+      "sha256": "4cd45b9a42a9fb50258982029d73eca0e26a5bacfcd0cef25d6c757c45d2788a"
+    },
+    {
+      "path": "tools/build_cli.py",
+      "git_blob": "1f0bfeb11cc630e734f021408317f9725017b67e",
+      "bytes": 1337,
+      "sha256": "0bc16b03c88405b0e8fd4b68f8c7e0787008be1923559bc8343583bdc48e17ee"
+    },
+    {
+      "path": "tools/counterfactual/generate_cpp_oracle_fixture.py",
+      "git_blob": "cd107be3e36d10b53b14d88d1c3f8a649be4cca8",
+      "bytes": 25563,
+      "sha256": "14c9ad9c9c8a1e5ce93fffe9cc9daf04988136de620b5feea9a32f77ee683cb4"
+    },
+    {
+      "path": "tools/counterfactual/package_rust_core.py",
+      "git_blob": "f145b73e5c35cb6555f4a057f0fca7b805597ccf",
+      "bytes": 5460,
+      "sha256": "a3e46493d261ac8a2c1528b5603601bbfca85cdd4ff4fc8f9d04e7526de6e18b"
+    },
+    {
+      "path": "tools/counterfactual/run_cpp_differential.py",
+      "git_blob": "2bd0c1dcb4ba4f6764c84bbd560dabb1f6a25c7f",
+      "bytes": 3487,
+      "sha256": "eed38f772120b44d713f1758654bacf62b4ef02e173241080e831ec577ed6839"
+    },
+    {
+      "path": "tools/counterfactual/rust_core_build.py",
+      "git_blob": "6e9b7c338b171552c198d6c545b08621c335f5be",
+      "bytes": 5627,
+      "sha256": "854614332c67b29696c8f863db9df426ab2520ac04158a1402c0b3d4cc62a27d"
+    },
+    {
+      "path": "tools/docs/README.md",
+      "git_blob": "45950c14db14723789f41304dcce950c31bb2d91",
+      "bytes": 4431,
+      "sha256": "be9bd09457ad549c844962023373d7f34badb2d6798eaa232d7674633c165026"
+    },
+    {
+      "path": "tools/docs/architecture_map_template.html",
+      "git_blob": "e7f249e380387ad01d3024a32a355f617ca25c89",
+      "bytes": 29828,
+      "sha256": "1fd3d7425d62005443e7a700f28450951c358bda91114c99c6b7751c86bcbf6c"
+    },
+    {
+      "path": "tools/docs/build_architecture_map.py",
+      "git_blob": "c230999b72194b6b63bc26e04bf1a64fb32dd019",
+      "bytes": 16023,
+      "sha256": "e1fd71c35237574acc6be4d5968c40bf1a94bf59beec1c46bc51469256f46fa5"
+    },
+    {
+      "path": "tools/docs/render_ui_reference.py",
+      "git_blob": "781c8ae10954b930e13a9381ea84f22c1da83e8c",
+      "bytes": 9070,
+      "sha256": "a9c0ab5b968a897bdb6500baaa85d462a95d4e5d4d28782d0e8d2f706a922f71"
+    },
+    {
+      "path": "tools/encoding_guard.py",
+      "git_blob": "bdc4d830217b16992352726dddc2ebfc22064b10",
+      "bytes": 1882,
+      "sha256": "e2cdb2c8400e2fbd7dee246cc7a4bf37594e6e24285a5c1c0603837aad14ead1"
+    },
+    {
+      "path": "tools/game_assets/__init__.py",
+      "git_blob": "51a032c9a7b5b924864b0dc871508238b7063622",
+      "bytes": 96,
+      "sha256": "14e72635a6f2cd61bcd84242fb978fc31e26e2546cde55dc1937c86a05e224ff"
+    },
+    {
+      "path": "tools/game_assets/build_ui_assets.py",
+      "git_blob": "1159c2e03996f9a37c02247c61b06ef39d52015c",
+      "bytes": 16050,
+      "sha256": "ee48a33d9025f3eb93264c21c3ffa9eeefd1d968fcc569aeb90374ed9cd8629d"
+    },
+    {
+      "path": "tools/game_assets/ui_asset_manifest.json",
+      "git_blob": "0841337260a9821f59ff488bd73f0319103fc38b",
+      "bytes": 18056,
+      "sha256": "dd3fe606483915c83f9d42e0d2fc21fb9ae4e158dfaf7438d84ba85b2ea0cc42"
+    },
+    {
+      "path": "tools/game_data/README.md",
+      "git_blob": "d23b0d85080120cda0895d4748e841c95b46d408",
+      "bytes": 19688,
+      "sha256": "68716f9b45b7f70c6b8d6b000db13b109ad48fef13ef341702f3c082754e89e7"
+    },
+    {
+      "path": "tools/game_data/build_analysis_catalogs.py",
+      "git_blob": "effc76467668a5bb1018ca1f9c1c1c1e23fabfea",
+      "bytes": 3040,
+      "sha256": "960d10f484b86416efc7f60b5aa622a3850da739c39592764d8e40171eacc760"
+    },
+    {
+      "path": "tools/game_data/build_graduation_templates.py",
+      "git_blob": "18403d6a118993ac1089715b8f736d43642ffe64",
+      "bytes": 17064,
+      "sha256": "345886893554fa1f6576661664b029aa29028a5c193e873a212ec1cb157386a2"
+    },
+    {
+      "path": "tools/game_data/build_reference_catalog.py",
+      "git_blob": "5a72811c76969128094b9bec433cf8c3df394ee6",
+      "bytes": 4950,
+      "sha256": "0771f59b6fd1ecb0ba8336651dc33a65f75eea24fda6cf909a5f7d32e172d720"
+    },
+    {
+      "path": "tools/game_data/build_reference_catalog_assets.py",
+      "git_blob": "3e6df5f23a2d017397c64170771219499de5f0b0",
+      "bytes": 4822,
+      "sha256": "869d3d74e8679ab11af93a4ef8acdb29b1301128039a4662531aff4f0d9cef93"
+    },
+    {
+      "path": "tools/game_data/build_role_catalog.py",
+      "git_blob": "eaa622d9d786f038787367f8e564baf2ae859311",
+      "bytes": 5417,
+      "sha256": "2d6e54115fe47ee500a67172f28a76d956cd3610d8300a40d9678cd87c048149"
+    },
+    {
+      "path": "tools/game_data/build_role_catalog_assets.py",
+      "git_blob": "80c6482ca8277699403be792e529c1b6a5854fe5",
+      "bytes": 4004,
+      "sha256": "5c844ec1fded755cbf790ed22d52b65d787adf595db43c1b83995797bac764a0"
+    },
+    {
+      "path": "tools/game_data/build_static_database.py",
+      "git_blob": "a66f3ae84184450ea484c4abf091aa42e3da4736",
+      "bytes": 11926,
+      "sha256": "71c096c6bff2136c2c9d11f5de80bf82be59e29110378f6e2d95b6174238c20b"
+    },
+    {
+      "path": "tools/game_data/catalog_characters.py",
+      "git_blob": "de94456f495cd05a6904c3c1a47a31586bd316f9",
+      "bytes": 19199,
+      "sha256": "7a6b762b4ef9849c9c6145c10001df68a6e363578c2e02a585df3473c9140d88"
+    },
+    {
+      "path": "tools/game_data/character_overrides.json",
+      "git_blob": "7a5ed40b8677cb57802d2b76d72058655a2b85dc",
+      "bytes": 2942,
+      "sha256": "982c6179a9f4f96d42b0b14a841cfd71e8b5f4edbba2142eb8dc940b53543301"
+    },
+    {
+      "path": "tools/game_data/character_weight_overrides.json",
+      "git_blob": "4c59c9b5762295f6099b3d855b681c18b42a449a",
+      "bytes": 378,
+      "sha256": "6b10f1f4fbf22afc8dd67fbd48278796c60bdd79b043a9e0d743062932071edd"
+    },
+    {
+      "path": "tools/game_data/export_native_analysis_declarations.py",
+      "git_blob": "7b83af16d61fdc942de7a6f3b76505b0eeb1e3de",
+      "bytes": 7044,
+      "sha256": "3ef6149900ae379da791109aaa72d8cdfcadfd098f7da2af3a28892ee2844c36"
+    },
+    {
+      "path": "tools/game_data/export_shape_bonus_baseline.py",
+      "git_blob": "fc64bc1c29719aa04492ed1d1ff428486268c743",
+      "bytes": 1017,
+      "sha256": "6fe9b408259bd6c918f57d7118c44b624c27d36e7a31938c6ddc1874ec4c2f88"
+    },
+    {
+      "path": "tools/game_data/fork_reprojection_provenance.py",
+      "git_blob": "6eda74cf6a93a2a0bf55cbd99448427a9a33b2be",
+      "bytes": 8629,
+      "sha256": "e3acfdcf22c790ee1738e35d38738738779187a009124af741923a842136b898"
+    },
+    {
+      "path": "tools/game_data/generate_counterfactual_inventory.py",
+      "git_blob": "7641b4797f78509bf7d2a4539fe2bd6aff8ca19e",
+      "bytes": 34724,
+      "sha256": "b9ed0c895de069ae912f67769b8a6814e203b9f59b0271d9d97335fce4e1f127"
+    },
+    {
+      "path": "tools/game_data/inspect_static_database.py",
+      "git_blob": "1a6227e5a962339a27bb4b781581805b1a52cef8",
+      "bytes": 4371,
+      "sha256": "68497450d54165c4f80070c3cfa929f0e7a2ab0f059a449466020ba882a673cc"
+    },
+    {
+      "path": "tools/game_data/promote_role_catalog.py",
+      "git_blob": "6cca04b72dbebc44977d522d666fd22ab03e8ac4",
+      "bytes": 3075,
+      "sha256": "7170c842a3f7d9447b780b33d549560485c3469ad775aa8005857d25c19ad825"
+    },
+    {
+      "path": "tools/game_data/promote_static_release.py",
+      "git_blob": "a9b08d1781a122b0089ded451a1b883d492eea19",
+      "bytes": 33409,
+      "sha256": "d3cf85ee445d26cb66b20b21decaa525040ca26dbacfdd494615a102cf5b0cf9"
+    },
+    {
+      "path": "tools/game_data/reference_gold_rollback.py",
+      "git_blob": "0b2dce49101791a099573eb1f831dc12b4ad5fa7",
+      "bytes": 1640,
+      "sha256": "088a24a8dd7691817302094e3e782cec4774e123cd90d7278ab6087fb66876a3"
+    },
+    {
+      "path": "tools/game_data/reference_progression_currency.py",
+      "git_blob": "419b518d2e7dd6822009b91f910ccdf6218ee839",
+      "bytes": 3010,
+      "sha256": "a9f913fd8cd086d8381b548701dbe1d99413281e386d59e4aea83a764562869b"
+    },
+    {
+      "path": "tools/game_data/repair_published_gold_catalog.py",
+      "git_blob": "9271f63b80d7d3e598e2a3cfaf3acccf56bccb94",
+      "bytes": 16660,
+      "sha256": "c10d8342aee13130bce193561b4b022033bc4203bb0f24d91a78cad316112e59"
+    },
+    {
+      "path": "tools/game_data/repair_reference_gold_catalog.py",
+      "git_blob": "2b30a56e7d24f4394405cdbe79a972eceb4a49cb",
+      "bytes": 10365,
+      "sha256": "5f9e804d892c465f8d948702bce2634d5f6332a1a45f4d6d12120df99fcf6572"
+    },
+    {
+      "path": "tools/game_data/reproject_fork_permanent_properties.py",
+      "git_blob": "8bc3034142408eb62c77708775df8be00fc21f02",
+      "bytes": 10668,
+      "sha256": "196bbb437eb10b8cc0f2a3685e24cd7222067484734644406fc877aa9ad8a99d"
+    },
+    {
+      "path": "tools/game_data/static_database_blueprint_imports.py",
+      "git_blob": "839ce5d240aaef79c2ef82c40d8ffa436971f635",
+      "bytes": 23990,
+      "sha256": "52610bff6b525362ac14f994fdadfd2e52ce497fc97cb2deb3dc19cdf19de38d"
+    },
+    {
+      "path": "tools/game_data/static_database_buff_imports.py",
+      "git_blob": "65b663242581f038c0b504c5e0d9b0ed99a8346e",
+      "bytes": 17766,
+      "sha256": "c4dad24934b36f4ef9e3b104dec7989746b4cd51923d8299f3eb8588819548cb"
+    },
+    {
+      "path": "tools/game_data/static_database_build_support.py",
+      "git_blob": "3cb0d48c3d69b29ac104d7db6075468243f24043",
+      "bytes": 22615,
+      "sha256": "4f82e8232964c4aa049badf3fc41ce34c6266272fd84c3519a3eaae1946dfd2b"
+    },
+    {
+      "path": "tools/game_data/static_database_catalog_imports.py",
+      "git_blob": "956a9b08c4e7bdac3e547b2b9c4de3fe4cda2f15",
+      "bytes": 24817,
+      "sha256": "9e597834420f0dd6776b078f34ecbfb71ae5279857d538d946eccfce879b22cf"
+    },
+    {
+      "path": "tools/game_data/static_database_character_imports.py",
+      "git_blob": "d5ad728694287cf741bfb37cc8e3f6d458162166",
+      "bytes": 38475,
+      "sha256": "b37ebe753aad2ee93baa7fece38c1d73c9bb69d60340db2a84eed282641ea63b"
+    },
+    {
+      "path": "tools/game_data/static_database_character_progression_imports.py",
+      "git_blob": "acf6b31da46f8bd0c1fc618411f9ec48ba290cfc",
+      "bytes": 8107,
+      "sha256": "b7641c82f838c68a2c42ea481cb30438c85846ab51f0af233f041e16aec3d23b"
+    },
+    {
+      "path": "tools/game_data/static_database_combat_imports.py",
+      "git_blob": "16451c4ab89fdbafc0fc50793d4ceb4bbfd64d95",
+      "bytes": 29966,
+      "sha256": "c78cd10f041170b88aa26386a14c6a979168f6162e2730f5d3896ad1cc417c68"
+    },
+    {
+      "path": "tools/game_data/static_database_encounter_imports.py",
+      "git_blob": "accd9cd9277fbb39657dbcfacfd4b8c9ce970ffd",
+      "bytes": 29009,
+      "sha256": "42474428bdb4aedadf70d917d0724c8c6e394689ad525f9b15f71f70e7c895a7"
+    },
+    {
+      "path": "tools/game_data/static_database_equipment_imports.py",
+      "git_blob": "d59048390b5471b42dfcac220021c05d8f77721a",
+      "bytes": 20425,
+      "sha256": "121bf0802a882b2eb5c6b1ff8dc0887443a240774a60bb701890c60b4c9110dc"
+    },
+    {
+      "path": "tools/game_data/static_database_fork_progression_imports.py",
+      "git_blob": "981ef7ac07e85da3d83163cd429cf5054fc0a35d",
+      "bytes": 1542,
+      "sha256": "34c14d91ebc7a801ecddf98c26b6bb1c0e2c141256164e4a19cb9fb07ea6e823"
+    },
+    {
+      "path": "tools/game_data/static_database_passive_imports.py",
+      "git_blob": "34d0cfc125e2552177d766a4d85b2e209c5c9b68",
+      "bytes": 1680,
+      "sha256": "ee9d27846f2a16e9da77c65aaf1208dcca3f2114b0ae724852f57ac2ac980bab"
+    },
+    {
+      "path": "tools/game_data/static_database_progression_imports.py",
+      "git_blob": "3f29e41080b17cb2a978d95fef0343c84d0187f9",
+      "bytes": 33706,
+      "sha256": "0bcd54223e60bfee239c32357d3ec52deef377d5bfb6df1b3a0917555c01bfc3"
+    },
+    {
+      "path": "tools/game_data/static_release_fork_promotion.py",
+      "git_blob": "dce997d4b76ab01f2fc038edbd0ffd8c14912c97",
+      "bytes": 2061,
+      "sha256": "fa2329376ff9b6b53d73f70a6f1379d0913221944eb703a24503737053fdf7cb"
+    },
+    {
+      "path": "tools/game_data/static_release_size_policy.py",
+      "git_blob": "358054f3149498b306194690e29584a9a3b5d9d7",
+      "bytes": 1872,
+      "sha256": "fe4971fe691ad3f3767adf97ddf2127152fff1b1775b0484475143ae5f4020d5"
+    },
+    {
+      "path": "tools/game_data/storage_repack.py",
+      "git_blob": "da3be2ad85e18986f33c593a9debd3f1170f06c1",
+      "bytes": 8882,
+      "sha256": "af45fa31d7c026579f5ee9e3cebeea3d162b9df33a8957319d8e8538b3572495"
+    },
+    {
+      "path": "tools/game_data/upgrade_static_database.py",
+      "git_blob": "cb9faf8ef37e63a6916455e36ebb8ee6dc011277",
+      "bytes": 20790,
+      "sha256": "5e873282519754b348bd2f4e77d7ca1ffb2fc8fd6c25d17fc980081eb4d29e55"
+    },
+    {
+      "path": "tools/import_guard.py",
+      "git_blob": "a98d466bc00590583193ead16411cc70b7d32ac1",
+      "bytes": 502,
+      "sha256": "916aabd0571ce25ec74c1f6482bf00208309addd362d22a7f90d3c734a886f22"
+    },
+    {
+      "path": "tools/native_analysis/export_target_catalog.py",
+      "git_blob": "2fba6a743fa946990d6fb0bdeb9209fc52fc4c17",
+      "bytes": 4653,
+      "sha256": "cb3c6bc84499206db2cbb34d1f4a19447c83f64bcad2ec6212b5e0f1b9d3645b"
+    },
+    {
+      "path": "tools/nte_core_smoke_test.py",
+      "git_blob": "5568b5ca5d1cf80ab66685747d3926fa71f7e424",
+      "bytes": 13333,
+      "sha256": "17c784d5578850bc70fc6dcc08468ed69849dbf2a891dba22f015aca3c9314aa"
+    },
+    {
+      "path": "tools/quality/benchmark_catalog_responsiveness.py",
+      "git_blob": "56189fb1ca227d1a89e18333bb7f1338c25543d1",
+      "bytes": 9455,
+      "sha256": "1479d058039e66719181fddbf34f842333b5364d328bdada56598dcc06f112e4"
+    },
+    {
+      "path": "tools/quality/benchmark_dashboard_responsiveness.py",
+      "git_blob": "02ca721e7945cf2a732e0f4bbfacfbd51a266c53",
+      "bytes": 7126,
+      "sha256": "2363bd9e71a68e61c9880da83367743c97eca86dffd9a68f132a6e6f65dad828"
+    },
+    {
+      "path": "tools/quality/benchmark_ui_responsiveness.py",
+      "git_blob": "b291b08abf99d2e53c57cc18aa5efd3b587e1a94",
+      "bytes": 8463,
+      "sha256": "b30c5aeb0858af2b5fc269a2e4312603b9389f873dbc8223c4e683ab7c39858e"
+    },
+    {
+      "path": "tools/quality/benchmark_weight_responsiveness.py",
+      "git_blob": "b03bbdf1958016c98805ee9f41044a2ac55c6ea2",
+      "bytes": 9134,
+      "sha256": "f7fa8ad7f419ce6797420ef01c8c5d3831acfdc1281cafa4655bbd884447cac8"
+    },
+    {
+      "path": "tools/quality/check_static_catalog_terminology.py",
+      "git_blob": "989e3dc6b5411ed437e0c433cc514abb8dcf30df",
+      "bytes": 4569,
+      "sha256": "00ee1fe99b0ac8184d13953caff574d9d49b8e2e405daef0b0e03fd790bdb853"
+    },
+    {
+      "path": "tools/quality/coverage_baseline.json",
+      "git_blob": "0b5b77726973bfc97fb00706603cf94268a02c06",
+      "bytes": 1332,
+      "sha256": "a4c52685ec15ebbc3dc392839cb3ea4ba9606ded6749f27301087085c2151443"
+    },
+    {
+      "path": "tools/quality/mypy_allowlist.txt",
+      "git_blob": "92a27c5cb7dc3bcc930e6626c0df41ea605c0360",
+      "bytes": 3914,
+      "sha256": "e5795f5c5366540b377cfa802cf2b843c0f03c6bfa82dc055d705fdb5fdf336c"
+    },
+    {
+      "path": "tools/quality/run_tests.py",
+      "git_blob": "30b7718360f0ad2232e3e8d6780cea2a2d24d594",
+      "bytes": 5279,
+      "sha256": "f7826f4321d653075bb30acbf908b7b6dad0c525872710475d671b2b36c8b630"
+    },
+    {
+      "path": "tools/release/__init__.py",
+      "git_blob": "df3087bddd55a3945257eea63063cdacaa012961",
+      "bytes": 76,
+      "sha256": "aaf5b96beb9393a924be28c204d7691aaa79ca544cfc8927b2b0e1edd9c931f0"
+    },
+    {
+      "path": "tools/release/game_component_bundle_build.py",
+      "git_blob": "e95767421e07d1c6fa9fb94181e201ca48e57cb0",
+      "bytes": 8090,
+      "sha256": "ad3fafbbd4996f46940e4cc627422c8bf3a8f75f15a9467e6e39f2b7d68963ff"
+    },
+    {
+      "path": "tools/release/installer_asset_dedup.py",
+      "git_blob": "cd159619bf1ea91746ee22ebbfadf3a12d89f23c",
+      "bytes": 5135,
+      "sha256": "835c962e9a67fe3232e77379094067bc469047a81a2d44e9643434fab6b42888"
+    },
+    {
+      "path": "tools/release/native_component_bundle_build.py",
+      "git_blob": "80e1936a41371a0c068dc96d5d5e0c48e2181d8f",
+      "bytes": 9804,
+      "sha256": "66394552319b55f3c9d8ec4cb5c8435602a27928f93277e8a3e3acc805bc4082"
+    },
+    {
+      "path": "tools/release/prepare_release.py",
+      "git_blob": "090459f63b409118ab2b21bac19300cf5fcc8ea5",
+      "bytes": 17129,
+      "sha256": "9043ae56c2a864b4e8f90bcd97858fa5f622feb3d86aa89a9dc6c43fadaf3289"
+    },
+    {
+      "path": "tools/release/pyinstaller_native_dependencies.py",
+      "git_blob": "3bf3c5c20e0b00e45e34502f32c63b36915896bb",
+      "bytes": 801,
+      "sha256": "35cb081e45714bb550961e39630ab0b57468a85b98da0770d4a6970a275f3d60"
+    },
+    {
+      "path": "tools/release/runtime_pruning.py",
+      "git_blob": "03ec9c80d7c04cd6bab372f342f6767a779aab4c",
+      "bytes": 5272,
+      "sha256": "7e9c6b227f30323daae9921a72030b135e45212f007fa4a48b53d7349f324d5f"
+    },
+    {
+      "path": "tools/user_data/README.md",
+      "git_blob": "d0ebc4e897c57ee830f021596db925b0cc916c69",
+      "bytes": 2867,
+      "sha256": "e1f9748d9dd39612812c841e92fd90855c88fa42d78d9debfc05074394a4b067"
+    },
+    {
+      "path": "tools/user_data/__init__.py",
+      "git_blob": "89f053faa4415fe55bcb40d28b09e7b645c64352",
+      "bytes": 106,
+      "sha256": "c1c5b67075463e6846ec426018e585f7c028743bfb1a37318015576513b47ca7"
+    },
+    {
+      "path": "tools/user_data/manage_user_database.py",
+      "git_blob": "19199993a88771f2401ce2d692481475a2b29575",
+      "bytes": 6674,
+      "sha256": "97e00934f114afeb270f1dcbcdba06ee26553c4c4ebec992ace6528023e898f7"
+    },
+    {
+      "path": "tools/windows_validation/__init__.py",
+      "git_blob": "11fef2aae76e99f79599cb9a5df1005f4c2cfc93",
+      "bytes": 130,
+      "sha256": "d4b9d8ed05767e15c4b56e55d83ff4e6f1444bb590fca666fe7f640f4908567a"
+    },
+    {
+      "path": "tools/windows_validation/log_probe.py",
+      "git_blob": "fa7858e798255cd509dcc084896d3fc68530b79d",
+      "bytes": 1953,
+      "sha256": "dddd91959621ad98a47aa6ca354bdf5702610b7b176ff2d2bfcf08d5c14da43b"
+    },
+    {
+      "path": "tools/windows_validation/models.py",
+      "git_blob": "5a68a987d9f55418a73a236d903143564ca165f6",
+      "bytes": 1084,
+      "sha256": "659e92c672dc1e949547e3e75ab462621cfdc5cc6d69864cec80324763c33f48"
+    },
+    {
+      "path": "tools/windows_validation/mouse_scan_probe.py",
+      "git_blob": "e5d51e2172bf9add36233df48e9453847f399634",
+      "bytes": 5140,
+      "sha256": "9b12c0b801a480d907ed068633129690ba12ab4fae10f37e322e40a477fb9966"
+    },
+    {
+      "path": "tools/windows_validation/preflight.py",
+      "git_blob": "e7fa61f1b59222957788a8dfc2b0d5fbaef05c6e",
+      "bytes": 3444,
+      "sha256": "f188ad661c18910765bb0f8edaebae0cc61c51cd6ca964c441f117dbfe374100"
+    },
+    {
+      "path": "tools/windows_validation/process_probe.py",
+      "git_blob": "9a960f7faf9eb98be5c1f6c92e89704898a29eab",
+      "bytes": 1774,
+      "sha256": "2235b9a1b2936ab2d9d0ee897e5ef37c27f743d93e285a3413ae7fb7921fed3e"
+    },
+    {
+      "path": "tools/windows_validation/profiles.py",
+      "git_blob": "f9e662dbbbe7c3fdc4555ca6de0ab31b279b5923",
+      "bytes": 2394,
+      "sha256": "7e95c22e8f8b2606e87b81d19bb6089ca3b9f666b4b64a65188606ee4621248d"
+    },
+    {
+      "path": "tools/windows_validation/redaction.py",
+      "git_blob": "0f18965d71509d0ad875d448d6d67cd14ed1970c",
+      "bytes": 1280,
+      "sha256": "88365c41bc2a10b66af1bead2a4a60b9eb12a9ea83e8dad5d5dcf0844abe2b77"
+    },
+    {
+      "path": "tools/windows_validation/report.py",
+      "git_blob": "67987fccec0bcb85342ecfef5cc2c033a04cb42f",
+      "bytes": 2230,
+      "sha256": "a3928f0bb6ecf92c4d24b94d87039cc88ce9db4940dc12bc69bb1330b547640e"
+    },
+    {
+      "path": "tools/windows_validation/run_validation.py",
+      "git_blob": "b5d387492778acf738e5e769340375d5887ee523",
+      "bytes": 8606,
+      "sha256": "4b71cf9bbfebf8a32c07d4fe02de890502e87a463036139fd4ef9adce2a24d32"
+    },
+    {
+      "path": "tools/windows_validation/sqlite_probe.py",
+      "git_blob": "ca9efdee86667b20c141dbfefbc56e25265011d5",
+      "bytes": 3123,
+      "sha256": "5d15e3445d312b35a65b6f02094be38de71704c9607158e48e97b33a7901677f"
+    },
+    {
+      "path": "uv.lock",
+      "git_blob": "640a3a85120590c0ffb18ec1f26cc6ffb4a439b4",
+      "bytes": 179362,
+      "sha256": "f715c382fa2882f96d86ca0fc64d9ceccf675016d13b06e61dcbca8881ad39aa"
+    }
+  ]
+}

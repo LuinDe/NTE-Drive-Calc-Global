@@ -1,3 +1,16 @@
+# 2026-11-07 · Global 2.3.6 source/documentation supplement
+
+- Restored 121 exact public upstream files; see UPSTREAM_SOURCE_FILES.json.
+- Preserved 120 installed license/provenance records under license_records/.
+- Expanded the public source archive and corrected source-completeness claims.
+- Rewrote the Korean, Chinese, English and Japanese descriptions with original author credits.
+- Retained installer, application src/ and v2.3.6 tag unchanged. Exact native Corresponding Source gaps remain; see SOURCE_OFFER.md.
+- Earlier release assets and version tags were removed; historical Git commits remain discoverable in docs/source-history.md.
+
+The text below records historical changes. Current source coverage is described in SOURCE_OFFER.md.
+
+---
+
 # Changes from the original / 원본과 다른 점
 
 Global 2.3.6 converts Elyms' full-body artwork to PNG so the runtime character catalog can load during startup. The installer release gate now runs the application's catalog validator. The Elyms regression check also decodes all three character and Arc images with Qt. [Release notes](RELEASE_NOTES_2.3.6.md).
