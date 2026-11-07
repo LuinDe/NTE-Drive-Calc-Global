@@ -229,7 +229,12 @@ def list_template_characters(static_path: Path) -> list[dict]:
     from src.services import team_awakening
 
     out = []
+    from src.services.team_rotation_data import CHARACTERS
+
     for cid, name, fork_id, refine, suit, profile_json in rows:
+        # Equipment templates can ship before a measured combat rotation.
+        if cid not in CHARACTERS:
+            continue
         profile = json.loads(profile_json or "{}")
         selection = team_awakening.from_profile(profile)
         out.append({"character_id": cid, "name_zh": name, "fork_id": fork_id,

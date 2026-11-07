@@ -39,7 +39,8 @@ authors. As required by section 5(a) of the GNU Affero General Public License
 version 3, the work carries this notice that it was modified:
 
   Modified by:    LuinDe (https://github.com/LuinDe)
-  Date:           2026-10-20 (this version, Global 2.3.2)
+  Date:           2026-11-07 (Global 2.3.3, CN 1.5.4 Elyms supplement)
+                  2026-10-20 (Global 2.3.2)
                   2026-10-19 (Global 2.3.1-global.2, replaced by 2.3.2)
                   2026-10-11 (Global 2.3.1, v2.3.1-global.1)
                   2026-10-05 (first version, Global 2.3.0)
@@ -137,7 +138,7 @@ Modifications in this build (details and file pointers: CHANGES.md):
   - The home page's work-space header shows Akane Rin (明音凛) instead of
     Raven (黑羽): src/features/home/page.py.
 
-Files of the original project outside src/ (main.py, assets, data, native
-components, third_party, ...) are not modified and are not part of this
-repository; the bundled third-party components listed in the original NOTICE
-above are redistributed unchanged inside the installer, under their own terms.
+Global 2.3.3 also modifies the game and reference catalogs, the UI image manifest
+and Elyms artwork during installer staging. The source distribution includes the
+SQL and artwork under build_tools/data/. Game materials belong to their respective
+rights holders. Bundled third-party components retain their own terms.

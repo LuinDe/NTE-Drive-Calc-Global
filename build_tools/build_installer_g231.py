@@ -83,13 +83,13 @@ APP_EXE_NAME = "NTE_Drive_Calc.exe"
 OFFICIAL_APP_ID = "D7DA28BE-8A19-4E05-9216-3F16C4C2C820"      # upstream build_installer.py APP_ID
 SANDBOX_APP_ID = "5B0C6E1A-7F2D-4C39-8E54-1D9A3F6B2C70"       # test-only identity, never the official one
 SANDBOX_DEFAULT_DIR = r"C:\Temp\nte_g231_setup_sandbox"
-DEFAULT_VERSION = "2.3.2"                                      # Global grammar: <major>.<minor>.<patch>[-global.<n>]
+DEFAULT_VERSION = "2.3.3"                                      # Global grammar: <major>.<minor>.<patch>[-global.<n>]
 # the grammar of src/app/global_release.py (_PLAIN / _VERSION_CORE): fullmatch only, ASCII digits, no leading zeros
 _PLAIN = r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
 _VERSION_CORE = _PLAIN + r"(?:-global\.([1-9][0-9]*))?"
 GLOBAL_VERSION_RE = re.compile(_VERSION_CORE, re.ASCII)
 GLOBAL_TAG_RE = re.compile(r"v" + _VERSION_CORE, re.ASCII)
-PREVIOUS_RELEASE_VERSION = "2.3.1-global.2"                    # last published release: --version must be newer
+PREVIOUS_RELEASE_VERSION = "2.3.2"                    # last published release: --version must be newer
 UPSTREAM_BASE = "2.3.1"                                        # official version this build is based on (src/app/version.py)
 MANIFEST_FORMAT = 1                                            # src/services/global_update/verify.py parse_manifest
 MANIFEST_PRODUCT = "NTE-Drive-Calc-Global"
@@ -405,7 +405,7 @@ NTE Drive Calc Global {global_version} - Multilingual Edition of NTE Drive Calc 
       {source_zip}
   zip 파일을 받지 못했다면 위 저장소의 릴리스 페이지에서 받거나, 이 설치 파일을 받은 곳(배포자)에게 요청하십시오.
 - 실행 파일({exe_name})은 공식 PyInstaller 패키지의 PYZ 아카이브에서 src.* 모듈만 위 소스로 교체한 것입니다.
-  그 밖의 구성 요소(_internal, drivers)는 공식 {version} 배포판과 동일합니다(튜토리얼 이미지 7장 제외).
+  설치 프로그램에는 공식 {version} 기반 구성 요소, 튜토리얼 이미지 7장, 엘림의 CN 1.5.4 데이터와 이미지가 들어 있습니다.
   실행 파일 SHA-256: {exe_sha256}
 - 라이선스 전문: 같은 폴더의 LICENSE.txt. 함께 들어 있는 제3자 구성 요소의 라이선스는 _internal\\licenses 폴더.
 
@@ -425,8 +425,8 @@ NTE Drive Calc Global {global_version} - Multilingual Edition of NTE Drive Calc 
   If you did not receive the zip file, download it from the releases page of the repository above or ask whoever
   gave you this installer for it.
 - The executable ({exe_name}) is the official PyInstaller package with only the src.* modules of its PYZ archive
-  replaced by the sources above. All other components (_internal, drivers) are identical to the official
-  {version} distribution (except the 7 tutorial images).
+  replaced by the sources above. The installer includes the {version} runtime, seven localized tutorial images,
+  and the CN 1.5.4 Elyms catalogs and artwork.
   Executable SHA-256: {exe_sha256}
 - Full license text: LICENSE.txt in this folder. Licenses of bundled third-party components: _internal\\licenses.
 """
@@ -629,7 +629,7 @@ def _key_fingerprints_of(paths) -> set[str]:
     return result
 
 
-def release_exe_gate(*, tree: Path, exe: Path, official_exe: Path | None) -> dict:
+def release_exe_gate(*, tree: Path, exe: Path, official_exe: Path | None, payload_data: Path) -> dict:
     """Review r5 F7: the executable that gets packaged must be the one built from ``tree`` (verify_exe_l10n_g231.py
     against the official 2.3.1 exe: every src.* module equals the tree, nothing else changed), and the tree must not
     carry a test hook."""
@@ -645,7 +645,7 @@ def release_exe_gate(*, tree: Path, exe: Path, official_exe: Path | None) -> dic
     removed = [f"--removed=src.{m.replace('/', '.')}" for m in REMOVABLE_UPSTREAM_MODULES
                if not (tree / "src" / f"{m}.py").is_file()]
     verifier = TOOLS_DIR / "verify_exe_l10n_g231.py"
-    completed = subprocess.run([sys.executable, str(verifier), str(official_exe), str(exe), str(tree / "src"), *removed],
+    completed = subprocess.run([sys.executable, str(verifier), str(official_exe), str(exe), str(tree / "src"), str(payload_data), *removed],
                                capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
     if completed.returncode != 0 or "VERIFY_OK" not in completed.stdout:
         tail = (completed.stdout + completed.stderr)[-2000:]
@@ -1320,7 +1320,8 @@ def main() -> int:
                                             args.release_pubkey.expanduser().resolve(), args.reject_key)
                 info(f"release key gate: tree pins {key_gate['key_id']} {key_gate['fingerprint']}")
                 key_gate.update(release_exe_gate(tree=args.tree.resolve(), exe=exe,
-                                                 official_exe=args.official_exe.resolve() if args.official_exe else None))
+                                                 official_exe=args.official_exe.resolve() if args.official_exe else None,
+                                                 payload_data=stage / "_internal" / "data"))
                 info(f"release exe gate: {key_gate['exe_verified']}")
             if args.emit_manifest and args.notes is None:
                 raise BuildError("a release manifest needs --notes <release body .md> (the signed notes digest)")

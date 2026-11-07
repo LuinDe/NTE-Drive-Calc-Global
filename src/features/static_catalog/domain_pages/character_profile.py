@@ -299,7 +299,8 @@ class CharacterDetailView(QWidget):
             try:        # Global live overlay: CN release with the Global (KR) date (Akane Rin)
                 from src.services import global_live_overlay
 
-                global_date = global_live_overlay.global_release_date(character_id)
+                global_date = ("2026-11-11" if character_id == 1090 else
+                               global_live_overlay.global_release_date(character_id))
             except Exception:
                 global_date = None
             if global_date:

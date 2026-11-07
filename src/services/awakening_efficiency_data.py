@@ -1,6 +1,6 @@
 # 角色觉醒（돌파）效率表：预先计算的单人循环伤害（由 work_g231/scripts/gen_awakening_efficiency_data.py 生成，勿手改）
 # GENERATED FILE - DO NOT EDIT.  Regenerate with scratchpad/v230/work_g231/scripts/gen_awakening_efficiency_data.py --write
-# inputs: static DB sha256 AF810B5A8ADB82625BD023B11D2B348948B8649CE79D14E039ADA018F5217C5D; engine fingerprint 2f4d68ceeebc12c7 (source closure of src.services.awakening_efficiency_service, 247 modules)
+# inputs: static DB sha256 9E273398C732141D3BF34D039F7424AC091C6EBB92EC52CE292996466B97DF5A; engine fingerprint 1c56129c786896d1 (source closure of src.services.awakening_efficiency_service, 247 modules)
 """Precomputed rows of the character awakening efficiency table (generated, do not edit): L1 of
 awakening_efficiency_service.
 
@@ -18,8 +18,8 @@ U1); ROWS is level 0.
 
 FORMAT = 1
 ALGO_VERSION = 'awk-eff-1'
-DATASET = {'dataset_id': 'cn_retail_20260924_9030b45b', 'schema': 39, 'sha256': 'AF810B5A8ADB82625BD023B11D2B348948B8649CE79D14E039ADA018F5217C5D'}
-ENGINE_FP = '2f4d68ceeebc12c7'
+DATASET = {'dataset_id': 'cn_retail_20260924_9030b45b_elyms_154', 'schema': 39, 'sha256': '9E273398C732141D3BF34D039F7424AC091C6EBB92EC52CE292996466B97DF5A'}
+ENGINE_FP = '1c56129c786896d1'
 RESOURCE_MODEL = 'community'
 ENTRY = 'opener'
 LOOPS = (1, 3)

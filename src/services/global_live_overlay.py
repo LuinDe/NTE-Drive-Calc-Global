@@ -93,8 +93,8 @@ def key_matches(static_path=None) -> bool:
         if not block.get("dataset_id"):
             return False
         try:
-            ok = (str(block.get("dataset_id") or "") == D.OVERLAY_KEY["dataset_id"]
-                  and str(db_sha256(path) or "").upper() == D.OVERLAY_KEY["static_sha256"].upper())
+            identity = (str(block.get("dataset_id") or ""), str(db_sha256(path) or "").upper())
+            ok = identity in D.COMPATIBLE_DATABASES
         except Exception:
             return False
         _KEY_MEMO[memo] = ok

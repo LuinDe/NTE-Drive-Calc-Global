@@ -19,6 +19,11 @@ OVERLAY_KEY = {
     # design_final.md wrote "…5C5D"; the spec corrected it (the file and the manifest end in …7C5D)
     "static_sha256": "AF810B5A8ADB82625BD023B11D2B348948B8649CE79D14E039ADA018F5217C5D",
 }
+# The Elyms-only migration preserves the Akane data that these corrections supplement.
+COMPATIBLE_DATABASES = {
+    (OVERLAY_KEY["dataset_id"], OVERLAY_KEY["static_sha256"]),
+    ("cn_retail_20260924_9030b45b_elyms_154", "9E273398C732141D3BF34D039F7424AC091C6EBB92EC52CE292996466B97DF5A"),
+}
 AKANE = 1057
 
 # switch groups (env NTE_GLOBAL_OVERLAY = off | on | comma list); built = the group changes something

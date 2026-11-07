@@ -79,13 +79,13 @@ NTE Drive Calc {version} Multilingual Edition "NTE Drive Calc Global" (unofficia
     돌파(각성) 자유 선택(src/services/team_awakening.py, src/services/awakening_node_rules/)과 돌파 효율표
     (src/services/awakening_efficiency_*.py, src/features/arc_efficiency/awakening_section.py),
     아카네 린 중국 출시 데이터 보정(src/services/global_live_overlay*.py)
-  src/ 밖의 원 프로젝트 파일(main.py, 빌드 스크립트, assets, data, 네이티브 구성 요소, third_party 등)은 바꾸지
-  않았으므로 위 커밋의 원 프로젝트 저장소에 있는 것과 같습니다.
+  엘림의 CN 1.5.4 게임·도감 DB 및 이미지 적용 자료는 build_tools/data/와 build_tools/elyms_catalog.py에 있습니다.
+  소스와 빌드 방법은 build_tools/ELYMS.md에 정리되어 있습니다.
 
 실행 파일을 만드는 방법 (Python 3.11 필요: 실행 파일이 python311.dll 을 내장)
   python build_tools/rebuild_exe_l10n.py <공식 {version} NTE_Drive_Calc.exe> src <출력 exe>
       --remove=src.features.settings.updates --remove=src.ui.controllers.update_controller
-  python build_tools/verify_exe_l10n_g231.py <공식 {version} NTE_Drive_Calc.exe> <출력 exe> src
+  python build_tools/verify_exe_l10n_g231.py <공식 {version} NTE_Drive_Calc.exe> <출력 exe> src <stage/_internal/data>
       --removed=src.features.settings.updates --removed=src.ui.controllers.update_controller
   (2.3.2 부터 원 프로젝트의 업데이트 모듈 두 개는 소스에 없으므로 --remove / --removed 로 일부러
   뺍니다. 그 밖의 모듈이 빠져 있으면 빌드가 멈춥니다.)
@@ -143,8 +143,8 @@ In short:
     (src/services/team_awakening.py, src/services/awakening_node_rules/) and the awakening efficiency
     table (src/services/awakening_efficiency_*.py, src/features/arc_efficiency/awakening_section.py);
     Akane Rin CN-release data overlay (src/services/global_live_overlay*.py)
-  All other files of the original project outside src/ (main.py, build scripts, assets, data, native components,
-  third_party ...) are unchanged and therefore identical to the original repository at the commit above.
+  The CN 1.5.4 Elyms catalog migration and artwork are in build_tools/data/ and build_tools/elyms_catalog.py.
+  See build_tools/ELYMS.md for provenance, scope and checks.
 
 Building the executable (Python 3.11 required: the executable embeds python311.dll)
   python build_tools/rebuild_exe_l10n.py <official {version} NTE_Drive_Calc.exe> src <output exe>

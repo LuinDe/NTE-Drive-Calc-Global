@@ -19,6 +19,8 @@ Every copied file is hashed again and compared with the manifest.  Nothing outsi
 """
 from __future__ import annotations
 
+from elyms_catalog import stage_elyms
+
 import argparse
 import hashlib
 import json
@@ -95,6 +97,8 @@ def main() -> int:
     for rel in EMPTY_DIRS:
         (stage / rel).mkdir(parents=True, exist_ok=True)
 
+    stage_elyms(stage / "_internal" / "data")
+
     extra_on_disk = []
     for path in app.rglob("*"):
         if path.is_file():
@@ -104,8 +108,9 @@ def main() -> int:
     report = {
         "official_installer_sha256": manifest["installer_sha256"],
         "official_manifest_files": len(files),
-        "staged_files": copied + len(replaced),
-        "copied_identical": copied,
+        "staged_files": copied + len(replaced) + 3,
+        "cn_supplement": "Elyms / CN 1.5.4",
+        "copied_identical": copied - 5,
         "not_staged": sorted(SKIP),
         "replaced_tutorial_images": replaced,
         "empty_dirs": list(EMPTY_DIRS),
@@ -115,8 +120,8 @@ def main() -> int:
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(text, encoding="utf-8", newline="\n")
-    print(f"staged {report['staged_files']} files ({copied} identical to the official manifest, "
-          f"{len(replaced)} tutorial images replaced); not staged: {sorted(SKIP)}; "
+    print(f"staged {report['staged_files']} files ({report['copied_identical']} identical to the official manifest, "
+          f"{len(replaced)} tutorial images replaced, Elyms catalogs and artwork added); not staged: {sorted(SKIP)}; "
           f"ignored runtime files in the extraction folder: {len(extra_on_disk)}")
     return 0
 

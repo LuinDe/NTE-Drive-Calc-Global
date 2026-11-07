@@ -1,5 +1,7 @@
 # NTE Drive Calc Global
 
+**Global 2.3.3 개발 빌드**에 중국 1.5.4 기준 엘림의 장비 계산과 도감을 추가했습니다. [반영 범위와 검증 방법](build_tools/ELYMS.md).
+
 **한국어** | [English](README.en.md) | [日本語](README.ja.md) | [中文](README.zh.md)
 
 > [!IMPORTANT]

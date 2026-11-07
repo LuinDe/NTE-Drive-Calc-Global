@@ -1,5 +1,7 @@
 # 대응 소스 코드 안내 / Corresponding Source
 
+Global 2.3.3의 엘림 데이터·이미지·빌드 도구와 재현 방법은 [빌드 안내](build_tools/ELYMS.md)에 있습니다. 아래는 Global 2.3.2의 배포 기록입니다.
+
 NTE Drive Calc Global 2.3.2(비공식 다국어 빌드)에 대한 GNU AGPL-3.0 제5조·제6조의 고지입니다.
 
 This is the notice under sections 5 and 6 of the GNU AGPL-3.0 for NTE Drive Calc Global 2.3.2 (unofficial multilingual build).

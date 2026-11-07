@@ -1,6 +1,6 @@
 # 弧盘效率表：预先计算的单人循环伤害（由 work_g231/scripts/gen_arc_efficiency_data.py 生成，勿手改）
 # GENERATED FILE - DO NOT EDIT.  Regenerate with scratchpad/v230/work_g231/scripts/gen_arc_efficiency_data.py --write
-# inputs: static DB sha256 AF810B5A8ADB82625BD023B11D2B348948B8649CE79D14E039ADA018F5217C5D; engine fingerprint d29a5dc72cd1844b (source closure of src.services.arc_efficiency_service, 246 modules)
+# inputs: static DB sha256 9E273398C732141D3BF34D039F7424AC091C6EBB92EC52CE292996466B97DF5A; engine fingerprint 50a4f9cb6ddb9117 (source closure of src.services.arc_efficiency_service, 246 modules)
 """Precomputed rows of the arc efficiency table (generated, do not edit): L1 of arc_efficiency_service.
 
 ROWS[(character_id, fork_id, refinement, loops, entry)] = (damage, flags, end_us, active_us): the character
@@ -15,8 +15,8 @@ U1: the account checkbox 'view at max level'); ROWS is level 0.
 
 FORMAT = 1
 ALGO_VERSION = 'arc-eff-1'
-DATASET = {'dataset_id': 'cn_retail_20260924_9030b45b', 'schema': 39, 'sha256': 'AF810B5A8ADB82625BD023B11D2B348948B8649CE79D14E039ADA018F5217C5D'}
-ENGINE_FP = 'd29a5dc72cd1844b'
+DATASET = {'dataset_id': 'cn_retail_20260924_9030b45b_elyms_154', 'schema': 39, 'sha256': '9E273398C732141D3BF34D039F7424AC091C6EBB92EC52CE292996466B97DF5A'}
+ENGINE_FP = '50a4f9cb6ddb9117'
 RESOURCE_MODEL = 'community'
 ENTRY = 'opener'
 LOOPS = (1, 3)
@@ -26,8 +26,8 @@ CHARACTERS = {
     1010: {'name_zh': '娜娜莉', 'exclusive': 'fork_TigerTally', 'forks': (('fork_BoxingCandy', 5), ('fork_GoldRecord', 5), ('fork_Prokaryon', 5), ('fork_TigerTally', 5), ('fork_Whale', 5), ('fork_moon', 5), ('fork_oulaquantao', 5), ('fork_wushoutieyu', 5), ('fork_yaodao', 5),)},
     1036: {'name_zh': '残虹', 'exclusive': 'fork_DemonBlade', 'forks': (('fork_DemonBlade', 5), ('fork_Kite', 5), ('fork_NestBird', 5), ('fork_ThiefCandy', 5), ('fork_bopu', 5), ('fork_mamen', 5), ('fork_mofeikesi', 5), ('fork_spider', 5), ('fork_twinbirds', 5), ('fork_vine', 5),)},
     1042: {'name_zh': '黑羽', 'exclusive': 'fork_twinbirds', 'forks': (('fork_DemonBlade', 5), ('fork_Kite', 5), ('fork_NestBird', 5), ('fork_ThiefCandy', 5), ('fork_bopu', 5), ('fork_mamen', 5), ('fork_mofeikesi', 5), ('fork_spider', 5), ('fork_twinbirds', 5), ('fork_vine', 5),)},
-    1051: {'name_zh': '「零」', 'exclusive': 'fork_worldrain', 'forks': (('fork_BitGame', 5), ('fork_BlastCandy', 5), ('fork_Butterfly', 5), ('fork_Crowbar', 5), ('fork_Nakupeda', 5), ('fork_PoliceRat', 5), ('fork_Time', 5), ('fork_nonos', 5), ('fork_rishi', 5), ('fork_worldrain', 5), ('fork_wuhuakuang', 5),)},
-    1052: {'name_zh': '浔', 'exclusive': 'fork_Time', 'forks': (('fork_BitGame', 5), ('fork_BlastCandy', 5), ('fork_Butterfly', 5), ('fork_Crowbar', 5), ('fork_Nakupeda', 5), ('fork_PoliceRat', 5), ('fork_Time', 5), ('fork_nonos', 5), ('fork_rishi', 5), ('fork_worldrain', 5), ('fork_wuhuakuang', 5),)},
+    1051: {'name_zh': '「零」', 'exclusive': 'fork_worldrain', 'forks': (('fork_BitGame', 5), ('fork_BlastCandy', 5), ('fork_Butterfly', 5), ('fork_Crowbar', 5), ('fork_Nakupeda', 5), ('fork_PoliceRat', 5), ('fork_Time', 5), ('fork_elyms', 5), ('fork_nonos', 5), ('fork_rishi', 5), ('fork_worldrain', 5), ('fork_wuhuakuang', 5),)},
+    1052: {'name_zh': '浔', 'exclusive': 'fork_Time', 'forks': (('fork_BitGame', 5), ('fork_BlastCandy', 5), ('fork_Butterfly', 5), ('fork_Crowbar', 5), ('fork_Nakupeda', 5), ('fork_PoliceRat', 5), ('fork_Time', 5), ('fork_elyms', 5), ('fork_nonos', 5), ('fork_rishi', 5), ('fork_worldrain', 5), ('fork_wuhuakuang', 5),)},
     1057: {'name_zh': '明音凛', 'exclusive': 'fork_prism', 'forks': (('fork_BlackBook', 5), ('fork_Castle', 5), ('fork_Door', 5), ('fork_MotorCandy', 5), ('fork_PaperPlane', 5), ('fork_Rose', 5), ('fork_appliance', 5), ('fork_jiaojuan', 5), ('fork_lingganzhongjiezhe', 5), ('fork_prism', 5),)},
     1071: {'name_zh': '卡厄斯', 'exclusive': 'fork_GoldWool', 'forks': (('fork_Arachne', 5), ('fork_BitterCake', 5), ('fork_GoldWool', 5), ('fork_KnightCandy', 5), ('fork_LunarPhase', 5), ('fork_dustbin', 5), ('fork_jingmotingyuan', 5), ('fork_koinobori', 5), ('fork_snowman', 5), ('fork_tuansanlang', 5), ('fork_yuren', 5),)},
     1072: {'name_zh': '灵可', 'exclusive': 'fork_GoldRecord', 'forks': (('fork_BoxingCandy', 5), ('fork_GoldRecord', 5), ('fork_Prokaryon', 5), ('fork_TigerTally', 5), ('fork_Whale', 5), ('fork_moon', 5), ('fork_oulaquantao', 5), ('fork_wushoutieyu', 5), ('fork_yaodao', 5),)},
@@ -220,6 +220,10 @@ ROWS = {
     (1051, 'fork_Time', 1, 3, 'opener'): (331916.0, 0x02, 38386905, 37886905),
     (1051, 'fork_Time', 5, 1, 'opener'): (122797.4, 0x02, 6386905, 5886905),
     (1051, 'fork_Time', 5, 3, 'opener'): (380379.5, 0x02, 38386905, 37886905),
+    (1051, 'fork_elyms', 1, 1, 'opener'): (98602.8, 0x08, 6386905, 5886905),
+    (1051, 'fork_elyms', 1, 3, 'opener'): (306963.5, 0x08, 38386905, 37886905),
+    (1051, 'fork_elyms', 5, 1, 'opener'): (105095.3, 0x08, 6386905, 5886905),
+    (1051, 'fork_elyms', 5, 3, 'opener'): (327175.2, 0x08, 38386905, 37886905),
     (1051, 'fork_nonos', 1, 1, 'opener'): (82523.9, 0x00, 6386905, 5886905),
     (1051, 'fork_nonos', 1, 3, 'opener'): (252136.0, 0x00, 38386905, 37886905),
     (1051, 'fork_nonos', 5, 1, 'opener'): (83838.7, 0x00, 6386905, 5886905),
@@ -264,6 +268,10 @@ ROWS = {
     (1052, 'fork_Time', 1, 3, 'opener'): (1333574.0, 0x02, 109890000, 109390000),
     (1052, 'fork_Time', 5, 1, 'opener'): (487638.5, 0x02, 23630000, 23130000),
     (1052, 'fork_Time', 5, 3, 'opener'): (1471388.2, 0x02, 109890000, 109390000),
+    (1052, 'fork_elyms', 1, 1, 'opener'): (427324.6, 0x08, 23630000, 23130000),
+    (1052, 'fork_elyms', 1, 3, 'opener'): (1289839.6, 0x08, 109890000, 109390000),
+    (1052, 'fork_elyms', 5, 1, 'opener'): (456661.9, 0x08, 23630000, 23130000),
+    (1052, 'fork_elyms', 5, 3, 'opener'): (1378393.1, 0x08, 109890000, 109390000),
     (1052, 'fork_nonos', 1, 1, 'opener'): (321354.2, 0x00, 23630000, 23130000),
     (1052, 'fork_nonos', 1, 3, 'opener'): (970247.6, 0x00, 109890000, 109390000),
     (1052, 'fork_nonos', 5, 1, 'opener'): (321951.6, 0x00, 23630000, 23130000),
@@ -674,6 +682,10 @@ ROWS_BY_TEMPLATE = {
         (1051, 'fork_Time', 1, 3, 'opener'): (343638.7, 0x02, 38386905, 37886905),
         (1051, 'fork_Time', 5, 1, 'opener'): (126799.5, 0x02, 6386905, 5886905),
         (1051, 'fork_Time', 5, 3, 'opener'): (392923.1, 0x02, 38386905, 37886905),
+        (1051, 'fork_elyms', 1, 1, 'opener'): (102252.4, 0x08, 6386905, 5886905),
+        (1051, 'fork_elyms', 1, 3, 'opener'): (318420.9, 0x08, 38386905, 37886905),
+        (1051, 'fork_elyms', 5, 1, 'opener'): (108920.1, 0x08, 6386905, 5886905),
+        (1051, 'fork_elyms', 5, 3, 'opener'): (339184.5, 0x08, 38386905, 37886905),
         (1051, 'fork_nonos', 1, 1, 'opener'): (86386.2, 0x00, 6386905, 5886905),
         (1051, 'fork_nonos', 1, 3, 'opener'): (263967.9, 0x00, 38386905, 37886905),
         (1051, 'fork_nonos', 5, 1, 'opener'): (87749.5, 0x00, 6386905, 5886905),
@@ -718,6 +730,10 @@ ROWS_BY_TEMPLATE = {
         (1052, 'fork_Time', 1, 3, 'opener'): (1395687.3, 0x02, 109890000, 109390000),
         (1052, 'fork_Time', 5, 1, 'opener'): (510046.7, 0x02, 23630000, 23130000),
         (1052, 'fork_Time', 5, 3, 'opener'): (1539003.0, 0x02, 109890000, 109390000),
+        (1052, 'fork_elyms', 1, 1, 'opener'): (447201.4, 0x08, 23630000, 23130000),
+        (1052, 'fork_elyms', 1, 3, 'opener'): (1349836.8, 0x08, 109890000, 109390000),
+        (1052, 'fork_elyms', 5, 1, 'opener'): (477581.4, 0x08, 23630000, 23130000),
+        (1052, 'fork_elyms', 5, 3, 'opener'): (1441533.5, 0x08, 109890000, 109390000),
         (1052, 'fork_nonos', 1, 1, 'opener'): (336203.4, 0x00, 23630000, 23130000),
         (1052, 'fork_nonos', 1, 3, 'opener'): (1015082.5, 0x00, 109890000, 109390000),
         (1052, 'fork_nonos', 5, 1, 'opener'): (336821.8, 0x00, 23630000, 23130000),
