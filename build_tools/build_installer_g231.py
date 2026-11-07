@@ -83,7 +83,7 @@ APP_EXE_NAME = "NTE_Drive_Calc.exe"
 OFFICIAL_APP_ID = "D7DA28BE-8A19-4E05-9216-3F16C4C2C820"      # upstream build_installer.py APP_ID
 SANDBOX_APP_ID = "5B0C6E1A-7F2D-4C39-8E54-1D9A3F6B2C70"       # test-only identity, never the official one
 SANDBOX_DEFAULT_DIR = r"C:\Temp\nte_g231_setup_sandbox"
-DEFAULT_VERSION = "2.3.3"                                      # Global grammar: <major>.<minor>.<patch>[-global.<n>]
+DEFAULT_VERSION = "2.3.4"                                      # Global grammar: <major>.<minor>.<patch>[-global.<n>]
 # the grammar of src/app/global_release.py (_PLAIN / _VERSION_CORE): fullmatch only, ASCII digits, no leading zeros
 _PLAIN = r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
 _VERSION_CORE = _PLAIN + r"(?:-global\.([1-9][0-9]*))?"
@@ -93,10 +93,10 @@ PREVIOUS_RELEASE_VERSION = "2.3.2"                    # last published release: 
 UPSTREAM_BASE = "2.3.1"                                        # official version this build is based on (src/app/version.py)
 MANIFEST_FORMAT = 1                                            # src/services/global_update/verify.py parse_manifest
 MANIFEST_PRODUCT = "NTE-Drive-Calc-Global"
-FIRST_AUTO_UPDATE_VERSION = "2.3.1-global.2"                   # first build with the in-app updater
+FIRST_AUTO_UPDATE_VERSION = "2.3.4"                            # first build that trusts the current release key
 RELEASE_KEY_ID_DEFAULT = "nte-global-release"
 RELEASE_SIG_NAMESPACE = "nte-drive-calc-global-release"       # src/app/global_release.py RELEASE_SIG_NAMESPACE
-RELEASE_PUBKEY_DEFAULT = Path(os.environ.get("USERPROFILE") or str(Path.home())) / ".ssh" / "nte_global_release.pub"
+RELEASE_PUBKEY_DEFAULT = Path(os.environ.get("USERPROFILE") or str(Path.home())) / ".ssh" / "nte_global_release_20261107.pub"
 # throwaway TEST keys used by the sandbox end-to-end tests (public halves only): never pinned by a release
 KNOWN_TEST_KEY_FINGERPRINTS = ("SHA256:rtNBWF/OjSt0BLrQqMA6az9qA/OAMaZdf7heZnAQw2M",)
 TEST_HOOK_MARKERS = ("NTE_GUP_", "NTE_SMOKE_")
@@ -656,14 +656,14 @@ def release_exe_gate(*, tree: Path, exe: Path, official_exe: Path | None, payloa
 
 def release_key_gate(tree: Path | None, pubkey: Path, reject_keys=()) -> dict:
     """Release gate (user decision U1, 2026-10-13): the tree the release exe was built from pins EXACTLY the real
-    public key of ``pubkey`` (default %USERPROFILE%\\.ssh\\nte_global_release.pub) in its first slot.  An absent key
+    public key of ``pubkey`` (default %USERPROFILE%\\.ssh\\nte_global_release_20261107.pub) in its first slot.  An absent key
     file fails the gate; a test key is never substituted."""
     if tree is None:
         raise BuildError("RELEASE GATE: a release build needs --tree <root> (the tree the exe was built from)")
     if not pubkey.is_file():
         raise BuildError(f"RELEASE GATE: release public key file absent: {pubkey}\n"
                          "  create the key pair yourself (interactive, with a passphrase):\n"
-                         "  ssh-keygen -t ed25519 -f %USERPROFILE%\\.ssh\\nte_global_release -C nte-global-release\n"
+                         "  ssh-keygen -t ed25519 -f %USERPROFILE%\\.ssh\\nte_global_release_20261107 -C nte-global-release-20261107\n"
                          "  then: build_tools/pin_release_key.py <tree root>, rebuild the exe, rebuild the installer")
     key_id, line = read_release_public_key(pubkey)
     pins = tree_signing_keys(tree)
@@ -1193,7 +1193,7 @@ def main() -> int:
                              "(default %(default)s)")
     parser.add_argument("--release-pubkey", type=Path, default=RELEASE_PUBKEY_DEFAULT,
                         help="release gate: the real release-signing PUBLIC key the --tree must pin "
-                             "(default %%USERPROFILE%%\\.ssh\\nte_global_release.pub)")
+                             "(default %%USERPROFILE%%\\.ssh\\nte_global_release_20261107.pub)")
     parser.add_argument("--iscc", type=Path, default=None, help="path to ISCC.exe (else INNO_SETUP_ISCC / default install)")
     parser.add_argument("--compression", default="lzma2/ultra64",
                         help="Inno Compression value (official: lzma2/ultra64; lzma2/fast for quick dry runs)")
@@ -1384,7 +1384,7 @@ def main() -> int:
             report["manifest"] = str(manifest_path)
             info(f"wrote {manifest_path} (unsigned)")
             info("sign it (maintainer, interactive; the passphrase is typed by you):")
-            info(f"  ssh-keygen -Y sign -f %USERPROFILE%\\.ssh\\nte_global_release -n {RELEASE_SIG_NAMESPACE} {manifest_path.name}")
+            info(f"  ssh-keygen -Y sign -f %USERPROFILE%\\.ssh\\nte_global_release_20261107 -n {RELEASE_SIG_NAMESPACE} {manifest_path.name}")
         report_path = aux_dir / f"build_report_{args.variant}.json"
         report_path.write_text(json.dumps(report, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
         info(f"installer: {setup_path}")

@@ -1,5 +1,8 @@
 # NTE Drive Calc Global
 
+**已有用户请先[手动下载并运行 v2.3.4 安装程序](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/v2.3.4/NTE_Drive_Calc_2.3.4_Multilingual_Setup.exe)。** 本版启用新的发布签名密钥。手动安装一次后，即可在应用内获取使用此密钥签名的后续更新。
+
+
 [한국어](README.md) | [English](README.en.md) | [日本語](README.ja.md) | **中文**
 
 > [!IMPORTANT]
@@ -177,7 +180,7 @@
 
 ## 下载与安装
 
-1. 从 [Releases](../../releases) 下载 `NTE_Drive_Calc_2.3.2_Multilingual_Setup.exe`。安装包包含整个程序，不需要先安装官方版本。
+1. 从 [Releases](../../releases) 下载 `NTE_Drive_Calc_2.3.4_Multilingual_Setup.exe`。安装包包含整个程序，不需要先安装官方版本。
 2. 如果 NTE Drive Calc 正在运行，请先退出。
 3. 运行安装程序，在用户账户控制（UAC）窗口中点击“是”。
    - 该文件没有代码签名，可能会出现 **“Windows 已保护你的电脑”（SmartScreen）** 窗口。点击“更多信息”→“仍要运行”即可。运行前可以用下面的 [SHA-256](#文件校验-sha-256) 或[签名](#自行验证签名)核对文件。
@@ -210,10 +213,10 @@
 - 只看本仓库的正式发布（忽略草稿和预发布）；版本必须比当前版本新，只使用固定的文件名和本仓库的下载地址。
 - 每个发布都带有**清单**（`NTE_Drive_Calc_<版本>_release.json`）及其**签名**（`.sig`）。清单中写明标签、版本、安装程序的文件名、大小和 SHA-256、安装后可执行文件的 SHA-256 以及发布说明的摘要，并由维护者的发布签名密钥（Ed25519，OpenSSH `ssh-keygen -Y sign`）签名。程序内置了对应的公钥。
 - 没有签名或签名不正确的发布**不会提示**。下载的安装程序只有在大小和 SHA-256 同时与签名清单和 GitHub 提供的值一致时才会运行。发布说明与签名时不一致时，显示“无法验证”提示而不显示更新内容。
-- 发布签名密钥（公钥）指纹：`SHA256:/fAeeg67muvrTrfFKosRIJGZd58nxmO9hX/q82d05XY`
+- 发布签名密钥（公钥）指纹：`SHA256:P5tE1mAUxx8UvnE6qZcx5xIwlkl3MwgP3vPuxr4EEyw`
 
 ```text
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDrNqNVxLCFuc+fq7jN0vTL2Aphh+VzGkOmQZf74TscN nte-global-release
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICWQNY5RryTryNGlYL7zw4+biBXAnTkfOgFvZFHKQTQV nte-global-release-20261107
 ```
 
 ### 关闭自动检查
@@ -229,15 +232,15 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDrNqNVxLCFuc+fq7jN0vTL2Aphh+VzGkOmQZf74TscN
 程序内更新会自动完成下面的检查。手动下载安装程序时如果想做同样的检查，可以使用 Windows 10/11 自带的 OpenSSH `ssh-keygen`。
 
 1. 从发布页把安装程序、`NTE_Drive_Calc_<版本>_release.json` 和 `NTE_Drive_Calc_<版本>_release.json.sig` 下载到同一文件夹。
-2. 在该文件夹中打开**命令提示符**（cmd），运行下面两行（PowerShell 不支持 `<` 重定向）。第一行用维护者的公钥生成 `allowed_signers` 文件。示例为 2.3.2。
+2. 在该文件夹中打开**命令提示符**（cmd），运行下面两行（PowerShell 不支持 `<` 重定向）。第一行用维护者的公钥生成 `allowed_signers` 文件。示例为 2.3.4。
 
 ```bat
-echo nte-global-release namespaces="nte-drive-calc-global-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDrNqNVxLCFuc+fq7jN0vTL2Aphh+VzGkOmQZf74TscN> allowed_signers
-ssh-keygen -Y verify -f allowed_signers -I nte-global-release -n nte-drive-calc-global-release -s NTE_Drive_Calc_2.3.2_release.json.sig < NTE_Drive_Calc_2.3.2_release.json
+echo nte-global-release-20261107 namespaces="nte-drive-calc-global-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICWQNY5RryTryNGlYL7zw4+biBXAnTkfOgFvZFHKQTQV> allowed_signers
+ssh-keygen -Y verify -f allowed_signers -I nte-global-release-20261107 -n nte-drive-calc-global-release -s NTE_Drive_Calc_2.3.4_release.json.sig < NTE_Drive_Calc_2.3.4_release.json
 ```
 
-3. 显示 `Good "nte-drive-calc-global-release" signature for nte-global-release with ED25519 key SHA256:/fAeeg67muvrTrfFKosRIJGZd58nxmO9hX/q82d05XY` 表示清单由维护者的密钥签名。如果显示 `Could not verify signature`，请不要使用这些文件，并在 [Issues](../../issues) 中反馈。
-4. 用记事本打开清单，确认 `installer` 下的 `sha256` 和 `size` 与下载的安装程序一致（`certutil -hashfile NTE_Drive_Calc_2.3.2_Multilingual_Setup.exe SHA256`）。
+3. 显示 `Good "nte-drive-calc-global-release" signature for nte-global-release-20261107 with ED25519 key SHA256:P5tE1mAUxx8UvnE6qZcx5xIwlkl3MwgP3vPuxr4EEyw` 表示清单由维护者的密钥签名。如果显示 `Could not verify signature`，请不要使用这些文件，并在 [Issues](../../issues) 中反馈。
+4. 用记事本打开清单，确认 `installer` 下的 `sha256` 和 `size` 与下载的安装程序一致（`certutil -hashfile NTE_Drive_Calc_2.3.4_Multilingual_Setup.exe SHA256`）。
 
 ## 恢复为官方构建
 

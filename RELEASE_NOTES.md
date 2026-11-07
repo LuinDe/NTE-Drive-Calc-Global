@@ -1,3 +1,7 @@
+# Global 2.3.4
+
+[엘림 업데이트 및 새 서명 키로 전환하는 방법 · 한국어 / English / 日本語 / 中文](RELEASE_NOTES_2.3.4.md)
+
 # NTE Drive Calc Global — 릴리스 노트 / Release notes
 
 > **비공식 수정 빌드입니다. 원본 프로그램이 아닙니다.**

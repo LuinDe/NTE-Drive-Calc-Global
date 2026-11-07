@@ -5,7 +5,7 @@ against the real GitHub API JSON.
 
 Signing (maintainer, interactive; the private key never leaves %USERPROFILE%\.ssh and its passphrase is typed by you):
 
-    ssh-keygen -Y sign -f %USERPROFILE%\.ssh\nte_global_release -n nte-drive-calc-global-release NTE_Drive_Calc_<version>_release.json
+    ssh-keygen -Y sign -f %USERPROFILE%\.ssh\nte_global_release_20261107 -n nte-drive-calc-global-release NTE_Drive_Calc_<version>_release.json
 
     -> writes NTE_Drive_Calc_<version>_release.json.sig next to the manifest (the asset name the program expects).
 
@@ -47,7 +47,7 @@ import types
 NAMESPACE = "nte-drive-calc-global-release"
 REPO = "LuinDe/NTE-Drive-Calc-Global"
 BODY_SECTIONS = ("한국어", "English", "日本語", "中文")
-DEFAULT_PUB = pathlib.Path(os.environ.get("USERPROFILE") or str(pathlib.Path.home())) / ".ssh" / "nte_global_release.pub"
+DEFAULT_PUB = pathlib.Path(os.environ.get("USERPROFILE") or str(pathlib.Path.home())) / ".ssh" / "nte_global_release_20261107.pub"
 
 
 def fail(message: str, code: int = 1) -> int:
@@ -315,7 +315,7 @@ def main() -> int:
     parser.add_argument("--no-ssh-keygen", action="store_true", help="skip the OpenSSH verifier (not for releases)")
     args = parser.parse_args()
     if args.sign_command is not None:
-        print(f'ssh-keygen -Y sign -f "%USERPROFILE%\\.ssh\\nte_global_release" -n {NAMESPACE} "{args.sign_command}"')
+        print(f'ssh-keygen -Y sign -f "%USERPROFILE%\\.ssh\\nte_global_release_20261107" -n {NAMESPACE} "{args.sign_command}"')
         print(f"(writes {args.sign_command.name}.sig; then: verify_release_manifest.py --local "
               f'"{args.sign_command.resolve().parent}" --tree <root>)')
         return 0

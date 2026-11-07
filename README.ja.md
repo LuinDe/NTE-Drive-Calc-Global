@@ -1,5 +1,8 @@
 # NTE Drive Calc Global
 
+**既存ユーザーは今回のみ、[v2.3.4 のインストーラー](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/v2.3.4/NTE_Drive_Calc_2.3.4_Multilingual_Setup.exe)を手動でダウンロードして実行してください。** リリース署名鍵を更新しました。インストール後は新しい鍵で署名された次回以降の更新をアプリ内で受け取れます。
+
+
 [한국어](README.md) | [English](README.en.md) | **日本語** | [中文](README.zh.md)
 
 > [!IMPORTANT]
@@ -177,7 +180,7 @@
 
 ## ダウンロードとインストール
 
-1. [Releases](../../releases) から `NTE_Drive_Calc_2.3.2_Multilingual_Setup.exe` をダウンロードします。プログラム全体が入っているので、先に公式版をインストールする必要はありません。
+1. [Releases](../../releases) から `NTE_Drive_Calc_2.3.4_Multilingual_Setup.exe` をダウンロードします。プログラム全体が入っているので、先に公式版をインストールする必要はありません。
 2. NTE Drive Calc が起動している場合は先に終了します。
 3. インストーラーを実行し、ユーザー アカウント制御（UAC）で「はい」を押します。
    - コード署名のないファイルなので、**「Windows によって PC が保護されました」（SmartScreen）** が表示されることがあります。「詳細情報」→「実行」を押してください。実行前に、下の [SHA-256](#ファイルの確認-sha-256) や[署名](#署名を自分で確認する)でファイルを確認できます。
@@ -210,10 +213,10 @@
 - このリポジトリの正式なリリースだけを対象にします（下書き・プレリリースは無視）。今より新しい Global のバージョンで、決まったファイル名とこのリポジトリのダウンロード URL だけを使います。
 - リリースごとに **マニフェスト**（`NTE_Drive_Calc_<バージョン>_release.json`）とその **署名**（`.sig`）があります。マニフェストにはタグ・バージョン・インストーラーのファイル名とサイズと SHA-256、インストールされる実行ファイルの SHA-256、リリースノートのダイジェストが書かれ、メンテナーのリリース署名鍵（Ed25519、OpenSSH の `ssh-keygen -Y sign`）で署名されています。プログラムはその公開鍵を内蔵しています。
 - 署名がない、または正しくないリリースは**通知しません**。ダウンロードしたインストーラーは、サイズと SHA-256 が署名付きマニフェストと GitHub の値の両方に一致したときだけ実行します。リリースノートが署名されたものと違う場合は、更新内容の代わりに「検証できない」旨を表示します。
-- リリース署名鍵（公開鍵）のフィンガープリント：`SHA256:/fAeeg67muvrTrfFKosRIJGZd58nxmO9hX/q82d05XY`
+- リリース署名鍵（公開鍵）のフィンガープリント：`SHA256:P5tE1mAUxx8UvnE6qZcx5xIwlkl3MwgP3vPuxr4EEyw`
 
 ```text
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDrNqNVxLCFuc+fq7jN0vTL2Aphh+VzGkOmQZf74TscN nte-global-release
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICWQNY5RryTryNGlYL7zw4+biBXAnTkfOgFvZFHKQTQV nte-global-release-20261107
 ```
 
 ### 自動確認をオフにする
@@ -229,15 +232,15 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDrNqNVxLCFuc+fq7jN0vTL2Aphh+VzGkOmQZf74TscN
 プログラム内アップデートは以下の確認を自動で行います。インストーラーを手動でダウンロードしたときに同じ確認をするには、Windows 10/11 に入っている OpenSSH の `ssh-keygen` を使います。
 
 1. リリースからインストーラー、`NTE_Drive_Calc_<バージョン>_release.json`、`NTE_Drive_Calc_<バージョン>_release.json.sig` を同じフォルダーにダウンロードします。
-2. そのフォルダーで **コマンドプロンプト**（cmd）を開き、次の 2 行を実行します（PowerShell では `<` が使えません）。1 行目はメンテナーの公開鍵で `allowed_signers` ファイルを作ります。例は 2.3.2 です。
+2. そのフォルダーで **コマンドプロンプト**（cmd）を開き、次の 2 行を実行します（PowerShell では `<` が使えません）。1 行目はメンテナーの公開鍵で `allowed_signers` ファイルを作ります。例は 2.3.4 です。
 
 ```bat
-echo nte-global-release namespaces="nte-drive-calc-global-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDrNqNVxLCFuc+fq7jN0vTL2Aphh+VzGkOmQZf74TscN> allowed_signers
-ssh-keygen -Y verify -f allowed_signers -I nte-global-release -n nte-drive-calc-global-release -s NTE_Drive_Calc_2.3.2_release.json.sig < NTE_Drive_Calc_2.3.2_release.json
+echo nte-global-release-20261107 namespaces="nte-drive-calc-global-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICWQNY5RryTryNGlYL7zw4+biBXAnTkfOgFvZFHKQTQV> allowed_signers
+ssh-keygen -Y verify -f allowed_signers -I nte-global-release-20261107 -n nte-drive-calc-global-release -s NTE_Drive_Calc_2.3.4_release.json.sig < NTE_Drive_Calc_2.3.4_release.json
 ```
 
-3. `Good "nte-drive-calc-global-release" signature for nte-global-release with ED25519 key SHA256:/fAeeg67muvrTrfFKosRIJGZd58nxmO9hX/q82d05XY` と表示されれば、マニフェストはメンテナーの鍵で署名されています。`Could not verify signature` と表示されたらファイルを使わず、[Issues](../../issues) に報告してください。
-4. マニフェストをメモ帳で開き、`installer` の `sha256` と `size` がダウンロードしたインストーラーと一致することを確認します（`certutil -hashfile NTE_Drive_Calc_2.3.2_Multilingual_Setup.exe SHA256`）。
+3. `Good "nte-drive-calc-global-release" signature for nte-global-release-20261107 with ED25519 key SHA256:P5tE1mAUxx8UvnE6qZcx5xIwlkl3MwgP3vPuxr4EEyw` と表示されれば、マニフェストはメンテナーの鍵で署名されています。`Could not verify signature` と表示されたらファイルを使わず、[Issues](../../issues) に報告してください。
+4. マニフェストをメモ帳で開き、`installer` の `sha256` と `size` がダウンロードしたインストーラーと一致することを確認します（`certutil -hashfile NTE_Drive_Calc_2.3.4_Multilingual_Setup.exe SHA256`）。
 
 ## 公式ビルドに戻すには
 

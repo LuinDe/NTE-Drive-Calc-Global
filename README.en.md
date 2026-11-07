@@ -1,5 +1,7 @@
 # NTE Drive Calc Global
 
+**Existing users need to [download and run the v2.3.4 installer](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/v2.3.4/NTE_Drive_Calc_2.3.4_Multilingual_Setup.exe) once.** This release introduces a new signing key. After installing, the app can verify and install future updates signed with this key.
+
 [한국어](README.md) | **English** | [日本語](README.ja.md) | [中文](README.zh.md)
 
 > [!IMPORTANT]
@@ -177,7 +179,7 @@ The Python reference formula of the battle report replay still used a copy ratio
 
 ## Download and install
 
-1. Download `NTE_Drive_Calc_2.3.2_Multilingual_Setup.exe` from [Releases](../../releases). It contains the whole program, so you do not need to install the official version first.
+1. Download `NTE_Drive_Calc_2.3.4_Multilingual_Setup.exe` from [Releases](../../releases). It contains the whole program, so you do not need to install the official version first.
 2. Close NTE Drive Calc if it is running.
 3. Run the installer and click "Yes" in the User Account Control (UAC) prompt.
    - The file is not code-signed, so the **"Windows protected your PC" (SmartScreen)** window may appear. Click "More info" → "Run anyway". Before running it you can check the file with the [SHA-256](#verifying-the-files-sha-256) values or the [signature](#verifying-the-signature-yourself) below.
@@ -210,10 +212,10 @@ From 2.3.2 on, new Global versions can be installed from inside the program.
 - Only this repository's published releases are considered (drafts and prereleases are ignored). The version must be newer than the running one, and only the fixed file names and this repository's download addresses are used.
 - Every release carries a **manifest** (`NTE_Drive_Calc_<version>_release.json`) and its **signature** (`.sig`). The manifest names the tag, the version, the installer's file name, size and SHA-256, the SHA-256 of the executable it installs and the digest of the release notes. It is signed with the maintainer's release-signing key (Ed25519, OpenSSH `ssh-keygen -Y sign`); the program has the public key built in.
 - Releases without a valid signature are **never announced**. The downloaded installer runs only when its size and SHA-256 match both the signed manifest and GitHub's values. When the release notes differ from the signed ones, a "could not verify" note is shown instead of them.
-- Release-signing key (public) fingerprint: `SHA256:/fAeeg67muvrTrfFKosRIJGZd58nxmO9hX/q82d05XY`
+- Release-signing key (public) fingerprint: `SHA256:P5tE1mAUxx8UvnE6qZcx5xIwlkl3MwgP3vPuxr4EEyw`
 
 ```text
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDrNqNVxLCFuc+fq7jN0vTL2Aphh+VzGkOmQZf74TscN nte-global-release
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICWQNY5RryTryNGlYL7zw4+biBXAnTkfOgFvZFHKQTQV nte-global-release-20261107
 ```
 
 ### Turning off the automatic check
@@ -229,15 +231,15 @@ Untick **"Check for updates at startup (at most once a day)"** on the "Software 
 The in-app updater does this by itself. To check a downloaded installer by hand, use the OpenSSH `ssh-keygen` that comes with Windows 10/11.
 
 1. Download the installer, `NTE_Drive_Calc_<version>_release.json` and `NTE_Drive_Calc_<version>_release.json.sig` of a release into one folder.
-2. Open **Command Prompt** (cmd) in that folder and run the two lines below (PowerShell has no `<` redirection). The first writes an `allowed_signers` file with the maintainer's public key. The example is 2.3.2.
+2. Open **Command Prompt** (cmd) in that folder and run the two lines below (PowerShell has no `<` redirection). The first writes an `allowed_signers` file with the maintainer's public key. The example is 2.3.4.
 
 ```bat
-echo nte-global-release namespaces="nte-drive-calc-global-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDrNqNVxLCFuc+fq7jN0vTL2Aphh+VzGkOmQZf74TscN> allowed_signers
-ssh-keygen -Y verify -f allowed_signers -I nte-global-release -n nte-drive-calc-global-release -s NTE_Drive_Calc_2.3.2_release.json.sig < NTE_Drive_Calc_2.3.2_release.json
+echo nte-global-release-20261107 namespaces="nte-drive-calc-global-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICWQNY5RryTryNGlYL7zw4+biBXAnTkfOgFvZFHKQTQV> allowed_signers
+ssh-keygen -Y verify -f allowed_signers -I nte-global-release-20261107 -n nte-drive-calc-global-release -s NTE_Drive_Calc_2.3.4_release.json.sig < NTE_Drive_Calc_2.3.4_release.json
 ```
 
-3. `Good "nte-drive-calc-global-release" signature for nte-global-release with ED25519 key SHA256:/fAeeg67muvrTrfFKosRIJGZd58nxmO9hX/q82d05XY` means the manifest was signed with the maintainer's key. If it prints `Could not verify signature`, do not use the files and report it in [Issues](../../issues).
-4. Open the manifest in Notepad and check that `sha256` and `size` under `installer` match the downloaded installer (`certutil -hashfile NTE_Drive_Calc_2.3.2_Multilingual_Setup.exe SHA256`).
+3. `Good "nte-drive-calc-global-release" signature for nte-global-release-20261107 with ED25519 key SHA256:P5tE1mAUxx8UvnE6qZcx5xIwlkl3MwgP3vPuxr4EEyw` means the manifest was signed with the maintainer's key. If it prints `Could not verify signature`, do not use the files and report it in [Issues](../../issues).
+4. Open the manifest in Notepad and check that `sha256` and `size` under `installer` match the downloaded installer (`certutil -hashfile NTE_Drive_Calc_2.3.4_Multilingual_Setup.exe SHA256`).
 
 ## Going back to the official build
 

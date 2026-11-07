@@ -84,11 +84,11 @@ signing key can run code on every PC that updates, so keep the key offline and p
 ### Release-signing key (once, by the maintainer, interactively)
 
 ```powershell
-ssh-keygen -t ed25519 -f %USERPROFILE%\.ssh\nte_global_release -C nte-global-release
+ssh-keygen -t ed25519 -f %USERPROFILE%\.ssh\nte_global_release_20261107 -C nte-global-release-20261107
 ```
 
 Type a passphrase. The private key never goes into a repository, a build folder or a chat; keep an offline backup.
-Then pin the **public** key into the tree (the script reads only `nte_global_release.pub` and refuses test keys):
+Then pin the **public** key into the tree (the script reads only `nte_global_release_20261107.pub` and refuses test keys):
 
 ```powershell
 python build_tools/pin_release_key.py .            # writes RELEASE_SIGNING_KEYS in src/app/global_release.py
@@ -105,14 +105,14 @@ python build_tools/pin_release_key.py . --check    # exit 0 = the tree pins exac
    `rebuild_exe_l10n.py <official exe> src <out exe> --remove=src.features.settings.updates --remove=src.ui.controllers.update_controller`
    then `verify_exe_l10n_g231.py <official exe> <out exe> src --removed=src.features.settings.updates --removed=src.ui.controllers.update_controller`
 3. Build the installer with `--variant release --version <version> --tree . --official-exe <official exe> --notes RELEASE_NOTES_<version>.md --emit-manifest`.
-   **Release gate:** the build stops before Inno Setup runs when `%USERPROFILE%\.ssh\nte_global_release.pub` is
+   **Release gate:** the build stops before Inno Setup runs when `%USERPROFILE%\.ssh\nte_global_release_20261107.pub` is
    absent, names a test key, or is not the key the tree pins; when any pinned slot is a known test key
    (`--reject-key <test .pub>` adds more); when the tree contains a test hook (`NTE_GUP_` / `NTE_SMOKE_`); or when
    `--exe` was not built from `--tree` (it runs `verify_exe_l10n_g231.py` against `--official-exe`).
 4. Sign the manifest (you type the passphrase):
 
    ```powershell
-   ssh-keygen -Y sign -f %USERPROFILE%\.ssh\nte_global_release -n nte-drive-calc-global-release NTE_Drive_Calc_<version>_release.json
+   ssh-keygen -Y sign -f %USERPROFILE%\.ssh\nte_global_release_20261107 -n nte-drive-calc-global-release NTE_Drive_Calc_<version>_release.json
    ```
 
    (`verify_release_manifest.py --sign-command <manifest>` prints this line for a given file.)
@@ -123,10 +123,10 @@ python build_tools/pin_release_key.py . --check    # exit 0 = the tree pins exac
    ```
 
    OpenSSH alone (`allowed_signers` holds one line:
-   `nte-global-release namespaces="nte-drive-calc-global-release" ssh-ed25519 AAAA...`):
+   `nte-global-release-20261107 namespaces="nte-drive-calc-global-release" ssh-ed25519 AAAA...`):
 
    ```powershell
-   ssh-keygen -Y verify -f allowed_signers -I nte-global-release -n nte-drive-calc-global-release -s NTE_Drive_Calc_<version>_release.json.sig < NTE_Drive_Calc_<version>_release.json
+   ssh-keygen -Y verify -f allowed_signers -I nte-global-release-20261107 -n nte-drive-calc-global-release -s NTE_Drive_Calc_<version>_release.json.sig < NTE_Drive_Calc_<version>_release.json
    ```
 6. `gh release create v<version> --draft ...` and upload the four assets (never `--clobber`, never move a tag; a mistake
    becomes a new, higher version, for example `2.3.3`). The body needs the four sections `## 한국어`, `## English`, `## 日本語`, `## 中文` (the

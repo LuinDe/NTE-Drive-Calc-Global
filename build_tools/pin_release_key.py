@@ -1,14 +1,14 @@
 """Release gate for the Ed25519 release-signing key of NTE Drive Calc Global (design_final §6.4, user decision U1).
 
 The REAL key pair is created by the maintainer, interactively, never by a build step:
-    ssh-keygen -t ed25519 -f %USERPROFILE%\\.ssh\\nte_global_release -C nte-global-release      (with a passphrase)
-This script reads ONLY the public half (``nte_global_release.pub``) and pins it into
+    ssh-keygen -t ed25519 -f %USERPROFILE%\\.ssh\\nte_global_release_20261107 -C nte-global-release-20261107      (with a passphrase)
+This script reads ONLY the public half (``nte_global_release_20261107.pub``) and pins it into
 ``<tree>/src/app/global_release.py`` (``RELEASE_SIGNING_KEYS``).  It never reads, copies or prints the private key,
 and it refuses to pin anything else (so a test key can never end up in a release tree).
 
 usage (Python 3.11):
     pin_release_key.py <tree root> [--pub <file>] [--key-id <id>] [--check] [--allow-second <pub file>]
-      --pub     public key file; default %USERPROFILE%\\.ssh\\nte_global_release.pub
+      --pub     public key file; default %USERPROFILE%\\.ssh\\nte_global_release_20261107.pub
       --key-id  key id recorded next to the key (default: the comment of the public key line, else nte-global-release)
       --check   do not write; exit 0 only when the tree already pins exactly that key
       --allow-second  during a rotation: keep this (old) public key as the second slot
@@ -81,11 +81,11 @@ def main() -> int:
     if not source_path.is_file():
         print(f"ERROR: {source_path} not found", file=sys.stderr)
         return 1
-    pub = args.pub or (pathlib.Path(os.environ.get("USERPROFILE", "~")).expanduser() / ".ssh" / "nte_global_release.pub")
+    pub = args.pub or (pathlib.Path(os.environ.get("USERPROFILE", "~")).expanduser() / ".ssh" / "nte_global_release_20261107.pub")
     if not pub.is_file():
         print(f"RELEASE GATE FAILED: public key file absent: {pub}\n"
               "Create the key pair interactively (never in a build step):\n"
-              "  ssh-keygen -t ed25519 -f %USERPROFILE%\\.ssh\\nte_global_release -C nte-global-release", file=sys.stderr)
+              "  ssh-keygen -t ed25519 -f %USERPROFILE%\\.ssh\\nte_global_release_20261107 -C nte-global-release-20261107", file=sys.stderr)
         return 2
     try:
         key_id, line = read_public_key(pub)

@@ -1,6 +1,8 @@
 # NTE Drive Calc Global
 
-**Global 2.3.3 개발 빌드**에 중국 1.5.4 기준 엘림의 장비 계산과 도감을 추가했습니다. [반영 범위와 검증 방법](build_tools/ELYMS.md).
+**기존 사용자는 이번 한 번 [v2.3.4 설치 파일](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/v2.3.4/NTE_Drive_Calc_2.3.4_Multilingual_Setup.exe)을 직접 내려받아 실행해 주세요.** 릴리스 서명 키를 교체했습니다. 설치 후에는 이 키로 서명한 다음 버전부터 프로그램 안에서 업데이트할 수 있습니다.
+
+
 
 **한국어** | [English](README.en.md) | [日本語](README.ja.md) | [中文](README.zh.md)
 
@@ -179,7 +181,7 @@
 
 ## 다운로드와 설치
 
-1. [Releases](../../releases)에서 `NTE_Drive_Calc_2.3.2_Multilingual_Setup.exe`를 받습니다. 프로그램 전체가 들어 있어서 공식 버전을 먼저 설치할 필요가 없습니다.
+1. [Releases](../../releases)에서 `NTE_Drive_Calc_2.3.4_Multilingual_Setup.exe`를 받습니다. 프로그램 전체가 들어 있어서 공식 버전을 먼저 설치할 필요가 없습니다.
 2. NTE Drive Calc가 켜져 있으면 먼저 종료합니다.
 3. 설치 파일을 실행하고 사용자 계정 컨트롤(UAC) 창에서 "예"를 누릅니다.
    - 코드 서명이 없는 파일이라 **"Windows의 PC 보호"(SmartScreen)** 창이 뜰 수 있습니다. "추가 정보" → "실행"을 누르면 됩니다. 실행 전에 아래 [SHA-256](#파일-확인-sha-256)이나 [서명](#서명-직접-확인하기)으로 파일을 확인할 수 있습니다.
@@ -212,10 +214,10 @@
 - 이 저장소의 정식 릴리스만 봅니다(초안·사전 릴리스는 무시). 지금보다 새 Global 버전이어야 하고, 정해진 파일 이름과 이 저장소의 다운로드 주소만 씁니다.
 - 릴리스마다 **매니페스트**(`NTE_Drive_Calc_<버전>_release.json`)와 그 **서명**(`.sig`)이 있습니다. 매니페스트에는 태그·버전·설치 파일 이름·크기·SHA-256, 설치되는 실행 파일의 SHA-256, 릴리스 본문의 다이제스트가 적혀 있고, 배포자의 릴리스 서명 키(Ed25519, OpenSSH `ssh-keygen -Y sign`)로 서명됩니다. 프로그램은 그 공개키를 내장하고 있습니다.
 - 서명이 없거나 맞지 않는 릴리스는 **알리지 않습니다.** 내려받은 설치 프로그램은 크기와 SHA-256이 서명된 매니페스트와 GitHub가 알려 주는 값에 모두 맞을 때만 실행합니다. 릴리스 본문이 서명된 것과 다르면 업데이트 내용 대신 "검증할 수 없음" 안내를 보여 줍니다.
-- 릴리스 서명 키(공개키) 지문: `SHA256:/fAeeg67muvrTrfFKosRIJGZd58nxmO9hX/q82d05XY`
+- 릴리스 서명 키(공개키) 지문: `SHA256:P5tE1mAUxx8UvnE6qZcx5xIwlkl3MwgP3vPuxr4EEyw`
 
 ```text
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDrNqNVxLCFuc+fq7jN0vTL2Aphh+VzGkOmQZf74TscN nte-global-release
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICWQNY5RryTryNGlYL7zw4+biBXAnTkfOgFvZFHKQTQV nte-global-release-20261107
 ```
 
 ### 자동 확인 끄기
@@ -231,15 +233,15 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDrNqNVxLCFuc+fq7jN0vTL2Aphh+VzGkOmQZf74TscN
 프로그램 안 업데이트는 아래 확인을 스스로 합니다. 설치 파일을 직접 받았을 때 같은 확인을 하려면 Windows 10/11에 들어 있는 OpenSSH의 `ssh-keygen`을 씁니다.
 
 1. 릴리스에서 설치 파일, `NTE_Drive_Calc_<버전>_release.json`, `NTE_Drive_Calc_<버전>_release.json.sig`를 한 폴더에 받습니다.
-2. 그 폴더에서 **명령 프롬프트**(cmd)를 열고 아래 두 줄을 실행합니다(PowerShell에서는 `<`를 쓸 수 없습니다). 첫 줄은 배포자의 공개키로 `allowed_signers` 파일을 만듭니다. 예는 2.3.2입니다.
+2. 그 폴더에서 **명령 프롬프트**(cmd)를 열고 아래 두 줄을 실행합니다(PowerShell에서는 `<`를 쓸 수 없습니다). 첫 줄은 배포자의 공개키로 `allowed_signers` 파일을 만듭니다. 예는 2.3.4입니다.
 
 ```bat
-echo nte-global-release namespaces="nte-drive-calc-global-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDrNqNVxLCFuc+fq7jN0vTL2Aphh+VzGkOmQZf74TscN> allowed_signers
-ssh-keygen -Y verify -f allowed_signers -I nte-global-release -n nte-drive-calc-global-release -s NTE_Drive_Calc_2.3.2_release.json.sig < NTE_Drive_Calc_2.3.2_release.json
+echo nte-global-release-20261107 namespaces="nte-drive-calc-global-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICWQNY5RryTryNGlYL7zw4+biBXAnTkfOgFvZFHKQTQV> allowed_signers
+ssh-keygen -Y verify -f allowed_signers -I nte-global-release-20261107 -n nte-drive-calc-global-release -s NTE_Drive_Calc_2.3.4_release.json.sig < NTE_Drive_Calc_2.3.4_release.json
 ```
 
-3. `Good "nte-drive-calc-global-release" signature for nte-global-release with ED25519 key SHA256:/fAeeg67muvrTrfFKosRIJGZd58nxmO9hX/q82d05XY`가 나오면 매니페스트가 배포자의 키로 서명된 것입니다. `Could not verify signature`가 나오면 그 파일을 쓰지 말고 [Issues](../../issues)에 알려 주세요.
-4. 매니페스트를 메모장으로 열어 `installer`의 `sha256`과 `size`가 받은 설치 파일과 같은지 확인합니다(`certutil -hashfile NTE_Drive_Calc_2.3.2_Multilingual_Setup.exe SHA256`).
+3. `Good "nte-drive-calc-global-release" signature for nte-global-release-20261107 with ED25519 key SHA256:P5tE1mAUxx8UvnE6qZcx5xIwlkl3MwgP3vPuxr4EEyw`가 나오면 매니페스트가 배포자의 키로 서명된 것입니다. `Could not verify signature`가 나오면 그 파일을 쓰지 말고 [Issues](../../issues)에 알려 주세요.
+4. 매니페스트를 메모장으로 열어 `installer`의 `sha256`과 `size`가 받은 설치 파일과 같은지 확인합니다(`certutil -hashfile NTE_Drive_Calc_2.3.4_Multilingual_Setup.exe SHA256`).
 
 ## 공식 빌드로 되돌리기
 

@@ -22,7 +22,7 @@ from typing import NamedTuple
 from src.app.version import __version__
 
 # ── identity (bumped every release; the tag is "v" + GLOBAL_VERSION) ─────────────────────────────────────────
-GLOBAL_VERSION = "2.3.3"
+GLOBAL_VERSION = "2.3.4"
 UPSTREAM_BASE = __version__                      # "2.3.1": information only, never compared with GLOBAL_VERSION
 
 # ── update channel: ONLY the GitHub Releases of this repository ──────────────────────────────────────────────
@@ -42,7 +42,7 @@ ALLOWED_DOWNLOAD_HOST_SUFFIXES = (".githubusercontent.com",)
 # The maintainer pins the public key line here (key id, base64 of the 32 raw key bytes as printed by
 # ``ssh-keygen`` after ``ssh-ed25519``).  With no key pinned every signed-manifest check fails closed, so the
 # release build cannot offer an update until the key ceremony of the release checklist has been done.
-RELEASE_SIGNING_KEYS: tuple[tuple[str, str], ...] = (("nte-global-release", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDrNqNVxLCFuc+fq7jN0vTL2Aphh+VzGkOmQZf74TscN"),)
+RELEASE_SIGNING_KEYS: tuple[tuple[str, str], ...] = (("nte-global-release-20261107", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICWQNY5RryTryNGlYL7zw4+biBXAnTkfOgFvZFHKQTQV"),)
 RELEASE_SIG_NAMESPACE = "nte-drive-calc-global-release"
 
 INSTALLER_SIZE_MIN = 50 * 2**20

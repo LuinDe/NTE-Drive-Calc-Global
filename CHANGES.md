@@ -1,5 +1,7 @@
 # Changes from the original / 원본과 다른 점
 
+Global 2.3.4 distributes the Elyms update with a new Ed25519 release key. Existing installations require one manual upgrade. [Release notes](RELEASE_NOTES_2.3.4.md).
+
 Global 2.3.3 adds CN 1.5.4 Elyms (1090) to both catalogs, the equipment solver and the four-language UI. See [Elyms build data and validation](build_tools/ELYMS.md).
 
 원본 NTE Drive Calc와 이 빌드의 차이를 파일 단위로 정리한 문서입니다. 사용자용 요약은 [README.md](README.md)에 있습니다.
