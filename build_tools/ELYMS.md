@@ -1,4 +1,4 @@
-# 엘림 · Global 2.3.3
+# 엘림 · Global 장비 계산과 가방 동기화
 
 엘림(1090)의 중국 본서버 1.5.4, 로직 빌드 594078 기준 장비 데이터입니다. 게임 DB와 도감 DB에 같은 데이터를 적용합니다. 중국 서버 출시일은 2026년 11월 5일, 글로벌 출시 일정은 11월 11일입니다.
 
@@ -30,3 +30,13 @@ python build_tools/verify_elyms.py <stage/_internal>
 ```
 
 테스트는 임시 계정을 만들고 일반 배분 경로로 드라이브 7개와 카트리지 1개를 배치한 뒤, 저장한 사용자 가중치가 기본값 갱신 뒤에도 유지되는지 확인합니다.
+
+### Global 2.3.5 네이티브 가방 동기화
+
+2.3.4까지는 계산기 DB에 엘림이 등록되어 있어도 `nte-core.exe` 내부에서 엘림의 캐릭터 참조를 변환할 때 `native.inventory.page`가 `NATIVE_MAPPING_UNSUPPORTED`로 중단될 수 있었습니다. 2.3.5의 빌드 도구는 같은 CN 1.5.4 데이터에서 엘림 ID 1090 및 장비 배치 정보를 읽고, Core의 캐릭터 표와 장비 표에 추가합니다. 설치 시 Calc 폴더의 Core가 교체됩니다.
+
+원본 설치 파일을 풀어 얻은 `_internal` 폴더와 새 스테이지의 Core를 아래 명령에 전달하면 Windows에서 합성 가방을 실제 Core에 입력해 결과를 비교할 수 있습니다. 게임이나 실계정 접속 없이 실행합니다.
+
+```powershell
+python build_tools/verify_elyms_native.py official231/app/_internal/nte-core.exe stage/_internal/nte-core.exe
+```

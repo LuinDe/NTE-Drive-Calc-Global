@@ -1,6 +1,6 @@
 # NTE Drive Calc Global
 
-**已有用户请先[手动下载并运行 v2.3.4 安装程序](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/v2.3.4/NTE_Drive_Calc_2.3.4_Multilingual_Setup.exe)。** 本版启用新的发布签名密钥。手动安装一次后，即可在应用内获取使用此密钥签名的后续更新。
+**v2.3.5 修复了曳尔沐的原生背包同步。** v2.3.4 可在应用内更新。v2.3.3 及更早版本用户请先[手动运行 v2.3.5 安装程序](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/v2.3.5/NTE_Drive_Calc_2.3.5_Multilingual_Setup.exe)以切换签名密钥。
 
 
 [한국어](README.md) | [English](README.en.md) | [日本語](README.ja.md) | **中文**
@@ -180,7 +180,7 @@
 
 ## 下载与安装
 
-1. 从 [Releases](../../releases) 下载 `NTE_Drive_Calc_2.3.4_Multilingual_Setup.exe`。安装包包含整个程序，不需要先安装官方版本。
+1. 从 [Releases](../../releases) 下载 `NTE_Drive_Calc_2.3.5_Multilingual_Setup.exe`。安装包包含整个程序，不需要先安装官方版本。
 2. 如果 NTE Drive Calc 正在运行，请先退出。
 3. 运行安装程序，在用户账户控制（UAC）窗口中点击“是”。
    - 该文件没有代码签名，可能会出现 **“Windows 已保护你的电脑”（SmartScreen）** 窗口。点击“更多信息”→“仍要运行”即可。运行前可以用下面的 [SHA-256](#文件校验-sha-256) 或[签名](#自行验证签名)核对文件。

@@ -80,6 +80,7 @@ NTE Drive Calc {version} Multilingual Edition "NTE Drive Calc Global" (unofficia
     (src/services/awakening_efficiency_*.py, src/features/arc_efficiency/awakening_section.py),
     아카네 린 중국 출시 데이터 보정(src/services/global_live_overlay*.py)
   엘림의 CN 1.5.4 게임·도감 DB 및 이미지 적용 자료는 build_tools/data/와 build_tools/elyms_catalog.py에 있습니다.
+  2.3.5 가방 동기화용 Core 매핑은 build_tools/elyms_core.py와 build_tools/elyms_core_bundle.py로 재현합니다.
   소스와 빌드 방법은 build_tools/ELYMS.md에 정리되어 있습니다.
 
 실행 파일을 만드는 방법 (Python 3.11 필요: 실행 파일이 python311.dll 을 내장)
@@ -144,6 +145,7 @@ In short:
     table (src/services/awakening_efficiency_*.py, src/features/arc_efficiency/awakening_section.py);
     Akane Rin CN-release data overlay (src/services/global_live_overlay*.py)
   The CN 1.5.4 Elyms catalog migration and artwork are in build_tools/data/ and build_tools/elyms_catalog.py.
+  For the 2.3.5 native inventory mapping, see build_tools/elyms_core.py and build_tools/elyms_core_bundle.py.
   See build_tools/ELYMS.md for provenance, scope and checks.
 
 Building the executable (Python 3.11 required: the executable embeds python311.dll)

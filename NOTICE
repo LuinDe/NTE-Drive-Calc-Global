@@ -39,7 +39,8 @@ authors. As required by section 5(a) of the GNU Affero General Public License
 version 3, the work carries this notice that it was modified:
 
   Modified by:    LuinDe (https://github.com/LuinDe)
-  Date:           2026-11-07 (Global 2.3.4, release signing key rotation)
+  Date:           2026-11-07 (Global 2.3.5, native inventory Core resource modification)
+                  2026-11-07 (Global 2.3.4, release signing key rotation)
                   2026-11-07 (Global 2.3.3, CN 1.5.4 Elyms supplement)
                   2026-10-20 (Global 2.3.2)
                   2026-10-19 (Global 2.3.1-global.2, replaced by 2.3.2)
@@ -138,6 +139,9 @@ Modifications in this build (details and file pointers: CHANGES.md):
     static_catalog_character_queries.py.
   - The home page's work-space header shows Akane Rin (明音凛) instead of
     Raven (黑羽): src/features/home/page.py.
+
+Global 2.3.5 extends the two embedded Core catalogs with Elyms (ID 1090).
+The corresponding resource adaptation is in build_tools/elyms_core.py.
 
 Global 2.3.3 also modifies the game and reference catalogs, the UI image manifest
 and Elyms artwork during installer staging. The source distribution includes the

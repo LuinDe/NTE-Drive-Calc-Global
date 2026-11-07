@@ -2,6 +2,8 @@
 
 For Global 2.3.3, make the stage before verifying the executable. Pass the staged `_internal/data` as the fourth positional argument to verify_exe_l10n_g231.py. The release installer gate checks that staged database. [CN 1.5.4 Elyms data, sources and tests](ELYMS.md).
 
+Global 2.3.5 also updates the embedded native inventory mappings. Make a fresh stage with `make_stage_g231.py` and keep the original installer's extracted `_internal` folder beside the original executable passed to `--official-exe`. The release gate independently regenerates the Core, its source and compatibility records, and its component manifest from those original files and the staged catalog. It verifies each result against the staged bytes before compiling the installer.
+
 NTE Drive Calc Global의 실행 파일과 설치 프로그램을 만드는 스크립트입니다. 릴리스의 소스 zip에 들어 있는 `build_tools/`와 같은 파일입니다.
 
 Scripts that produce the executable, the installer and the source zip of NTE Drive Calc Global 2.3.1. They are the same files as `build_tools/` in the release's source zip.

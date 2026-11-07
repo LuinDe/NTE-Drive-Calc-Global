@@ -1,6 +1,6 @@
 # NTE Drive Calc Global
 
-**Existing users need to [download and run the v2.3.4 installer](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/v2.3.4/NTE_Drive_Calc_2.3.4_Multilingual_Setup.exe) once.** This release introduces a new signing key. After installing, the app can verify and install future updates signed with this key.
+**v2.3.5 fixes native inventory sync for Elyms.** Update in-app from v2.3.4. On v2.3.3 or earlier, [run the v2.3.5 installer](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/v2.3.5/NTE_Drive_Calc_2.3.5_Multilingual_Setup.exe) once to switch signing keys.
 
 [한국어](README.md) | **English** | [日本語](README.ja.md) | [中文](README.zh.md)
 
@@ -179,7 +179,7 @@ The Python reference formula of the battle report replay still used a copy ratio
 
 ## Download and install
 
-1. Download `NTE_Drive_Calc_2.3.4_Multilingual_Setup.exe` from [Releases](../../releases). It contains the whole program, so you do not need to install the official version first.
+1. Download `NTE_Drive_Calc_2.3.5_Multilingual_Setup.exe` from [Releases](../../releases). It contains the whole program, so you do not need to install the official version first.
 2. Close NTE Drive Calc if it is running.
 3. Run the installer and click "Yes" in the User Account Control (UAC) prompt.
    - The file is not code-signed, so the **"Windows protected your PC" (SmartScreen)** window may appear. Click "More info" → "Run anyway". Before running it you can check the file with the [SHA-256](#verifying-the-files-sha-256) values or the [signature](#verifying-the-signature-yourself) below.

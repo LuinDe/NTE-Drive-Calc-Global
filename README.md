@@ -1,6 +1,6 @@
 # NTE Drive Calc Global
 
-**기존 사용자는 이번 한 번 [v2.3.4 설치 파일](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/v2.3.4/NTE_Drive_Calc_2.3.4_Multilingual_Setup.exe)을 직접 내려받아 실행해 주세요.** 릴리스 서명 키를 교체했습니다. 설치 후에는 이 키로 서명한 다음 버전부터 프로그램 안에서 업데이트할 수 있습니다.
+**v2.3.5에서 엘림의 가방 동기화 오류를 수정했습니다.** v2.3.4 사용자는 프로그램 안에서 업데이트할 수 있습니다. v2.3.3 이하에서는 서명 키 전환을 위해 한 번 [v2.3.5 설치 파일](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/v2.3.5/NTE_Drive_Calc_2.3.5_Multilingual_Setup.exe)을 직접 실행해 주세요.
 
 
 
@@ -181,7 +181,7 @@
 
 ## 다운로드와 설치
 
-1. [Releases](../../releases)에서 `NTE_Drive_Calc_2.3.4_Multilingual_Setup.exe`를 받습니다. 프로그램 전체가 들어 있어서 공식 버전을 먼저 설치할 필요가 없습니다.
+1. [Releases](../../releases)에서 `NTE_Drive_Calc_2.3.5_Multilingual_Setup.exe`를 받습니다. 프로그램 전체가 들어 있어서 공식 버전을 먼저 설치할 필요가 없습니다.
 2. NTE Drive Calc가 켜져 있으면 먼저 종료합니다.
 3. 설치 파일을 실행하고 사용자 계정 컨트롤(UAC) 창에서 "예"를 누릅니다.
    - 코드 서명이 없는 파일이라 **"Windows의 PC 보호"(SmartScreen)** 창이 뜰 수 있습니다. "추가 정보" → "실행"을 누르면 됩니다. 실행 전에 아래 [SHA-256](#파일-확인-sha-256)이나 [서명](#서명-직접-확인하기)으로 파일을 확인할 수 있습니다.

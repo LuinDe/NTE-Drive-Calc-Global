@@ -8,18 +8,16 @@ usage (Python 3.11):
                      files Global 2.3.0 and KO 2.3.1 ship)
   <stage dir>        must not exist yet
 
-The stage holds exactly the files of the official manifest, copied by name from the manifest (the extraction folder
-also contains runtime files written later by test runs - NTE.log, logs/, plugins/.loaded/ - which are never copied):
+The stage starts with the official files listed in the extraction manifest:
   - without NTE_Drive_Calc.exe (the installer gets our executable with --exe) and without the top-level
     config/stats.json (the installer sources it from _internal/config/stats.json, as upstream does);
   - _internal/config/templates/guide/1..7.png replaced by the Korean tutorial images (as in Global 2.3.0);
+  - the Global Elyms catalogs, artwork, native Core resource update and matching native provenance;
   - plus the one empty directory the official installer creates (_internal/PySide6/plugins/platforminputcontexts,
     an empty source folder of upstream's createallsubdirs line; the extractor does not create empty folders).
 Every copied file is hashed again and compared with the manifest.  Nothing outside <stage dir> (and --report) is written.
 """
 from __future__ import annotations
-
-from elyms_catalog import stage_elyms
 
 import argparse
 import hashlib
@@ -27,6 +25,9 @@ import json
 import shutil
 import sys
 from pathlib import Path
+
+from elyms_catalog import stage_elyms
+from elyms_core_bundle import stage_core_bundle
 
 SKIP = {"NTE_Drive_Calc.exe", "config/stats.json"}
 GUIDE_REL = "_internal/config/templates/guide"
@@ -97,7 +98,9 @@ def main() -> int:
     for rel in EMPTY_DIRS:
         (stage / rel).mkdir(parents=True, exist_ok=True)
 
-    stage_elyms(stage / "_internal" / "data")
+    internal = stage / "_internal"
+    stage_elyms(internal / "data")
+    native_changes = stage_core_bundle(internal)
 
     extra_on_disk = []
     for path in app.rglob("*"):
@@ -110,7 +113,8 @@ def main() -> int:
         "official_manifest_files": len(files),
         "staged_files": copied + len(replaced) + 3,
         "cn_supplement": "Elyms / CN 1.5.4",
-        "copied_identical": copied - 5,
+        "copied_identical": copied - 5 - native_changes,
+        "native_core_sha256": sha256_of(internal / "nte-core.exe"),
         "not_staged": sorted(SKIP),
         "replaced_tutorial_images": replaced,
         "empty_dirs": list(EMPTY_DIRS),
@@ -121,7 +125,8 @@ def main() -> int:
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(text, encoding="utf-8", newline="\n")
     print(f"staged {report['staged_files']} files ({report['copied_identical']} identical to the official manifest, "
-          f"{len(replaced)} tutorial images replaced, Elyms catalogs and artwork added); not staged: {sorted(SKIP)}; "
+          f"{len(replaced)} tutorial images replaced, Elyms catalogs, artwork and native mapping applied); "
+          f"not staged: {sorted(SKIP)}; "
           f"ignored runtime files in the extraction folder: {len(extra_on_disk)}")
     return 0
 

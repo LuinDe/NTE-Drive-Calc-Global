@@ -83,13 +83,13 @@ APP_EXE_NAME = "NTE_Drive_Calc.exe"
 OFFICIAL_APP_ID = "D7DA28BE-8A19-4E05-9216-3F16C4C2C820"      # upstream build_installer.py APP_ID
 SANDBOX_APP_ID = "5B0C6E1A-7F2D-4C39-8E54-1D9A3F6B2C70"       # test-only identity, never the official one
 SANDBOX_DEFAULT_DIR = r"C:\Temp\nte_g231_setup_sandbox"
-DEFAULT_VERSION = "2.3.4"                                      # Global grammar: <major>.<minor>.<patch>[-global.<n>]
+DEFAULT_VERSION = "2.3.5"                                      # Global grammar: <major>.<minor>.<patch>[-global.<n>]
 # the grammar of src/app/global_release.py (_PLAIN / _VERSION_CORE): fullmatch only, ASCII digits, no leading zeros
 _PLAIN = r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
 _VERSION_CORE = _PLAIN + r"(?:-global\.([1-9][0-9]*))?"
 GLOBAL_VERSION_RE = re.compile(_VERSION_CORE, re.ASCII)
 GLOBAL_TAG_RE = re.compile(r"v" + _VERSION_CORE, re.ASCII)
-PREVIOUS_RELEASE_VERSION = "2.3.2"                    # last published release: --version must be newer
+PREVIOUS_RELEASE_VERSION = "2.3.4"                    # last published release: --version must be newer
 UPSTREAM_BASE = "2.3.1"                                        # official version this build is based on (src/app/version.py)
 MANIFEST_FORMAT = 1                                            # src/services/global_update/verify.py parse_manifest
 MANIFEST_PRODUCT = "NTE-Drive-Calc-Global"
@@ -405,7 +405,7 @@ NTE Drive Calc Global {global_version} - Multilingual Edition of NTE Drive Calc 
       {source_zip}
   zip 파일을 받지 못했다면 위 저장소의 릴리스 페이지에서 받거나, 이 설치 파일을 받은 곳(배포자)에게 요청하십시오.
 - 실행 파일({exe_name})은 공식 PyInstaller 패키지의 PYZ 아카이브에서 src.* 모듈만 위 소스로 교체한 것입니다.
-  설치 프로그램에는 공식 {version} 기반 구성 요소, 튜토리얼 이미지 7장, 엘림의 CN 1.5.4 데이터와 이미지가 들어 있습니다.
+  설치 프로그램에는 공식 {version} 기반 구성 요소, 튜토리얼 이미지 7장, 엘림의 CN 1.5.4 데이터·이미지와 가방 동기화용 Core 매핑이 들어 있습니다.
   실행 파일 SHA-256: {exe_sha256}
 - 라이선스 전문: 같은 폴더의 LICENSE.txt. 함께 들어 있는 제3자 구성 요소의 라이선스는 _internal\\licenses 폴더.
 
@@ -426,7 +426,7 @@ NTE Drive Calc Global {global_version} - Multilingual Edition of NTE Drive Calc 
   gave you this installer for it.
 - The executable ({exe_name}) is the official PyInstaller package with only the src.* modules of its PYZ archive
   replaced by the sources above. The installer includes the {version} runtime, seven localized tutorial images,
-  and the CN 1.5.4 Elyms catalogs and artwork.
+  and the CN 1.5.4 Elyms catalogs, artwork and native Core inventory mapping.
   Executable SHA-256: {exe_sha256}
 - Full license text: LICENSE.txt in this folder. Licenses of bundled third-party components: _internal\\licenses.
 """
@@ -651,7 +651,14 @@ def release_exe_gate(*, tree: Path, exe: Path, official_exe: Path | None, payloa
         tail = (completed.stdout + completed.stderr)[-2000:]
         raise BuildError(f"RELEASE GATE: --exe was not built from --tree (verify_exe_l10n_g231.py rc="
                          f"{completed.returncode})\n{tail}")
-    return {"exe_verified": completed.stdout.strip().splitlines()[-1], "test_hooks": 0}
+    from elyms_core_bundle import verify_core_bundle
+
+    try:
+        core_sha256 = verify_core_bundle(payload_data.parent, official_exe.parent / "_internal")
+    except (OSError, ValueError) as exc:
+        raise BuildError(f"RELEASE GATE: native Core bundle verification failed: {exc}") from exc
+    return {"exe_verified": completed.stdout.strip().splitlines()[-1], "test_hooks": 0,
+            "native_core_sha256": core_sha256}
 
 
 def release_key_gate(tree: Path | None, pubkey: Path, reject_keys=()) -> dict:

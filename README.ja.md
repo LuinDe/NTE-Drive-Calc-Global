@@ -1,6 +1,6 @@
 # NTE Drive Calc Global
 
-**既存ユーザーは今回のみ、[v2.3.4 のインストーラー](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/v2.3.4/NTE_Drive_Calc_2.3.4_Multilingual_Setup.exe)を手動でダウンロードして実行してください。** リリース署名鍵を更新しました。インストール後は新しい鍵で署名された次回以降の更新をアプリ内で受け取れます。
+**v2.3.5 でイェルムの所持品同期を修正しました。** v2.3.4 からはアプリ内で更新できます。v2.3.3 以前は署名鍵の切り替えのため、今回のみ [v2.3.5 のインストーラー](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/download/v2.3.5/NTE_Drive_Calc_2.3.5_Multilingual_Setup.exe)を手動で実行してください。
 
 
 [한국어](README.md) | [English](README.en.md) | **日本語** | [中文](README.zh.md)
@@ -180,7 +180,7 @@
 
 ## ダウンロードとインストール
 
-1. [Releases](../../releases) から `NTE_Drive_Calc_2.3.4_Multilingual_Setup.exe` をダウンロードします。プログラム全体が入っているので、先に公式版をインストールする必要はありません。
+1. [Releases](../../releases) から `NTE_Drive_Calc_2.3.5_Multilingual_Setup.exe` をダウンロードします。プログラム全体が入っているので、先に公式版をインストールする必要はありません。
 2. NTE Drive Calc が起動している場合は先に終了します。
 3. インストーラーを実行し、ユーザー アカウント制御（UAC）で「はい」を押します。
    - コード署名のないファイルなので、**「Windows によって PC が保護されました」（SmartScreen）** が表示されることがあります。「詳細情報」→「実行」を押してください。実行前に、下の [SHA-256](#ファイルの確認-sha-256) や[署名](#署名を自分で確認する)でファイルを確認できます。

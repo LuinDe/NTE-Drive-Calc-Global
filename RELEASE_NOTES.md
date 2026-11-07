@@ -1,3 +1,7 @@
+# Global 2.3.5
+
+[엘림 가방 동기화 수정 · 한국어 / English / 日本語 / 中文](RELEASE_NOTES_2.3.5.md)
+
 # Global 2.3.4
 
 [엘림 업데이트 및 새 서명 키로 전환하는 방법 · 한국어 / English / 日本語 / 中文](RELEASE_NOTES_2.3.4.md)
