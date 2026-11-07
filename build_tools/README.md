@@ -12,10 +12,10 @@ English: restored public bootstrap, dependency and build files do not resolve al
 
 ## Provenance and prerequisites
 
-- Original author: **[WuDu / hxwd94666](https://github.com/hxwd94666) and NTE Drive Calc contributors**.
+- Original author: **[hxwd94666](https://github.com/hxwd94666) and NTE Drive Calc contributors**.
 - Original source: https://github.com/hxwd94666/NTE-Drive-Calculator
 - Upstream baseline: `0e7a6b4e8e61d7a288e520bbc192a411d68c2fb1` (Calc 2.3.1).
-- [UPSTREAM_SOURCE_FILES.json](../UPSTREAM_SOURCE_FILES.json) lists 121 restored public files and hashes. Original `pyproject.toml` metadata (including upstream maintainer and URLs) is preserved as provenance; **Global is maintained by LuinDe**, not WuDu. `uv.lock` is the original dependency lock.
+- [UPSTREAM_SOURCE_FILES.json](../UPSTREAM_SOURCE_FILES.json) lists 121 restored public files and hashes. `pyproject.toml` retains upstream dependency metadata and project URLs; its maintainer field identifies **Global maintainer LuinDe**. The provenance manifest records the upstream and published hashes for this metadata adjustment. `uv.lock` is the original dependency lock.
 - `main.py` is the public upstream entry point. Root `build_exe.py` and `build_installer.py` are upstream build tools and expect assets/data/third_party payloads that are not fully in this source package. Use the Global tools below for the retained build workflow.
 - `native/counterfactual-core` is the public C++ prototype, not the shipped private Rust analysis Core.
 - Windows x64, CPython 3.11 (historical builds used 3.11.15), the appropriate Python dependencies and Inno Setup 6 are required. Do not infer a standalone full build from the restored metadata alone.
@@ -48,7 +48,7 @@ python build_tools/build_installer_g231.py --exe <output-NTE_Drive_Calc.exe> --s
 
 ## Rebuild the public source archive
 
-Use the tools from the same source supplement commit identified by the release notes. The packer reads tracked Git objects, excludes executable/DLL payloads and validates every restored upstream file against its manifest. It retains `LICENSE`/`NOTICE` at their original paths and supplies `.txt` aliases. `SOURCE_OFFER.txt` is the corrected generated notice; it is **not byte-identical** to the old retained installer's embedded notice.
+Use the tools from the same source supplement commit identified by the release notes. The packer reads tracked Git objects, excludes executable/DLL payloads and validates every restored file against its manifest, including documented published metadata adjustments. It retains `LICENSE`/`NOTICE` at their original paths and supplies `.txt` aliases. `SOURCE_OFFER.txt` is the corrected generated notice; it is **not byte-identical** to the old retained installer's embedded notice.
 
 ```powershell
 python build_tools/make_source_zip_g231.py . <supplement-commit> NTE_Drive_Calc_2.3.6_Multilingual_source.zip --version 2.3.6 --exe-sha256 3743845cb74a5ed7e175464386d4411fd32bda611cec5fd9a8570ea31a623115 --date 2026-11-07T00:00:00

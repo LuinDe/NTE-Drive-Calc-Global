@@ -157,7 +157,7 @@ rights holders. Bundled third-party components retain their own terms.
   - Preserve installed component license/provenance records under license_records/.
   - Expand the source archive and correct source-completeness claims in notices.
   - Rewrite Korean, Chinese, English and Japanese project descriptions, retaining
-    attribution to WuDu / hxwd94666 and NTE Drive Calc contributors.
+    attribution to hxwd94666 and NTE Drive Calc contributors.
   - No application src/ or retained 2.3.6 installer bytes changed in this supplement.
   - Exact native Corresponding Source remains unresolved; see SOURCE_OFFER.md.
 Original project: https://github.com/hxwd94666/NTE-Drive-Calculator

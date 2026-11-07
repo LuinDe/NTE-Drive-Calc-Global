@@ -2,7 +2,7 @@
 
 NTE Drive Calc Global **2.3.6** · 2026-11-07 소스·문서 보완 / source and documentation supplement
 
-- Original author: **[WuDu / hxwd94666](https://github.com/hxwd94666) and NTE Drive Calc contributors**
+- Original author: **[hxwd94666](https://github.com/hxwd94666) and NTE Drive Calc contributors**
 - Original project: https://github.com/hxwd94666/NTE-Drive-Calculator
 - Original releases: https://github.com/hxwd94666/NTE-Drive-Calc
 - Global maintainer / repository: LuinDe — https://github.com/LuinDe/NTE-Drive-Calc-Global

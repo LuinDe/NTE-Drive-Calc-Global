@@ -6,7 +6,7 @@
 
 ## Original author and project
 
-- Original author: **[WuDu / hxwd94666](https://github.com/hxwd94666) and NTE Drive Calc contributors**
+- Original author: **[hxwd94666](https://github.com/hxwd94666) and NTE Drive Calc contributors**
 - Original source: **[NTE-Drive-Calculator](https://github.com/hxwd94666/NTE-Drive-Calculator)**
 - Original releases: **[NTE-Drive-Calc](https://github.com/hxwd94666/NTE-Drive-Calc)**
 - Global maintainer: [LuinDe](https://github.com/LuinDe). Report Global issues in [this repository](https://github.com/LuinDe/NTE-Drive-Calc-Global/issues).

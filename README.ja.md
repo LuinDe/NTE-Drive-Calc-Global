@@ -6,7 +6,7 @@
 
 ## 原作者と元のプロジェクト
 
-- 原作者：**[WuDu / hxwd94666](https://github.com/hxwd94666) および NTE Drive Calc contributors**
+- 原作者：**[hxwd94666](https://github.com/hxwd94666) および NTE Drive Calc contributors**
 - 元のソース：**[NTE-Drive-Calculator](https://github.com/hxwd94666/NTE-Drive-Calculator)**
 - 元の配布ページ：**[NTE-Drive-Calc](https://github.com/hxwd94666/NTE-Drive-Calc)**
 - Global の保守：[LuinDe](https://github.com/LuinDe)。Global に関する報告は[このリポジトリの Issues](https://github.com/LuinDe/NTE-Drive-Calc-Global/issues)へお願いします。

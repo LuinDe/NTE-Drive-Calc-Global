@@ -12,7 +12,7 @@ authors = [
     { name = "NTE Drive Calc contributors" },
 ]
 maintainers = [
-    { name = "WuDu" },
+    { name = "LuinDe" },
 ]
 requires-python = ">=3.11"
 classifiers = [

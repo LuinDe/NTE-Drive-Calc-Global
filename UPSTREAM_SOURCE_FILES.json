@@ -111,7 +111,10 @@
       "path": "pyproject.toml",
       "git_blob": "84f549da9bc82040b4760ab2420b44292764d72d",
       "bytes": 3133,
-      "sha256": "6580bbf948454b7a899e5d64af731aa04b31d67e145b353e1ec78f12f772c550"
+      "sha256": "6580bbf948454b7a899e5d64af731aa04b31d67e145b353e1ec78f12f772c550",
+      "published_sha256": "bdd026a7dfcdcc58e75fa4668e76a2f9458036c8af7f0a39d3e664fa431619bc",
+      "published_bytes": 3135,
+      "modification": "Global package maintainer metadata uses the public Global maintainer name. Original dependency declarations are unchanged."
     },
     {
       "path": "tools/__init__.py",
@@ -731,5 +734,6 @@
       "bytes": 179362,
       "sha256": "f715c382fa2882f96d86ca0fc64d9ceccf675016d13b06e61dcbca8881ad39aa"
     }
-  ]
+  ],
+  "published_adjustments": "The original sha256/git_blob identify upstream bytes; published_sha256/published_bytes, when present, identify documented Global metadata adjustments."
 }

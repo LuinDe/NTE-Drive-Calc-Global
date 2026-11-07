@@ -6,7 +6,7 @@
 
 ## 원작자와 원본 프로젝트
 
-- 원작자: **[WuDu / hxwd94666](https://github.com/hxwd94666) 및 NTE Drive Calc contributors**
+- 원작자: **[hxwd94666](https://github.com/hxwd94666) 및 NTE Drive Calc contributors**
 - 원본 소스: **[NTE-Drive-Calculator](https://github.com/hxwd94666/NTE-Drive-Calculator)**
 - 원본 배포 페이지: **[NTE-Drive-Calc](https://github.com/hxwd94666/NTE-Drive-Calc)**
 - Global 유지보수: [LuinDe](https://github.com/LuinDe) · Global 관련 문의: [이 저장소의 Issues](https://github.com/LuinDe/NTE-Drive-Calc-Global/issues)

@@ -38,7 +38,7 @@ OFFICIAL_EXE_SHA256 = "5b8fa8d2b7580bacd494c0f71e76d7b05cf1bee4f9b94bb945993a2e1
 
 README = """\
 NTE Drive Calc Global {global_version} — public source supplement
-Original author: WuDu / hxwd94666 and NTE Drive Calc contributors
+Original author: hxwd94666 and NTE Drive Calc contributors
 Original project: {upstream_url}
 Upstream baseline: {upstream_commit} (Calc {version})
 Global maintainer/repository: LuinDe — {project_url}
@@ -109,7 +109,7 @@ def main() -> int:
     provenance = json.loads(entries[f"{top}/UPSTREAM_SOURCE_FILES.json"])
     for record in provenance["files"]:
         data = entries.get(f"{top}/{record['path']}")
-        if data is None or hashlib.sha256(data).hexdigest() != record["sha256"]:
+        if data is None or hashlib.sha256(data).hexdigest() != record.get("published_sha256", record["sha256"]):
             sys.exit(f"REFUSED: restored source missing or changed: {record['path']}")
 
     if "GNU AFFERO GENERAL PUBLIC LICENSE" not in entries[f"{top}/LICENSE.txt"][:600].decode("utf-8", "replace"):

@@ -1,6 +1,6 @@
 # 2026-11-07 · Global 2.3.6 source/documentation supplement
 
-- Restored 121 exact public upstream files; see UPSTREAM_SOURCE_FILES.json.
+- Restored 121 public upstream files (with a documented Global maintainer metadata adjustment); see UPSTREAM_SOURCE_FILES.json.
 - Preserved 120 installed license/provenance records under license_records/.
 - Expanded the public source archive and corrected source-completeness claims.
 - Rewrote the Korean, Chinese, English and Japanese descriptions with original author credits.

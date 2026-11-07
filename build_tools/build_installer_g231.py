@@ -314,7 +314,7 @@ NOTICE = {
 NTE Drive Calc Global {global_version} - NTE Drive Calc {version} 다국어판 (비공식 빌드)
 
 이 설치 프로그램은 NTE Drive Calc {version} 의 비공식 다국어(한국어 / English / 日本語 / 简体中文) 빌드를 설치합니다.
-원 프로그램 제작자(WuDu / hxwd94666 및 NTE Drive Calc contributors)가 배포하는 공식 빌드가 아니며, 공식 지원 대상이 아닙니다.
+원 프로그램 제작자(hxwd94666 및 NTE Drive Calc contributors)가 배포하는 공식 빌드가 아니며, 공식 지원 대상이 아닙니다.
 원 프로젝트: {upstream_url}
 이 빌드: {project_url}
 
@@ -333,7 +333,7 @@ NTE Drive Calc Global {global_version} - NTE Drive Calc {version} 다국어판 (
 NTE Drive Calc Global {global_version} - Multilingual Edition of NTE Drive Calc {version} (unofficial build)
 
 This installer sets up an unofficial multilingual (Korean / English / Japanese / Simplified Chinese) build of NTE Drive Calc {version}.
-It is NOT an official build published by the original authors (WuDu / hxwd94666 and NTE Drive Calc contributors) and is not supported by them.
+It is NOT an official build published by the original authors (hxwd94666 and NTE Drive Calc contributors) and is not supported by them.
 Original project: {upstream_url}
 This build: {project_url}
 
@@ -352,7 +352,7 @@ Public Calc/Global source and adaptations: {source_zip}. Exact complete Correspo
 NTE Drive Calc Global {global_version} - NTE Drive Calc {version} 多言語版（非公式ビルド）
 
 このインストーラーは NTE Drive Calc {version} の非公式多言語（韓国語 / English / 日本語 / 簡体字中国語）ビルドをインストールします。
-原作者（WuDu / hxwd94666 および NTE Drive Calc contributors）が配布する公式ビルドではなく、公式サポートの対象外です。
+原作者（hxwd94666 および NTE Drive Calc contributors）が配布する公式ビルドではなく、公式サポートの対象外です。
 元のプロジェクト: {upstream_url}
 このビルド: {project_url}
 
@@ -371,7 +371,7 @@ NTE Drive Calc Global {global_version} - NTE Drive Calc {version} 多言語版�
 NTE Drive Calc Global {global_version} - NTE Drive Calc {version} 多语言版（非官方构建）
 
 本安装程序将安装 NTE Drive Calc {version} 的非官方多语言（韩语 / English / 日语 / 简体中文）构建。
-它不是原作者（WuDu / hxwd94666 及 NTE Drive Calc contributors）发布的官方构建，也不在官方支持范围内。
+它不是原作者（hxwd94666 及 NTE Drive Calc contributors）发布的官方构建，也不在官方支持范围内。
 原项目：{upstream_url}
 本构建：{project_url}
 
@@ -391,7 +391,7 @@ NTE Drive Calc Global {global_version} - NTE Drive Calc {version} 多语言版�
 SOURCE_OFFER = """\
 NTE Drive Calc Global {global_version} — public source coverage / 소스 제공 범위 / 源码范围 / ソースの範囲
 
-Original author: WuDu / hxwd94666 and NTE Drive Calc contributors
+Original author: hxwd94666 and NTE Drive Calc contributors
 Author profile: https://github.com/hxwd94666
 Original project: {upstream_url}
 Global maintainer: LuinDe — {project_url}
@@ -440,7 +440,7 @@ NTE Drive Calc Global {global_version} - NTE Drive Calc {version} 다국어판 (
 
 [한국어]
 이 폴더는 NTE Drive Calc {version} 비공식 다국어판(NTE Drive Calc Global) 설치 프로그램이 만든 것입니다.
-원 프로그램 제작자(WuDu / hxwd94666 및 NTE Drive Calc contributors)가 배포하는 공식 빌드가 아니며, 공식 지원 대상이 아닙니다.
+원 프로그램 제작자(hxwd94666 및 NTE Drive Calc contributors)가 배포하는 공식 빌드가 아니며, 공식 지원 대상이 아닙니다.
 원 프로젝트: {upstream_url}
 이 빌드: {project_url}
 

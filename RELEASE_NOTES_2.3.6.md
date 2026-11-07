@@ -2,7 +2,7 @@
 
 ## 한국어
 
-원작자: **[WuDu / hxwd94666](https://github.com/hxwd94666) · [NTE Drive Calc original project](https://github.com/hxwd94666/NTE-Drive-Calculator)** 및 NTE Drive Calc contributors. Global은 LuinDe가 독립 유지보수하는 비공식 다국어 파생 프로젝트입니다.
+원작자: **[hxwd94666](https://github.com/hxwd94666) · [NTE Drive Calc original project](https://github.com/hxwd94666/NTE-Drive-Calculator)** 및 NTE Drive Calc contributors. Global은 LuinDe가 독립 유지보수하는 비공식 다국어 파생 프로젝트입니다.
 
 2.3.6은 엘림 전신 이미지 형식 때문에 발생하던 시작 오류를 수정한 버전입니다. 중국 본서버 1.5.4 엘림 데이터·도감·장비 배치와 Core 가방 매핑을 포함합니다. 실제 글로벌 게임에 연결한 동기화 검증은 아직 완료되지 않았으며, 엘림의 실측 DPS 사이클도 미포함입니다.
 
@@ -14,7 +14,7 @@
 
 ## 中文
 
-原作者：**[WuDu / hxwd94666](https://github.com/hxwd94666) · [NTE Drive Calc original project](https://github.com/hxwd94666/NTE-Drive-Calculator)** 及 NTE Drive Calc contributors。Global 是 LuinDe 独立维护的非官方多语言衍生项目。
+原作者：**[hxwd94666](https://github.com/hxwd94666) · [NTE Drive Calc original project](https://github.com/hxwd94666/NTE-Drive-Calculator)** 及 NTE Drive Calc contributors。Global 是 LuinDe 独立维护的非官方多语言衍生项目。
 
 2.3.6 修复曳尔沐立绘格式导致的启动错误，包含国服 1.5.4 曳尔沐数据、图鉴、装备布局与 Core 背包映射。连接实际国际服游戏的同步验证尚未完成，也未包含实测 DPS 循环。
 
@@ -26,7 +26,7 @@
 
 ## English
 
-Original author: **[WuDu / hxwd94666](https://github.com/hxwd94666) · [NTE Drive Calc original project](https://github.com/hxwd94666/NTE-Drive-Calculator)** and NTE Drive Calc contributors. Global is an unofficial multilingual derivative independently maintained by LuinDe.
+Original author: **[hxwd94666](https://github.com/hxwd94666) · [NTE Drive Calc original project](https://github.com/hxwd94666/NTE-Drive-Calculator)** and NTE Drive Calc contributors. Global is an unofficial multilingual derivative independently maintained by LuinDe.
 
 2.3.6 fixes the startup error caused by Elyms' artwork format and includes CN 1.5.4 Elyms data, reference catalog, equipment layout and Core inventory mapping. Synchronization with a live Global game session has not yet been verified; measured Elyms DPS rotations are not included.
 
@@ -38,7 +38,7 @@ For startup failures or versions 2.3.2 and earlier using the previous signing ke
 
 ## 日本語
 
-原作者：**[WuDu / hxwd94666](https://github.com/hxwd94666) · [NTE Drive Calc original project](https://github.com/hxwd94666/NTE-Drive-Calculator)** および NTE Drive Calc contributors。Global は LuinDe が独立して保守する非公式多言語派生プロジェクトです。
+原作者：**[hxwd94666](https://github.com/hxwd94666) · [NTE Drive Calc original project](https://github.com/hxwd94666/NTE-Drive-Calculator)** および NTE Drive Calc contributors。Global は LuinDe が独立して保守する非公式多言語派生プロジェクトです。
 
 2.3.6 はイェルムの画像形式による起動エラーを修正し、中国版 1.5.4 のデータ・図鑑・装備配置・Core インベントリマッピングを含みます。実際のグローバル版ゲームに接続した同期検証は未完了で、実測 DPS ローテーションも未収録です。
 

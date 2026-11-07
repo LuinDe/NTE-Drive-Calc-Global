@@ -2,7 +2,7 @@
 
 2026-11-07 · NTE Drive Calc Global 2.3.6
 
-Original author: **[WuDu / hxwd94666](https://github.com/hxwd94666) and NTE Drive Calc contributors**
+Original author: **[hxwd94666](https://github.com/hxwd94666) and NTE Drive Calc contributors**
 
 Original project: https://github.com/hxwd94666/NTE-Drive-Calculator
 

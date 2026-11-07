@@ -6,7 +6,7 @@
 
 ## 原作者与原项目
 
-- 原作者：**[WuDu / hxwd94666](https://github.com/hxwd94666) 及 NTE Drive Calc contributors**
+- 原作者：**[hxwd94666](https://github.com/hxwd94666) 及 NTE Drive Calc contributors**
 - 原项目源码：**[NTE-Drive-Calculator](https://github.com/hxwd94666/NTE-Drive-Calculator)**
 - 原项目发布页：**[NTE-Drive-Calc](https://github.com/hxwd94666/NTE-Drive-Calc)**
 - Global 维护者：[LuinDe](https://github.com/LuinDe)；Global 问题请提交到[本仓库 Issues](https://github.com/LuinDe/NTE-Drive-Calc-Global/issues)。
