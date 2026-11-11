@@ -22,7 +22,7 @@ from typing import NamedTuple
 from src.app.version import __version__
 
 # ── identity (bumped every release; the tag is "v" + GLOBAL_VERSION) ─────────────────────────────────────────
-GLOBAL_VERSION = "2.3.6"
+GLOBAL_VERSION = "2.3.7"
 UPSTREAM_BASE = __version__                      # "2.3.1": information only, never compared with GLOBAL_VERSION
 
 # ── update channel: ONLY the GitHub Releases of this repository ──────────────────────────────────────────────

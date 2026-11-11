@@ -1,3 +1,7 @@
+# Global 2.3.7
+
+[엘림 한국 서버 전환 · 시작 오류 해결 · 한국어 / English / 日本語 / 中文](RELEASE_NOTES_2.3.7.md)
+
 # Global 2.3.6
 
 [시작 시 캐릭터 카탈로그 오류 수정 · 한국어 / English / 日本語 / 中文](RELEASE_NOTES_2.3.6.md)

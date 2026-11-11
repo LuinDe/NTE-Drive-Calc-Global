@@ -13,17 +13,20 @@
 
 Original links are retained for attribution. The original repositories were inaccessible when checked on 2026-11-07; the reason has not been established. This project does not claim official endorsement, support or joint authorship by the original author.
 
-## Current release: 2.3.6
+## Current release: 2.3.7
 
-**[Download v2.3.6 and read the release notes](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/tag/v2.3.6)**
+**[Download v2.3.7 and read the release notes](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/tag/v2.3.7)**
 
-For Windows 10/11 x64. The installer is `NTE_Drive_Calc_2.3.6_Multilingual_Setup.exe`; the public source archive is `NTE_Drive_Calc_2.3.6_Multilingual_source.zip`. Only release 2.3.6 is retained. Earlier releases and version tags have been removed; Git source history is preserved.
+For Windows 10/11 x64. The installer is `NTE_Drive_Calc_2.3.7_Multilingual_Setup.exe`; the public source archive is `NTE_Drive_Calc_2.3.7_Multilingual_source.zip`.
 
-- Includes Elyms (1090) data, reference catalog, equipment layout and Core inventory mapping from CN 1.5.4.
-- 2.3.6 fixes the startup error caused by Elyms' full-body artwork format.
-- Measured Elyms DPS rotations are not ready, so Elyms is excluded from team simulation and rotation-based efficiency tables. Inventory synchronization with a live Global game session has not yet been verified.
+- Elyms (1090) launched on the Korean server on 2026-11-11, so her data now follows the **Korean server**. In the Korean UI her skill, Awakening, Resonance, passive and Arc names and descriptions use the Korean server's game text (live 1.5.4 Korean data of [nte.nanoka.cc](https://nte.nanoka.cc/)), and Korean cultivation material names follow the same data.
+- The Korean UI's Elyms catalog profile shows the teams and rotations community players actually use, for reference only (not used in calculations).
+- Stats, skill multipliers, Arc values and the equipment layout match the values confirmed on the Korean server and are unchanged.
+- The home page (Workbench) avatar now shows Elyms (PNG).
+- Fixes the 2.3.3–2.3.5 startup error ("Standalone character catalog unavailable"). A damaged catalog no longer stops the program; it starts with the base game data and shows a warning.
+- Measured Elyms DPS rotations are not ready, so Elyms is excluded from team simulation and rotation-based efficiency tables. Inventory synchronization with a live game session has not yet been verified.
 
-The 2026-11-07 source and documentation supplement **does not change the existing 2.3.6 installer**. It restores 121 omitted public upstream files and corrects the source ZIP, licensing notices and release description. The existing installer's statement that the ZIP contains all Corresponding Source is inaccurate; read the [correction](docs/SOURCE_OFFER_CORRECTION_2.3.6.md).
+The existing 2.3.6 installer's statement that the ZIP contains all Corresponding Source is inaccurate; read the [correction](docs/SOURCE_OFFER_CORRECTION_2.3.6.md).
 
 ## Features
 
@@ -37,10 +40,10 @@ Calculations are estimates within the implemented model and available data. They
 ## Install and use
 
 1. Close the calculator and back up existing account and settings data.
-2. Download and run the [v2.3.6 installer](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/tag/v2.3.6). It uses the existing installation location and is designed to preserve user data.
+2. Download and run the [v2.3.7 installer](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/tag/v2.3.7). It uses the existing installation location and is designed to preserve user data.
 3. Select a language using the buttons at the bottom left. See the [usage guide](docs/USAGE.en.md) for simulation and efficiency-table controls.
 
-Versions 2.3.2 and earlier using the old signing key require a one-time manual installation of 2.3.6. Subsequent update checks use this Global repository. Game-connection compatibility depends on the game build and native components.
+Versions 2.3.3–2.3.5 (startup error) and 2.3.2 and earlier (old signing key) require a one-time manual installation of 2.3.7; 2.3.6 can update in-app. Subsequent update checks use this Global repository. Game-connection compatibility depends on the game build and native components.
 
 ## Source and licensing status
 

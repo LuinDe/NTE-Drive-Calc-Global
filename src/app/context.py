@@ -35,6 +35,9 @@ class ApplicationPaths:
     template_dir: Path
     static_database_path: Path
     role_catalog: RoleCatalogRelease | None = None
+    # Global 2.3.7: why a present role catalog was rejected (None = loaded or absent).  A damaged catalog no
+    # longer stops the start (2.3.3-2.3.5 could not even reach the in-app updater); gui_startup shows this.
+    role_catalog_error: str | None = None
 
     @property
     def cultivation_database_path(self) -> Path:
@@ -94,6 +97,7 @@ class ApplicationPaths:
             Path(static_database_path).resolve() if static_database_path is not None
             else root_path / "data" / "game_static.sqlite3"
         )
+        role_catalog, role_catalog_error = _resolve_role_catalog_or_error(static_path)
         return cls(
             root=root_path,
             app_dir=Path(app_dir).resolve(),
@@ -104,7 +108,8 @@ class ApplicationPaths:
             config_dir=config_dir,
             accounts_dir=accounts_dir,
             accounts_index_file=accounts_dir / "accounts.json",
-            role_catalog=resolve_role_catalog(static_path),
+            role_catalog=role_catalog,
+            role_catalog_error=role_catalog_error,
             shared_database_path=data_root_path / "data" / "app_shared.sqlite3",
             global_ui_preferences_file=config_dir / "global_ui_preferences.json",
             workshop_weight_template_file=config_dir / "workshop_weight_template.json",
@@ -115,6 +120,21 @@ class ApplicationPaths:
                 else root_path / "data" / "game_static.sqlite3"
             ),
         )
+
+
+def _resolve_role_catalog_or_error(static_path: Path) -> tuple[RoleCatalogRelease | None, str | None]:
+    """The verified role catalog, or (None, reason) when a present catalog fails validation.
+
+    Without a catalog every consumer already falls back to the complete game database (cultivation pages,
+    catalog artwork root), so the application can start and the user can still reach the in-app updater.
+    The release build gate keeps validating the shipped catalog strictly (build_installer_g231.py).
+    """
+    try:
+        return resolve_role_catalog(static_path), None
+    except ValueError as exc:
+        # the cause names the failed check; the generic "reinstall" sentence is shown by gui_startup itself
+        cause = exc.__cause__
+        return None, (f"{type(cause).__name__}: {cause}" if cause is not None else str(exc))
 
 
 @dataclass(frozen=True)

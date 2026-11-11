@@ -247,10 +247,10 @@ def build_home_page(window) -> QScrollArea:
     title_column.addWidget(window.home_global_version_label)
     hero_layout.addLayout(title_column)
     hero_layout.addStretch()
-    # 工作台头像取已核验角色目录中的明音凛 256px 图片，不替换战报数据集。
+    # 工作台头像取已核验角色目录中的曳尔沐 256px PNG 图片（Global 2.3.7），不替换战报数据集。
     hero_icon_path = GameUiAssetCatalog(
         window.app_context.paths.cultivation_asset_root
-    ).character_icon(1057)
+    ).character_icon(1090)
     if hero_icon_path is not None:
         hero_icon = QLabel()
         hero_icon.setObjectName("homeHeroAvatar")

@@ -402,7 +402,43 @@ class CharacterDetailView(QWidget):
             panel.layout().addWidget(self._muted(_L('当前正式数据未提供等级面板')))
         self.overview_layout.addWidget(panel)
 
+        community = self._community_panel(detail.character.character_id)
+        if community is not None:
+            self.overview_layout.addWidget(community)
+
         self.overview_layout.addStretch(1)
+
+    def _community_panel(self, character_id: int) -> QFrame | None:
+        """Global 2.3.7: teams and rotations Korean players report (community posts; Korean UI only).
+
+        Game data stays official; these entries are player usage (not the official recommendation, not videos) and
+        never feed a calculation.
+        """
+        try:
+            from src import i18n_runtime
+            from src.services.community_guides import guide_for
+
+            if i18n_runtime.get_language() != "ko":
+                return None
+            guide = guide_for(int(character_id))
+        except Exception:
+            return None
+        if not guide:
+            return None
+        panel = self._panel("커뮤니티 추천 조합 · 딜 사이클")
+        layout = panel.layout()
+        for team in guide["teams"]:
+            layout.addWidget(self._detail_tile("추천 조합 · " + " · ".join(team["members"]), team["note"]))
+        for rotation in guide["rotations"]:
+            text = " → ".join(rotation["steps"])
+            if rotation.get("condition"):
+                text += "\n" + rotation["condition"]
+            layout.addWidget(self._detail_tile("딜 사이클 · " + rotation["label"], text))
+        footnote = QLabel(guide["footnote"], panel)
+        footnote.setWordWrap(True)
+        footnote.setStyleSheet(themed_style("color:#8b949e;background:transparent;border:none;font-size:10px"))
+        layout.addWidget(footnote)
+        return panel
 
     def _render_affinity(self, detail: CharacterDetail) -> None:
         self._clear(self.affinity_layout)

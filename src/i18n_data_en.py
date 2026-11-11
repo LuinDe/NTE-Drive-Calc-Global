@@ -5635,6 +5635,7 @@ S = {
  "游戏连接已暂停，程序暂时无法读取角色状态。\n\n": "Game connection is paused; the program temporarily cannot read character status.\n\n",
  "物品归档内容校验失败；请重新执行原生背包同步。": "Item archive content verification failed; please run native inventory sync again.",
  "独立角色目录不可用，请重新安装完整的角色目录包": "Standalone character catalog unavailable; please reinstall the complete character catalog package",
+ "已改用完整游戏数据库启动，部分图鉴内容可能缺失。": "Started with the complete game database instead; some catalog content may be missing.",
  "由于版本更新解析逻辑变动，需要重新进行全量扫描": "Parsing logic changed due to a version update; a full rescan is required",
  "目标生命进程及后续触发联动尚未整体反事实重放。": "Target HP progression and subsequent trigger chains have not yet been replayed counterfactually as a whole.",
  "确认战斗模式、对象、难度、争锋加成与魔女赐福。": "Confirm combat mode, target, difficulty, Clash bonus, and Witch's Blessing.",

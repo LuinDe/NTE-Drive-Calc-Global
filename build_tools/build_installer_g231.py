@@ -83,13 +83,13 @@ APP_EXE_NAME = "NTE_Drive_Calc.exe"
 OFFICIAL_APP_ID = "D7DA28BE-8A19-4E05-9216-3F16C4C2C820"      # upstream build_installer.py APP_ID
 SANDBOX_APP_ID = "5B0C6E1A-7F2D-4C39-8E54-1D9A3F6B2C70"       # test-only identity, never the official one
 SANDBOX_DEFAULT_DIR = r"C:\Temp\nte_g231_setup_sandbox"
-DEFAULT_VERSION = "2.3.6"                                      # Global grammar: <major>.<minor>.<patch>[-global.<n>]
+DEFAULT_VERSION = "2.3.7"                                      # Global grammar: <major>.<minor>.<patch>[-global.<n>]
 # the grammar of src/app/global_release.py (_PLAIN / _VERSION_CORE): fullmatch only, ASCII digits, no leading zeros
 _PLAIN = r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
 _VERSION_CORE = _PLAIN + r"(?:-global\.([1-9][0-9]*))?"
 GLOBAL_VERSION_RE = re.compile(_VERSION_CORE, re.ASCII)
 GLOBAL_TAG_RE = re.compile(r"v" + _VERSION_CORE, re.ASCII)
-PREVIOUS_RELEASE_VERSION = "2.3.5"                    # last published release: --version must be newer
+PREVIOUS_RELEASE_VERSION = "2.3.6"                    # last published release: --version must be newer
 UPSTREAM_BASE = "2.3.1"                                        # official version this build is based on (src/app/version.py)
 MANIFEST_FORMAT = 1                                            # src/services/global_update/verify.py parse_manifest
 MANIFEST_PRODUCT = "NTE-Drive-Calc-Global"

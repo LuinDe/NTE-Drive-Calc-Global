@@ -66,5 +66,23 @@ def run_gui(APP_CONTEXT, GLOBAL_THEME_SETTINGS, MainWindow, _ensure_admin):
         app.setWindowIcon(QIcon(str(APP_CONTEXT.paths.app_icon_path)))
     w = MainWindow()
     w.show()
+    _warn_role_catalog_fallback(APP_CONTEXT, w)
     sys.exit(app.exec())
+
+
+def _warn_role_catalog_fallback(APP_CONTEXT, window) -> None:
+    """Global 2.3.7: a rejected role catalog starts the app on the complete game DB; say so once the window is up."""
+    error = getattr(APP_CONTEXT.paths, "role_catalog_error", None)
+    if not error:
+        return
+    logger.error(f"role catalog rejected, started on the complete game database: {error}")
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QMessageBox
+
+    message = "\n\n".join((
+        _L('独立角色目录不可用，请重新安装完整的角色目录包'),
+        _L('已改用完整游戏数据库启动，部分图鉴内容可能缺失。'),
+        str(error)[:600],
+    ))
+    QTimer.singleShot(0, lambda: QMessageBox.warning(window, _L('警告'), message))
 

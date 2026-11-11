@@ -8,7 +8,8 @@ NTE Drive Calc Global **2.3.6** · 2026-11-07 소스·문서 보완 / source and
 - Global maintainer / repository: LuinDe — https://github.com/LuinDe/NTE-Drive-Calc-Global
 - Public upstream baseline: `0e7a6b4e8e61d7a288e520bbc192a411d68c2fb1` (Calc 2.3.1)
 - Retained v2.3.6 application commit: [`5d3522a37bd35ef094721cf17b91f36ed9c6cb94`](https://github.com/LuinDe/NTE-Drive-Calc-Global/tree/5d3522a37bd35ef094721cf17b91f36ed9c6cb94)
-- Current source package and correction: [v2.3.6 release](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/tag/v2.3.6)
+- Current source package: [v2.3.7 release](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/tag/v2.3.7) (Korean-server Elyms texts; same native components and source coverage as 2.3.6)
+- Installer notice correction: [v2.3.6 release](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/tag/v2.3.6)
 
 ## 한국어
 

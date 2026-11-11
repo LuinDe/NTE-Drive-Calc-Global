@@ -1,3 +1,13 @@
+# 2026-11-11 · Global 2.3.7 (Korean-server Elyms)
+
+- Elyms (1090) launched on the Korean server (1.5, 2026-11-11). Her Korean names and descriptions are the Korean server's game text from the live 1.5.4 data of nte.nanoka.cc (zh/ko JSON aligned field by field to the app's Chinese source strings; 89 of 124 strings verbatim, newline layout adapted; 28 level-hint labels nanoka does not list written with the same official terms): `src/i18n_desc.py` (108 entries replacing the earlier self-made summaries) and `src/i18n_display.py` (EXTRA_TERMS skill names 일시적 오류 / 채널 오류 / 방해성 오류 / 메모리 앵커 / 떨어지는 꿈 / 일렉트릭 드림즈 / 떠나간 사람들 / 비연속적 존재 / 너에게 안녕 / 릴레이 노드 / 유비무환 / 뭐 해, 뭐 해, terms 신호 세기 / 착시적 환각 / 꿈의 단말 / 백그라운드 접속; EXACT_TERMS 我在 = 난 여기 있어; the dead duplicate 众声轮唱 entry removed).
+- Korean cultivation material names follow the same data: 30 of the 102 materials the app uses were renamed (비틀 코인, 폰즈, hunter guides, manhole materials, carrot coins, Arc breakthrough materials, dye, threads) in `src/i18n_display.py`, plus the matching ko UI sentence.
+- Community teams and rotations: `src/services/community_guides.py` (player-reported, with sources; no official recommendations, no videos) shown on the character profile in the Korean UI only (`src/features/static_catalog/domain_pages/character_profile.py`); no calculation reads it.
+- No game database, image or native Core changes: the catalogs keep dataset `cn_retail_20260924_9030b45b_elyms_154` (SHA-256 `9E273398…DF5A`), so the efficiency tables and the Akane Rin live overlay stay active.
+- Home page: the Workbench avatar shows Elyms' 256 px PNG portrait (`src/features/home/page.py`).
+- Startup: a role catalog that fails validation (the 2.3.3–2.3.5 WebP artwork error) no longer aborts the start; `src/app/context.py` falls back to the complete game database and `src/ui/gui_startup.py` shows a warning (new string in the ko/en/ja tables). The release gate still validates the shipped catalog strictly.
+- Version 2.3.7 (`src/app/global_release.py`, `build_tools/build_installer_g231.py`). [Release notes](RELEASE_NOTES_2.3.7.md).
+
 # 2026-11-07 · Global 2.3.6 source/documentation supplement
 
 - Restored 121 public upstream files (with a documented Global maintainer metadata adjustment); see UPSTREAM_SOURCE_FILES.json.
