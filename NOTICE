@@ -149,7 +149,8 @@ changing any game database, and adds player-reported Elyms teams and rotations s
 on the Korean character profile (src/services/community_guides.py). A role
 catalog that fails validation no longer stops the start: src/app/context.py records
 the reason, the complete game database is used and src/ui/gui_startup.py shows a
-warning.
+warning; src/services/game_ui_asset_catalog.py treats an unreadable image manifest
+as empty.
 
 Global 2.3.6 converts the supplied Elyms full-body artwork to PNG for the
 runtime character catalog. The decoded RGBA pixels are preserved.

@@ -416,7 +416,7 @@ class CharacterDetailView(QWidget):
         """
         try:
             from src import i18n_runtime
-            from src.services.community_guides import guide_for
+            from src.services.community_guides import footnote_for, guide_for, source_line, source_tooltip
 
             if i18n_runtime.get_language() != "ko":
                 return None
@@ -425,19 +425,30 @@ class CharacterDetailView(QWidget):
             return None
         if not guide:
             return None
-        panel = self._panel("커뮤니티 추천 조합 · 딜 사이클")
-        layout = panel.layout()
-        for team in guide["teams"]:
-            layout.addWidget(self._detail_tile("추천 조합 · " + " · ".join(team["members"]), team["note"]))
-        for rotation in guide["rotations"]:
-            text = " → ".join(rotation["steps"])
-            if rotation.get("condition"):
-                text += "\n" + rotation["condition"]
-            layout.addWidget(self._detail_tile("딜 사이클 · " + rotation["label"], text))
-        footnote = QLabel(guide["footnote"], panel)
-        footnote.setWordWrap(True)
-        footnote.setStyleSheet(themed_style("color:#8b949e;background:transparent;border:none;font-size:10px"))
-        layout.addWidget(footnote)
+        try:
+            # reference notes only: a malformed entry must never break the profile page
+            panel = self._panel("커뮤니티 추천 조합 · 딜 사이클")
+            layout = panel.layout()
+
+            def add_entry(title: str, text: str, entry: dict) -> None:
+                # the count is derived from the cited links, and hovering a tile lists them
+                tile = self._detail_tile(title, text + "\n" + source_line(entry))
+                tile.setToolTip(source_tooltip(entry))
+                layout.addWidget(tile)
+
+            for team in guide.get("teams") or ():
+                add_entry("추천 조합 · " + " · ".join(team["members"]), team["note"], team)
+            for rotation in guide.get("rotations") or ():
+                text = " → ".join(rotation["steps"])
+                if rotation.get("condition"):
+                    text += "\n" + rotation["condition"]
+                add_entry("딜 사이클 · " + rotation["label"], text, rotation)
+            footnote = QLabel(footnote_for(guide), panel)
+            footnote.setWordWrap(True)
+            footnote.setStyleSheet(themed_style("color:#8b949e;background:transparent;border:none;font-size:10px"))
+            layout.addWidget(footnote)
+        except Exception:
+            return None
         return panel
 
     def _render_affinity(self, detail: CharacterDetail) -> None:

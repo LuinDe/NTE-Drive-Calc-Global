@@ -23,26 +23,49 @@ def _resolve_asset(root: Path, relative: str, identity: tuple[int, int, int]) ->
     return path if path.is_file() else None
 
 
+def _empty_manifest() -> dict[str, Any]:
+    return {
+        "characters": {}, "character_arts": {}, "attributes": {},
+        "equipment_items": {},
+        "equipment_modules": {}, "fork_items": {}, "monster_icons": {},
+        "progression_items": {},
+        "encounter_icons": {}, "monster_family_icons": {},
+    }
+
+
+@lru_cache(maxsize=8)
+def _warn_unreadable(path: str, identity: tuple[int, int, int], reason: str) -> None:
+    # once per manifest version: many pages build their own catalog
+    try:
+        from src.utils.logger import logger
+
+        logger.warning(f"packaged UI image manifest unreadable, showing no packaged images: {path}: {reason}")
+    except Exception:
+        pass
+
+
 class GameUiAssetCatalog:
     def __init__(self, asset_root: str | Path) -> None:
         self.asset_root = Path(asset_root).expanduser().resolve()
         manifest_path = self.asset_root / "manifest.json"
-        info = manifest_path.stat() if manifest_path.is_file() else None
-        self._manifest_identity = (info.st_ino, info.st_size, info.st_mtime_ns) if info is not None else (0, 0, 0)
-        self._manifest: dict[str, Any] = (
-            _read_manifest(str(manifest_path), self._manifest_identity)
-            if info is not None
-            else {
-                "characters": {}, "character_arts": {}, "attributes": {},
-                "equipment_items": {},
-                "equipment_modules": {}, "fork_items": {}, "monster_icons": {},
-                "progression_items": {},
-                "encounter_icons": {}, "monster_family_icons": {},
-            }
-        )
+        self._manifest_identity = (0, 0, 0)
+        self._manifest: dict[str, Any] = _empty_manifest()
+        try:
+            info = manifest_path.stat() if manifest_path.is_file() else None
+            if info is not None:
+                self._manifest_identity = (info.st_ino, info.st_size, info.st_mtime_ns)
+                manifest = _read_manifest(str(manifest_path), self._manifest_identity)
+                if not isinstance(manifest, dict):
+                    raise ValueError(f"top level is {type(manifest).__name__}, not an object")
+                self._manifest = manifest
+        except (OSError, ValueError) as exc:
+            # Global 2.3.7: a damaged install shows no packaged images instead of stopping the start (the home page
+            # builds a catalog while the main window is created); the role-catalog check reports the damage.
+            _warn_unreadable(str(manifest_path), self._manifest_identity, f"{type(exc).__name__}: {exc}")
 
     def _resolve(self, group: str, key: str) -> Path | None:
-        relative = self._manifest.get(group, {}).get(key)
+        entries = self._manifest.get(group)
+        relative = entries.get(key) if isinstance(entries, dict) else None
         if not isinstance(relative, str):
             return None
         return _resolve_asset(self.asset_root, relative, self._manifest_identity)

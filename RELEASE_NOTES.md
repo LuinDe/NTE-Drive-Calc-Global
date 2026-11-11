@@ -22,7 +22,7 @@
 >
 > **Unofficial modified build — not the original program.** Original: <https://github.com/hxwd94666/NTE-Drive-Calculator>. Each entry has a Korean part followed by short notes in English, 日本語 and 中文.
 
-최신 버전이 위에 있습니다. / Newest first: **2.3.2** (2026-10-23) · **2.3.1-global.2** (2026-10-19, 잠시 공개 / published briefly) · **2.3.1-global.1** (2026-10-11). Global의 버전 번호는 2.3.2부터 원본과 따로 매깁니다 / From 2.3.2 on, Global numbers its versions independently of the original. Global 2.3.0의 노트는 [그 릴리스](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/tag/v2.3.0-global.1)에 있습니다.
+최신 버전이 위에 있습니다. / Newest first: **2.3.2** (2026-10-23) · **2.3.1-global.2** (2026-10-19, 잠시 공개 / published briefly) · **2.3.1-global.1** (2026-10-11). Global의 버전 번호는 2.3.2부터 원본과 따로 매깁니다 / From 2.3.2 on, Global numbers its versions independently of the original. Global 2.3.0의 노트는 Git 기록의 [첫 Global 커밋](https://github.com/LuinDe/NTE-Drive-Calc-Global/blob/ffd376e7da46299b197f86b3613e304accea01e4/RELEASE_NOTES.md)에 있습니다 / Global 2.3.0's notes are in the first Global commit.
 
 > [!TIP]
 > **ReShade·DLSS5와 함께 쓰기 (Loader 방식)** — [한국어](docs/COEXIST_RESHADE_DLSS.ko.md) · [English](docs/COEXIST_RESHADE_DLSS.en.md) · [日本語](docs/COEXIST_RESHADE_DLSS.ja.md) · [中文](docs/COEXIST_RESHADE_DLSS.zh.md)

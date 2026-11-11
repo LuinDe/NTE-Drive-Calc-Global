@@ -1,6 +1,6 @@
 # 弧盘效率表：预先计算的单人循环伤害（由 work_g231/scripts/gen_arc_efficiency_data.py 生成，勿手改）
 # GENERATED FILE - DO NOT EDIT.  Regenerate with scratchpad/v230/work_g231/scripts/gen_arc_efficiency_data.py --write
-# inputs: static DB sha256 9E273398C732141D3BF34D039F7424AC091C6EBB92EC52CE292996466B97DF5A; engine fingerprint 50a4f9cb6ddb9117 (source closure of src.services.arc_efficiency_service, 246 modules)
+# inputs: static DB sha256 9E273398C732141D3BF34D039F7424AC091C6EBB92EC52CE292996466B97DF5A; engine fingerprint 5bb05abeb66f157c (source closure of src.services.arc_efficiency_service, 246 modules)
 """Precomputed rows of the arc efficiency table (generated, do not edit): L1 of arc_efficiency_service.
 
 ROWS[(character_id, fork_id, refinement, loops, entry)] = (damage, flags, end_us, active_us): the character
@@ -16,7 +16,7 @@ U1: the account checkbox 'view at max level'); ROWS is level 0.
 FORMAT = 1
 ALGO_VERSION = 'arc-eff-1'
 DATASET = {'dataset_id': 'cn_retail_20260924_9030b45b_elyms_154', 'schema': 39, 'sha256': '9E273398C732141D3BF34D039F7424AC091C6EBB92EC52CE292996466B97DF5A'}
-ENGINE_FP = '50a4f9cb6ddb9117'
+ENGINE_FP = '5bb05abeb66f157c'
 RESOURCE_MODEL = 'community'
 ENTRY = 'opener'
 LOOPS = (1, 3)

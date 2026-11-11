@@ -1,6 +1,6 @@
 # 소스 제공 범위 / 源码范围 / Source coverage / ソースの範囲
 
-NTE Drive Calc Global **2.3.6** · 2026-11-07 소스·문서 보완 / source and documentation supplement
+NTE Drive Calc Global **2.3.7** · 소스 범위는 2026-11-07 보완 이후 같음 / source coverage unchanged since the 2026-11-07 supplement
 
 - Original author: **[hxwd94666](https://github.com/hxwd94666) and NTE Drive Calc contributors**
 - Original project: https://github.com/hxwd94666/NTE-Drive-Calculator
@@ -55,7 +55,7 @@ The application follows upstream GNU AGPL-3.0. Published materials include the G
 
 [Build instructions](build_tools/README.md) · [Elyms adaptation](build_tools/ELYMS.md) · [Installer notice correction](docs/SOURCE_OFFER_CORRECTION_2.3.6.md) · [Historical source commits](docs/source-history.md)
 
-| Retained artifact | SHA-256 |
+| Retained 2.3.6 artifact | SHA-256 |
 |---|---|
 | `NTE_Drive_Calc_2.3.6_Multilingual_Setup.exe` | `8f797c7657f425423347253b09c6dc8e5bccffd6ef15f7d03fd7edaf48eecabb` |
 | Installed `NTE_Drive_Calc.exe` | `3743845cb74a5ed7e175464386d4411fd32bda611cec5fd9a8570ea31a623115` |
