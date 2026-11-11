@@ -43,7 +43,7 @@ Calculations are estimates within the implemented model and available data. They
 2. Download and run the [v2.3.7 installer](https://github.com/LuinDe/NTE-Drive-Calc-Global/releases/tag/v2.3.7). It uses the existing installation location and is designed to preserve user data.
 3. Select a language using the buttons at the bottom left. See the [usage guide](docs/USAGE.en.md) for simulation and efficiency-table controls.
 
-Versions 2.3.3–2.3.5 (startup error) and 2.3.2 and earlier (no Global updater or the old signing key) require a one-time manual installation of 2.3.7; 2.3.6 can update in-app. Subsequent update checks use this Global repository. Game-connection compatibility depends on the game build and native components.
+Versions 2.3.3–2.3.5 (startup error) and 2.3.3 and earlier (no Global updater or the old signing key) require a one-time manual installation of 2.3.7; 2.3.6 can update in-app. Subsequent update checks use this Global repository. Game-connection compatibility depends on the game build and native components.
 
 ## Source and licensing status
 
